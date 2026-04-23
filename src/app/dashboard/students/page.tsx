@@ -16,6 +16,8 @@ type Student = {
   parent_relation: string | null
   memo: string | null
   enrolled_at: string
+  status: 'active' | 'inactive'
+  withdrawn_at: string | null
   class_students: { classes: { id: string; name: string } }[]
 }
 
@@ -51,6 +53,7 @@ export default function StudentsPage() {
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [classFilter, setClassFilter] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive'>('active')
   const [importError, setImportError] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
@@ -87,7 +90,7 @@ export default function StudentsPage() {
 
     const [{ data: studentData }, { data: classData }] = await Promise.all([
       supabase.from('students')
-        .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, class_students(classes(id, name))')
+        .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at, class_students(classes(id, name))')
         .eq('academy_id', membership.academy_id)
         .order('name'),
       supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name'),
@@ -318,6 +321,7 @@ export default function StudentsPage() {
   }
 
   const filtered = students.filter(s => {
+    if ((s.status ?? 'active') !== statusFilter) return false
     if (classFilter === 'none') {
       if (s.class_students.length > 0) return false
     } else if (classFilter) {
@@ -340,7 +344,9 @@ export default function StudentsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">학생 관리</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {classFilter ? `${filtered.length}명` : `전체 ${students.length}명`}
+            {statusFilter === 'inactive'
+              ? `퇴원 ${filtered.length}명`
+              : classFilter ? `${filtered.length}명` : `재원 ${filtered.length}명 / 전체 ${students.length}명`}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -397,6 +403,26 @@ export default function StudentsPage() {
       </div>
 
       {importError && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{importError}</p>}
+
+      {/* 재원/퇴원 필터 */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => { setStatusFilter('active'); setClassFilter(null) }}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+            statusFilter === 'active' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
+          }`}
+        >
+          재원
+        </button>
+        <button
+          onClick={() => { setStatusFilter('inactive'); setClassFilter(null) }}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+            statusFilter === 'inactive' ? 'bg-slate-500 text-white border-slate-500' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          퇴원
+        </button>
+      </div>
 
       {/* 검색 */}
       <div className="relative">
@@ -465,18 +491,21 @@ export default function StudentsPage() {
                       {isSelected && <X size={14} className="text-white" />}
                     </div>
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-blue-600 font-bold text-sm">{s.name[0]}</span>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${s.status === 'inactive' ? 'bg-slate-100' : 'bg-blue-100'}`}>
+                      <span className={`font-bold text-sm ${s.status === 'inactive' ? 'text-slate-400' : 'text-blue-600'}`}>{s.name[0]}</span>
                     </div>
                   )}
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-slate-800">{s.name}</p>
+                      <p className={`font-semibold ${s.status === 'inactive' ? 'text-slate-400' : 'text-slate-800'}`}>{s.name}</p>
+                      {s.status === 'inactive' && (
+                        <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full">퇴원</span>
+                      )}
                       {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
-                      <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{s.grade}학년</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'inactive' ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{s.grade}학년</span>
                     </div>
-                    <p className="text-sm text-slate-500">{formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}</p>
+                    <p className="text-sm text-slate-400">{formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}</p>
                   </div>
 
                   {!selectMode && (

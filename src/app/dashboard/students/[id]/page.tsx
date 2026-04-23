@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, BookOpen, Activity } from 'lucide-react'
+import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import {
@@ -13,7 +13,9 @@ type Student = {
   id: string; name: string; school_name: string | null
   grade: string; phone: string; parent_phone: string | null
   parent_relation: string | null; memo: string | null; enrolled_at: string
+  status: 'active' | 'inactive'; withdrawn_at: string | null
 }
+type AllClass = { id: string; name: string }
 type ClassInfo = { id: string; name: string }
 type AttendanceRow = {
   date: string
@@ -57,6 +59,11 @@ function StudentReportContent() {
   const [clinicData, setClinicData]     = useState<ClinicRow[]>([])
   const [showAllHomework, setShowAllHomework] = useState(false)
   const [showAllClinic, setShowAllClinic]     = useState(false)
+  const [allClasses, setAllClasses]           = useState<AllClass[]>([])
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferClassIds, setTransferClassIds]   = useState<string[]>([])
+  const [transferring, setTransferring]           = useState(false)
+  const [actionLoading, setActionLoading]         = useState(false)
 
   useEffect(() => { loadStudent() }, [studentId])
   useEffect(() => { if (selectedClassId) loadClassDetail(selectedClassId) }, [selectedClassId])
@@ -65,17 +72,62 @@ function StudentReportContent() {
     setLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at')
+      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at')
       .eq('id', studentId).single()
     if (!data) { router.push('/dashboard/students'); return }
-    setStudent(data)
+    setStudent(data as Student)
 
-    const { data: csData } = await supabase
-      .from('class_students').select('classes(id, name)').eq('student_id', studentId)
+    const [{ data: csData }, { data: membership }] = await Promise.all([
+      supabase.from('class_students').select('classes(id, name)').eq('student_id', studentId),
+      supabase.from('academy_teachers').select('academy_id').eq('teacher_id', (await supabase.auth.getUser()).data.user?.id ?? '').single(),
+    ])
     const classList: ClassInfo[] = ((csData ?? []) as any[]).map(cs => cs.classes).filter(Boolean)
     setClasses(classList)
     if (classList.length > 0) setSelectedClassId(classList[0].id)
+
+    if (membership) {
+      const { data: ac } = await supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name')
+      setAllClasses(ac ?? [])
+    }
     setLoading(false)
+  }
+
+  // ── 퇴원 처리 ──
+  async function withdrawStudent() {
+    if (!student) return
+    if (!confirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 출석·수업에서 제외돼요.\n성적·숙제·출결 등 모든 기록은 그대로 보존돼요.`)) return
+    setActionLoading(true)
+    await supabase.from('students').update({ status: 'inactive', withdrawn_at: new Date().toISOString() }).eq('id', studentId)
+    await supabase.from('class_students').delete().eq('student_id', studentId)
+    await loadStudent()
+    setActionLoading(false)
+  }
+
+  // ── 재원 복귀 ──
+  async function restoreStudent() {
+    if (!student) return
+    if (!confirm(`${student.name} 학생을 재원으로 복귀할까요?\n반 배정은 학생 관리에서 다시 설정해주세요.`)) return
+    setActionLoading(true)
+    await supabase.from('students').update({ status: 'active', withdrawn_at: null }).eq('id', studentId)
+    await loadStudent()
+    setActionLoading(false)
+  }
+
+  // ── 전반 처리 ──
+  function openTransferModal() {
+    setTransferClassIds(classes.map(c => c.id))
+    setShowTransferModal(true)
+  }
+
+  async function handleTransfer() {
+    setTransferring(true)
+    await supabase.from('class_students').delete().eq('student_id', studentId)
+    if (transferClassIds.length > 0) {
+      await supabase.from('class_students').insert(transferClassIds.map(cid => ({ class_id: cid, student_id: studentId })))
+    }
+    setShowTransferModal(false)
+    await loadStudent()
+    setTransferring(false)
   }
 
   async function loadClassDetail(classId: string) {
@@ -215,7 +267,12 @@ function StudentReportContent() {
             <span className="text-blue-600 font-bold text-xl">{student.name[0]}</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-800">{student.name}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-slate-800">{student.name}</h2>
+              {student.status === 'inactive' && (
+                <span className="text-xs px-2 py-0.5 bg-slate-200 text-slate-500 rounded-full font-medium">퇴원</span>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               {student.school_name && (
                 <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{student.school_name}</span>
@@ -250,6 +307,42 @@ function StudentReportContent() {
               <p className="text-xs text-slate-400 mb-0.5">메모</p>
               <p className="text-slate-700 font-medium">{student.memo}</p>
             </div>
+          )}
+          {student.withdrawn_at && (
+            <div className="col-span-2">
+              <p className="text-xs text-slate-400 mb-0.5">퇴원일</p>
+              <p className="text-slate-500 font-medium">{student.withdrawn_at.slice(0, 10)}</p>
+            </div>
+          )}
+        </div>
+
+        {/* 액션 버튼 */}
+        <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
+          {student.status === 'active' ? (
+            <>
+              <button
+                onClick={openTransferModal}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <ArrowRightLeft size={14} /> 전반
+              </button>
+              <button
+                onClick={withdrawStudent}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors ml-auto"
+              >
+                <LogOut size={14} /> 퇴원 처리
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={restoreStudent}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+            >
+              <RotateCcw size={14} /> 재원 복귀
+            </button>
           )}
         </div>
       </div>
@@ -481,6 +574,65 @@ function StudentReportContent() {
             </>
           )}
         </>
+      )}
+      {/* ── 전반 모달 ── */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div>
+                <h2 className="font-bold text-slate-800">전반 — 반 변경</h2>
+                <p className="text-xs text-slate-400 mt-0.5">이전 반 기록은 그대로 보존돼요</p>
+              </div>
+              <button onClick={() => setShowTransferModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">소속 반 선택</p>
+              <div className="flex flex-wrap gap-2">
+                {allClasses.map(c => {
+                  const selected = transferClassIds.includes(c.id)
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setTransferClassIds(prev =>
+                        selected ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                      )}
+                      className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                        selected
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  )
+                })}
+              </div>
+              {transferClassIds.length === 0 && (
+                <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                  반을 선택하지 않으면 미배정 상태가 돼요
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button
+                onClick={() => setShowTransferModal(false)}
+                className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 text-sm transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={transferring}
+                className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 text-sm transition-colors disabled:opacity-50"
+              >
+                {transferring ? '변경 중...' : '변경 완료'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
