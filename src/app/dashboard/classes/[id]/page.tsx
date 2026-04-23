@@ -69,11 +69,13 @@ export default function ClassDetailPage() {
   const [schedules, setSchedules]               = useState<Schedule[]>([])
   const [showScheduleForm, setShowScheduleForm] = useState(false)
   const [scheduleForm, setScheduleForm]         = useState({ day_of_week: 1, start_time: '15:00', end_time: '17:00' })
+  const [scheduleError, setScheduleError]       = useState('')
 
   // ── 클리닉 일정
   const [clinicSchedules, setClinicSchedules]                   = useState<ClinicSchedule[]>([])
   const [showClinicScheduleForm, setShowClinicScheduleForm]     = useState(false)
   const [clinicScheduleForm, setClinicScheduleForm]             = useState({ name: '', day_of_week: 1, start_time: '16:00', end_time: '18:00' })
+  const [clinicScheduleError, setClinicScheduleError]           = useState('')
   const [clinicNameEdits, setClinicNameEdits]   = useState<Record<string, string>>({})
   const [clinicTimeEdits, setClinicTimeEdits]   = useState<Record<string, { start: string; end: string }>>({})
 
@@ -221,8 +223,24 @@ export default function ClassDetailPage() {
   // ── 시간표 추가/삭제
   async function addSchedule(e: React.FormEvent) {
     e.preventDefault()
+    setScheduleError('')
+
+    if (scheduleForm.end_time <= scheduleForm.start_time) {
+      setScheduleError('종료 시간은 시작 시간보다 늦어야 해요.')
+      return
+    }
+    const sameDay = schedules.filter(s => s.day_of_week === scheduleForm.day_of_week)
+    const overlap = sameDay.some(s =>
+      scheduleForm.start_time < s.end_time && scheduleForm.end_time > s.start_time
+    )
+    if (overlap) {
+      setScheduleError('같은 요일에 겹치는 시간표가 이미 있어요.')
+      return
+    }
+
     await supabase.from('class_schedules').insert({ class_id: classId, ...scheduleForm })
     setShowScheduleForm(false)
+    setScheduleError('')
     await loadData()
   }
 
@@ -259,12 +277,40 @@ export default function ClassDetailPage() {
   }
 
   async function saveClinicScheduleTime(id: string, start: string, end: string) {
+    if (end <= start) {
+      alert('종료 시간은 시작 시간보다 늦어야 해요.')
+      return
+    }
+    const thisSchedule = clinicSchedules.find(s => s.id === id)
+    if (thisSchedule) {
+      const sameDay = clinicSchedules.filter(s => s.day_of_week === thisSchedule.day_of_week && s.id !== id)
+      const overlap = sameDay.some(s => start < s.end_time && end > s.start_time)
+      if (overlap) {
+        alert('같은 요일에 겹치는 클리닉 일정이 이미 있어요.')
+        return
+      }
+    }
     await supabase.from('clinic_schedules').update({ start_time: start, end_time: end }).eq('id', id)
     setClinicSchedules(prev => prev.map(s => s.id === id ? { ...s, start_time: start, end_time: end } : s))
   }
 
   async function addClinicSchedule(e: React.FormEvent) {
     e.preventDefault()
+    setClinicScheduleError('')
+
+    if (clinicScheduleForm.end_time <= clinicScheduleForm.start_time) {
+      setClinicScheduleError('종료 시간은 시작 시간보다 늦어야 해요.')
+      return
+    }
+    const sameDay = clinicSchedules.filter(s => s.day_of_week === clinicScheduleForm.day_of_week)
+    const overlap = sameDay.some(s =>
+      clinicScheduleForm.start_time < s.end_time && clinicScheduleForm.end_time > s.start_time
+    )
+    if (overlap) {
+      setClinicScheduleError('같은 요일에 겹치는 클리닉 일정이 이미 있어요.')
+      return
+    }
+
     await supabase.from('clinic_schedules').insert({
       class_id: classId,
       name: clinicScheduleForm.name || null,
@@ -273,6 +319,7 @@ export default function ClassDetailPage() {
       end_time: clinicScheduleForm.end_time,
     })
     setShowClinicScheduleForm(false)
+    setClinicScheduleError('')
     await loadData()
     if (tab === 'calendar') loadMonthSessions()
   }
@@ -1404,8 +1451,11 @@ export default function ClassDetailPage() {
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
+              {scheduleError && (
+                <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{scheduleError}</p>
+              )}
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowScheduleForm(false)}
+                <button type="button" onClick={() => { setShowScheduleForm(false); setScheduleError('') }}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button type="submit" className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">추가</button>
               </div>
@@ -1455,8 +1505,11 @@ export default function ClassDetailPage() {
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                 </div>
               </div>
+              {clinicScheduleError && (
+                <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{clinicScheduleError}</p>
+              )}
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowClinicScheduleForm(false)}
+                <button type="button" onClick={() => { setShowClinicScheduleForm(false); setClinicScheduleError('') }}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button type="submit" className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors">추가</button>
               </div>
