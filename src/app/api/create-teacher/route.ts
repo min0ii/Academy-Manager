@@ -36,10 +36,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '원장 또는 관리자만 선생님을 추가할 수 있어요.' }, { status: 403 })
     }
 
-    const { name, phone, password } = await req.json()
+    const { name, phone, password, title } = await req.json()
     if (!name || !phone || !password) {
       return NextResponse.json({ error: '이름, 전화번호, 비밀번호를 모두 입력해주세요.' }, { status: 400 })
     }
+    const validTitles = ['원장', '관리자', '강사']
+    const teacherTitle = validTitles.includes(title) ? title : '강사'
 
     const digits = String(phone).replace(/\D/g, '')
     const email = `${digits}@academy.local`
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
       academy_id: membership.academy_id,
       teacher_id: userId,
       role: 'staff',
+      title: teacherTitle,
     })
 
     if (memberError) {

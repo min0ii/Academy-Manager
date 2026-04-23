@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [newPhone, setNewPhone] = useState('')
   const [newPwTeacher, setNewPwTeacher] = useState('')
   const [confirmPwTeacher, setConfirmPwTeacher] = useState('')
+  const [newTitle, setNewTitle] = useState<'원장' | '관리자' | '강사'>('강사')
   const [addingTeacher, setAddingTeacher] = useState(false)
   const [addError, setAddError] = useState('')
   const [teamError, setTeamError] = useState('')
@@ -156,6 +157,7 @@ export default function SettingsPage() {
         name: newName,
         phone: newPhone.replace(/\D/g, ''),
         password: newPwTeacher,
+        title: newTitle,
       }),
     })
     const result = await res.json()
@@ -167,6 +169,7 @@ export default function SettingsPage() {
     setNewPhone('')
     setNewPwTeacher('')
     setConfirmPwTeacher('')
+    setNewTitle('강사')
     setShowAddForm(false)
     await loadTeam(academyId)
   }
@@ -455,6 +458,25 @@ export default function SettingsPage() {
                     placeholder="010-0000-0000"
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">직급 *</label>
+                  <div className="flex gap-2">
+                    {TITLES.map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setNewTitle(t)}
+                        className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors border ${
+                          newTitle === t
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">초기 비밀번호 *</label>
