@@ -33,15 +33,15 @@ export default function ClassesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: academy } = await supabase
-      .from('academies').select('id').eq('teacher_id', user.id).single()
-    if (!academy) return
-    setAcademyId(academy.id)
+    const { data: membership } = await supabase
+      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+    if (!membership) return
+    setAcademyId(membership.academy_id)
 
     const { data } = await supabase
       .from('classes')
       .select('id, name, class_students(student_id), class_schedules(day_of_week, start_time, end_time)')
-      .eq('academy_id', academy.id)
+      .eq('academy_id', membership.academy_id)
       .order('name')
 
     const formatted: Class[] = (data ?? []).map((c: any) => ({

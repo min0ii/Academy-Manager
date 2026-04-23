@@ -59,11 +59,10 @@ export default function HomeworkPage() {
     ;(async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single()
-      if (!profile) return
-      const { data: academy } = await supabase.from('academies').select('id').eq('teacher_id', profile.id).single()
-      if (!academy) return
-      const { data } = await supabase.from('classes').select('id, name').eq('academy_id', academy.id).order('name')
+      const { data: membership } = await supabase
+        .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+      if (!membership) return
+      const { data } = await supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name')
       setClasses(data ?? [])
     })()
   }, [])

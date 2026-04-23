@@ -39,8 +39,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       setTeacherName(profile.name)
 
-      const { data: ac } = await supabase
-        .from('academies').select('name, logo_url').eq('teacher_id', user.id).single()
+      const { data: membership } = await supabase
+        .from('academy_teachers')
+        .select('academies(name, logo_url)')
+        .eq('teacher_id', user.id)
+        .single()
+      const ac = (membership as any)?.academies
       if (ac) setAcademy(ac)
     }
     load()

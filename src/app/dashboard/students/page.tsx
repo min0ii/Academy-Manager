@@ -79,18 +79,18 @@ export default function StudentsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: academy } = await supabase
-      .from('academies').select('id').eq('teacher_id', user.id).single()
-    if (!academy) return
+    const { data: membership } = await supabase
+      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+    if (!membership) return
 
-    setAcademyId(academy.id)
+    setAcademyId(membership.academy_id)
 
     const [{ data: studentData }, { data: classData }] = await Promise.all([
       supabase.from('students')
         .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, class_students(classes(id, name))')
-        .eq('academy_id', academy.id)
+        .eq('academy_id', membership.academy_id)
         .order('name'),
-      supabase.from('classes').select('id, name').eq('academy_id', academy.id).order('name'),
+      supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name'),
     ])
 
     setStudents((studentData as any) ?? [])
@@ -156,6 +156,7 @@ export default function StudentsPage() {
     }
 
     await loadData()
+
     setSaving(false)
     setShowForm(false)
   }

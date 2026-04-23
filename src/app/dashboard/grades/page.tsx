@@ -114,12 +114,12 @@ function GradesContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data: academy } = await supabase
-      .from('academies').select('id').eq('teacher_id', user.id).single()
-    if (!academy) { setLoading(false); return }
+    const { data: membership } = await supabase
+      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+    if (!membership) { setLoading(false); return }
 
     const { data: classData } = await supabase
-      .from('classes').select('id, name').eq('academy_id', academy.id).order('name')
+      .from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name')
 
     const classList: ClassItem[] = await Promise.all((classData ?? []).map(async (c: any) => {
       const { count } = await supabase

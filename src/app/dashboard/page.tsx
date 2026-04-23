@@ -38,17 +38,21 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [{ data: profile }, { data: academy }] = await Promise.all([
+      const [{ data: profile }, { data: membershipData }] = await Promise.all([
         supabase.from('profiles').select('name').eq('id', user.id).single(),
-        supabase.from('academies').select('id, name').eq('teacher_id', user.id).single(),
+        supabase.from('academy_teachers')
+          .select('academy_id, academies(id, name)')
+          .eq('teacher_id', user.id)
+          .single(),
       ])
+      const academy = (membershipData as any)?.academies
 
       if (profile) setTeacherName(profile.name)
-      if (academy) {
+      if (academy && membershipData) {
         setAcademyName(academy.name)
         const [{ count: studentCount }, { count: classCount }] = await Promise.all([
-          supabase.from('students').select('*', { count: 'exact', head: true }).eq('academy_id', academy.id),
-          supabase.from('classes').select('*', { count: 'exact', head: true }).eq('academy_id', academy.id),
+          supabase.from('students').select('*', { count: 'exact', head: true }).eq('academy_id', membershipData.academy_id),
+          supabase.from('classes').select('*', { count: 'exact', head: true }).eq('academy_id', membershipData.academy_id),
         ])
         setStats({ studentCount: studentCount ?? 0, classCount: classCount ?? 0 })
       }
