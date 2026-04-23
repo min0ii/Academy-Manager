@@ -216,7 +216,7 @@ export default function HomeworkPage() {
     )
     if (status === 'partial') return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-        <MinusCircle size={11} /> 부분
+        <MinusCircle size={11} /> 오답
       </span>
     )
     if (status === 'none') return (
@@ -346,7 +346,7 @@ export default function HomeworkPage() {
                   </div>
                   <div className="flex-1 bg-amber-50 rounded-lg py-2">
                     <div className="font-bold text-amber-600">{hw.partial}</div>
-                    <div className="text-slate-500">부분</div>
+                    <div className="text-slate-500">오답</div>
                   </div>
                   <div className="flex-1 bg-red-50 rounded-lg py-2">
                     <div className="font-bold text-red-500">{hw.none}</div>
@@ -474,7 +474,7 @@ export default function HomeworkPage() {
                       <div className="flex gap-2 mt-2.5 text-xs">
                         <span className="text-emerald-600 font-medium">완료 {hw.done}</span>
                         <span className="text-slate-300">·</span>
-                        <span className="text-amber-600 font-medium">부분 {hw.partial}</span>
+                        <span className="text-amber-600 font-medium">오답 {hw.partial}</span>
                         <span className="text-slate-300">·</span>
                         <span className="text-red-500 font-medium">미제출 {hw.none}</span>
                       </div>

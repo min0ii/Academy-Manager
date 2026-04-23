@@ -383,7 +383,7 @@ function StudentReportContent() {
                     <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
                       {[
                         { label: '완료',   val: hwDone,    color: 'text-green-600' },
-                        { label: '부분',   val: hwPartial, color: 'text-amber-500' },
+                        { label: '오답',   val: hwPartial, color: 'text-amber-500' },
                         { label: '미제출', val: hwNone,    color: 'text-red-500' },
                       ].map(({ label, val, color }) => (
                         <div key={label} className="py-3 text-center">
@@ -403,7 +403,7 @@ function StudentReportContent() {
                             </p>
                           </div>
                           {h.status === 'done' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-100 text-green-700 flex-shrink-0">완료</span>}
-                          {h.status === 'partial' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">부분</span>}
+                          {h.status === 'partial' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">오답</span>}
                           {h.status === 'none' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-100 text-red-600 flex-shrink-0">미제출</span>}
                           {!h.status && <span className="text-xs text-slate-300 flex-shrink-0">기록 없음</span>}
                         </div>

@@ -48,7 +48,7 @@ const ATT_ACTIVE = {
   early_leave: 'bg-purple-500 text-white border-purple-500',
   absent:      'bg-red-500 text-white border-red-500',
 } as const
-const HW_LABEL  = { done: '완료', partial: '부분', none: '미제출' } as const
+const HW_LABEL  = { done: '완료', partial: '오답', none: '미제출' } as const
 const HW_ACTIVE = {
   done:    'bg-green-500 text-white border-green-500',
   partial: 'bg-amber-400 text-white border-amber-400',
@@ -1213,7 +1213,7 @@ export default function ClassDetailPage() {
                                       />
                                     </div>
                                     {statuses.length > 0 && (
-                                      <span className="text-xs text-slate-400">완료 {doneCount} · 부분 {partCount} · 미제출 {noneCount}</span>
+                                      <span className="text-xs text-slate-400">완료 {doneCount} · 오답 {partCount} · 미제출 {noneCount}</span>
                                     )}
                                   </div>
                                 </div>
