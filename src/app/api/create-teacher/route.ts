@@ -27,12 +27,13 @@ export async function POST(req: NextRequest) {
     // 원장 여부 확인
     const { data: membership } = await supabaseAdmin
       .from('academy_teachers')
-      .select('role, academy_id')
+      .select('role, academy_id, title')
       .eq('teacher_id', requester.id)
       .single()
 
-    if (!membership || membership.role !== 'owner') {
-      return NextResponse.json({ error: '원장만 선생님을 추가할 수 있어요.' }, { status: 403 })
+    const isAdmin = membership?.role === 'owner' || (membership as any)?.title === '관리자'
+    if (!membership || !isAdmin) {
+      return NextResponse.json({ error: '원장 또는 관리자만 선생님을 추가할 수 있어요.' }, { status: 403 })
     }
 
     const { name, phone, password } = await req.json()

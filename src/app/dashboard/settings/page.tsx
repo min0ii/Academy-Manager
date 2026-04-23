@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('academy')
   const [myId, setMyId] = useState('')
   const [myRole, setMyRole] = useState<'owner' | 'staff'>('staff')
+  const [myTitle, setMyTitle] = useState<'원장' | '관리자' | '강사'>('강사')
   const [academyId, setAcademyId] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -78,6 +79,7 @@ export default function SettingsPage() {
       const ac = (membership as any).academies
       setAcademyId(membership.academy_id)
       setMyRole(membership.role as 'owner' | 'staff')
+      setMyTitle((membership as any).title ?? '강사')
       if (ac) setAcademyName(ac.name)
       await loadTeam(membership.academy_id)
     }
@@ -186,6 +188,9 @@ export default function SettingsPage() {
     await loadTeam(academyId)
   }
 
+  // 원장 또는 관리자 직급이면 전체 권한
+  const isAdmin = myRole === 'owner' || myTitle === '관리자'
+
   if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
 
   const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
@@ -225,10 +230,10 @@ export default function SettingsPage() {
                 type="text"
                 value={academyName}
                 onChange={e => setAcademyName(e.target.value)}
-                disabled={myRole !== 'owner'}
+                disabled={!isAdmin}
                 className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
               />
-              {myRole === 'owner' && (
+              {isAdmin && (
                 <button
                   onClick={saveAcademyName}
                   disabled={savingAcademy}
@@ -246,7 +251,7 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
-            {myRole !== 'owner' && (
+            {!isAdmin && (
               <p className="text-xs text-slate-400 mt-1.5">학원 정보는 원장만 수정할 수 있어요</p>
             )}
           </div>
@@ -346,7 +351,7 @@ export default function SettingsPage() {
                 <h2 className="font-bold text-slate-800">팀 선생님</h2>
                 <p className="text-xs text-slate-400 mt-0.5">총 {teamMembers.length}명</p>
               </div>
-              {myRole === 'owner' && !showAddForm && (
+              {isAdmin && !showAddForm && (
                 <button
                   onClick={() => { setShowAddForm(true); setAddError('') }}
                   className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
@@ -381,7 +386,7 @@ export default function SettingsPage() {
                     <p className="text-xs text-slate-400 mt-0.5">{formatPhone(m.phone)}</p>
                   </div>
                   {/* 직급 선택 */}
-                  {myRole === 'owner' ? (
+                  {isAdmin ? (
                     <div className="flex gap-1 flex-shrink-0">
                       {TITLES.map(t => (
                         <button
@@ -402,7 +407,7 @@ export default function SettingsPage() {
                       {m.title}
                     </span>
                   )}
-                  {myRole === 'owner' && m.teacher_id !== myId && (
+                  {isAdmin && m.teacher_id !== myId && (
                     <button
                       onClick={() => removeTeacher(m)}
                       className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
@@ -417,7 +422,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 선생님 추가 폼 */}
-          {myRole === 'owner' && showAddForm && (
+          {isAdmin && showAddForm && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-bold text-slate-800">새 선생님 추가</h2>
@@ -502,7 +507,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {myRole !== 'owner' && (
+          {!isAdmin && (
             <div className="bg-slate-50 rounded-xl px-4 py-3 text-sm text-slate-500 text-center">
               팀 관리(선생님 추가·제거)는 원장만 가능해요
             </div>
