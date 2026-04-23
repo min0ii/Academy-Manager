@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import {
   Building2, User, Users, Check, X, Plus,
-  Eye, EyeOff, Crown, Shield, Loader2,
+  Eye, EyeOff, Crown, Shield, Loader2, Camera,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'team'
@@ -30,8 +30,14 @@ export default function SettingsPage() {
 
   // 학원 정보
   const [academyName, setAcademyName] = useState('')
+  const [academyLogoUrl, setAcademyLogoUrl] = useState<string | null>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [savingLogo, setSavingLogo] = useState(false)
+  const [logoSaved, setLogoSaved] = useState(false)
   const [savingAcademy, setSavingAcademy] = useState(false)
   const [academySaved, setAcademySaved] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   // 내 정보
   const [myName, setMyName] = useState('')
@@ -70,7 +76,7 @@ export default function SettingsPage() {
     const [{ data: profile }, { data: membership }] = await Promise.all([
       supabase.from('profiles').select('name').eq('id', user.id).single(),
       supabase.from('academy_teachers')
-        .select('academy_id, role, academies(id, name)')
+        .select('academy_id, role, academies(id, name, logo_url)')
         .eq('teacher_id', user.id)
         .single(),
     ])
@@ -81,7 +87,10 @@ export default function SettingsPage() {
       setAcademyId(membership.academy_id)
       setMyRole(membership.role as 'owner' | 'staff')
       setMyTitle((membership as any).title ?? '강사')
-      if (ac) setAcademyName(ac.name)
+      if (ac) {
+        setAcademyName(ac.name)
+        setAcademyLogoUrl(ac.logo_url ?? null)
+      }
       await loadTeam(membership.academy_id)
     }
     setLoading(false)
@@ -105,6 +114,33 @@ export default function SettingsPage() {
     // owner 먼저 정렬
     members.sort((a, b) => (a.role === 'owner' ? -1 : 1) - (b.role === 'owner' ? -1 : 1))
     setTeamMembers(members)
+  }
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
+  }
+
+  async function saveLogo() {
+    if (!logoFile || !academyId) return
+    setSavingLogo(true)
+    const ext = logoFile.name.split('.').pop()
+    const path = `${academyId}-${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from('academy-logos')
+      .upload(path, logoFile, { upsert: true })
+    if (uploadError) { setSavingLogo(false); return }
+    const { data: urlData } = supabase.storage.from('academy-logos').getPublicUrl(path)
+    const newUrl = urlData.publicUrl
+    await supabase.from('academies').update({ logo_url: newUrl }).eq('id', academyId)
+    setAcademyLogoUrl(newUrl)
+    setLogoFile(null)
+    setLogoPreview(null)
+    setSavingLogo(false)
+    setLogoSaved(true)
+    setTimeout(() => setLogoSaved(false), 2000)
   }
 
   async function saveAcademyName() {
@@ -224,8 +260,71 @@ export default function SettingsPage() {
 
       {/* ── 학원 정보 탭 ── */}
       {tab === 'academy' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
           <h2 className="font-bold text-slate-800">학원 정보</h2>
+
+          {/* 로고 */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-2">학원 로고</label>
+            <div className="flex items-center gap-4">
+              {/* 미리보기 */}
+              <div className="relative flex-shrink-0">
+                {logoPreview || academyLogoUrl ? (
+                  <img
+                    src={logoPreview ?? academyLogoUrl!}
+                    alt="학원 로고"
+                    className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-blue-100 flex items-center justify-center border border-slate-200">
+                    <span className="text-blue-600 font-bold text-2xl">{academyName[0] ?? '학'}</span>
+                  </div>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-slate-700 text-white rounded-full flex items-center justify-center hover:bg-slate-800 transition-colors shadow"
+                  >
+                    <Camera size={13} />
+                  </button>
+                )}
+              </div>
+              {/* 버튼 영역 */}
+              <div className="space-y-2 flex-1">
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                    >
+                      {logoPreview ? '다른 사진으로 변경' : '사진 선택'}
+                    </button>
+                    {logoPreview && (
+                      <button
+                        onClick={saveLogo}
+                        disabled={savingLogo}
+                        className={`w-full py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                          logoSaved
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {logoSaved
+                          ? <><Check size={14} /> 저장됨</>
+                          : savingLogo
+                          ? <><Loader2 size={14} className="animate-spin" /> 업로드 중...</>
+                          : '저장'}
+                      </button>
+                    )}
+                  </>
+                )}
+                <p className="text-xs text-slate-400">JPG, PNG 권장 · 정사각형 이미지가 가장 잘 보여요</p>
+              </div>
+            </div>
+            <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+          </div>
+
+          {/* 학원 이름 */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">학원 이름</label>
             <div className="flex gap-2">
