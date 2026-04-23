@@ -87,6 +87,13 @@ export default function OnboardingPage() {
 
     if (dbError) { setError('학원 저장 중 오류가 발생했어요.'); setSaving(false); return }
 
+    // 원장을 academy_teachers에 등록
+    const { error: memberError } = await supabase
+      .from('academy_teachers')
+      .insert({ academy_id: data.id, teacher_id: profile.id, role: 'owner', title: '원장' })
+
+    if (memberError) { setError('팀 설정 중 오류가 발생했어요.'); setSaving(false); return }
+
     setAcademyId(data.id)
     setSaving(false)
     setStep('classes')

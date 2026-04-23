@@ -389,9 +389,14 @@ export default function SettingsPage() {
                     <p className="text-xs text-slate-400 mt-0.5">{formatPhone(m.phone)}</p>
                   </div>
                   {/* 직급 선택 */}
-                  {isAdmin ? (
+                  {m.role === 'owner' ? (
+                    // 원장은 직급 고정
+                    <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-lg font-medium flex-shrink-0">
+                      원장
+                    </span>
+                  ) : isAdmin ? (
                     <div className="flex gap-1 flex-shrink-0">
-                      {TITLES.map(t => (
+                      {TITLES.filter(t => t !== '원장').map(t => (
                         <button
                           key={t}
                           onClick={() => saveTitle(m.id, t)}

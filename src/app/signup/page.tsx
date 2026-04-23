@@ -12,8 +12,8 @@ type Role = 'teacher' | 'student' | 'parent'
 const roles = [
   {
     key: 'teacher' as Role,
-    label: '선생님 / 관리자',
-    desc: '학원을 관리하고 학생을 지도해요',
+    label: '원장 (학원 개설)',
+    desc: '새 학원을 만들고 팀을 구성해요',
     icon: GraduationCap,
     color: 'blue',
   },
