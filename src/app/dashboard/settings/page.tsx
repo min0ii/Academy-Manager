@@ -13,9 +13,12 @@ type TeamMember = {
   id: string
   teacher_id: string
   role: 'owner' | 'staff'
+  title: '원장' | '관리자' | '강사'
   name: string
   phone: string
 }
+
+const TITLES = ['원장', '관리자', '강사'] as const
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('academy')
@@ -84,7 +87,7 @@ export default function SettingsPage() {
   async function loadTeam(acadId: string) {
     const { data } = await supabase
       .from('academy_teachers')
-      .select('id, teacher_id, role, profiles(name, phone)')
+      .select('id, teacher_id, role, title, profiles(name, phone)')
       .eq('academy_id', acadId)
       .order('role')
 
@@ -92,6 +95,7 @@ export default function SettingsPage() {
       id: m.id,
       teacher_id: m.teacher_id,
       role: m.role,
+      title: m.title ?? '강사',
       name: m.profiles?.name ?? '',
       phone: m.profiles?.phone ?? '',
     }))
@@ -163,6 +167,11 @@ export default function SettingsPage() {
     setConfirmPwTeacher('')
     setShowAddForm(false)
     await loadTeam(academyId)
+  }
+
+  async function saveTitle(memberId: string, title: '원장' | '관리자' | '강사') {
+    await supabase.from('academy_teachers').update({ title }).eq('id', memberId)
+    setTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, title } : m))
   }
 
   async function removeTeacher(member: TeamMember) {
@@ -365,19 +374,34 @@ export default function SettingsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-slate-800">{m.name}</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                        m.role === 'owner'
-                          ? 'bg-amber-50 text-amber-600'
-                          : 'bg-blue-50 text-blue-600'
-                      }`}>
-                        {m.role === 'owner' ? '원장' : '교사'}
-                      </span>
                       {m.teacher_id === myId && (
                         <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full">나</span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5">{formatPhone(m.phone)}</p>
                   </div>
+                  {/* 직급 선택 */}
+                  {myRole === 'owner' ? (
+                    <div className="flex gap-1 flex-shrink-0">
+                      {TITLES.map(t => (
+                        <button
+                          key={t}
+                          onClick={() => saveTitle(m.id, t)}
+                          className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                            m.title === t
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded-lg font-medium flex-shrink-0">
+                      {m.title}
+                    </span>
+                  )}
                   {myRole === 'owner' && m.teacher_id !== myId && (
                     <button
                       onClick={() => removeTeacher(m)}

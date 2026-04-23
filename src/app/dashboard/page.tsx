@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({ studentCount: 0, classCount: 0 })
   const [academyName, setAcademyName] = useState('')
   const [teacherName, setTeacherName] = useState('')
+  const [teacherTitle, setTeacherTitle] = useState('선생')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -41,13 +42,14 @@ export default function DashboardPage() {
       const [{ data: profile }, { data: membershipData }] = await Promise.all([
         supabase.from('profiles').select('name').eq('id', user.id).single(),
         supabase.from('academy_teachers')
-          .select('academy_id, academies(id, name)')
+          .select('academy_id, title, academies(id, name)')
           .eq('teacher_id', user.id)
           .single(),
       ])
       const academy = (membershipData as any)?.academies
 
       if (profile) setTeacherName(profile.name)
+      if (membershipData?.title) setTeacherTitle(membershipData.title)
       if (academy && membershipData) {
         setAcademyName(academy.name)
         const [{ count: studentCount }, { count: classCount }] = await Promise.all([
@@ -78,7 +80,7 @@ export default function DashboardPage() {
       <div>
         <p className="text-sm text-slate-500 mb-1">{today}</p>
         <h1 className="text-2xl font-bold text-slate-800">
-          안녕하세요, {teacherName} 선생님 👋
+          안녕하세요, {teacherName} {teacherTitle}님 👋
         </h1>
         <p className="text-slate-500 mt-1">{academyName}의 오늘도 화이팅이에요!</p>
       </div>

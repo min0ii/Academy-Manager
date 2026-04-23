@@ -24,6 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const [academy, setAcademy] = useState<{ name: string; logo_url: string | null } | null>(null)
   const [teacherName, setTeacherName] = useState('')
+  const [teacherTitle, setTeacherTitle] = useState('선생')
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
@@ -41,11 +42,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       const { data: membership } = await supabase
         .from('academy_teachers')
-        .select('academies(name, logo_url)')
+        .select('title, academies(name, logo_url)')
         .eq('teacher_id', user.id)
         .single()
       const ac = (membership as any)?.academies
       if (ac) setAcademy(ac)
+      if (membership?.title) setTeacherTitle(membership.title)
     }
     load()
   }, [router])
@@ -75,7 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           <div className="min-w-0">
             <p className="font-bold text-slate-800 text-sm truncate">{academy?.name ?? '학원'}</p>
-            <p className="text-xs text-slate-500 truncate">{teacherName} 선생님</p>
+            <p className="text-xs text-slate-500 truncate">{teacherName} {teacherTitle}님</p>
           </div>
         </div>
       </div>
