@@ -3,69 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { GraduationCap, Users, BookOpen } from 'lucide-react'
+import { GraduationCap, BookOpen, Users } from 'lucide-react'
 import { signUp, formatPhone } from '@/lib/auth'
-import { supabase } from '@/lib/supabase'
-
-type Role = 'teacher' | 'student' | 'parent'
-
-const roles = [
-  {
-    key: 'teacher' as Role,
-    label: '원장 (학원 개설)',
-    desc: '새 학원을 만들고 팀을 구성해요',
-    icon: GraduationCap,
-    color: 'blue',
-  },
-  {
-    key: 'student' as Role,
-    label: '학생',
-    desc: '내 성적과 출석을 확인해요',
-    icon: BookOpen,
-    color: 'emerald',
-  },
-  {
-    key: 'parent' as Role,
-    label: '학부모',
-    desc: '자녀의 학습 현황을 확인해요',
-    icon: Users,
-    color: 'violet',
-  },
-]
-
-const colorMap = {
-  blue: {
-    border: 'border-blue-500 bg-blue-50',
-    icon: 'bg-blue-100 text-blue-600',
-    radio: 'text-blue-600',
-  },
-  emerald: {
-    border: 'border-emerald-500 bg-emerald-50',
-    icon: 'bg-emerald-100 text-emerald-600',
-    radio: 'text-emerald-600',
-  },
-  violet: {
-    border: 'border-violet-500 bg-violet-50',
-    icon: 'bg-violet-100 text-violet-600',
-    radio: 'text-violet-600',
-  },
-}
 
 export default function SignupPage() {
   const router = useRouter()
-  const [step, setStep] = useState<'role' | 'info'>('role')
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  function handleRoleNext() {
-    if (!selectedRole) return
-    setStep('info')
-  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
@@ -81,24 +29,7 @@ export default function SignupPage() {
     }
 
     setLoading(true)
-
-    // 학생·학부모: 사전 등록된 번호인지 확인
-    if (selectedRole !== 'teacher') {
-      const digits = phone.replace(/\D/g, '')
-      const { data: isRegistered } = await supabase
-        .rpc('check_phone_registered', { p_phone: digits, p_role: selectedRole })
-
-      if (!isRegistered) {
-        const msg = selectedRole === 'parent'
-          ? '등록되지 않은 학부모 전화번호예요. 선생님께 먼저 등록을 요청해주세요.'
-          : '등록되지 않은 전화번호예요. 선생님께 먼저 등록을 요청해주세요.'
-        setError(msg)
-        setLoading(false)
-        return
-      }
-    }
-
-    const { error: authError } = await signUp(phone, password, name, selectedRole!)
+    const { error: authError } = await signUp(phone, password, name, 'teacher')
     if (authError) {
       if (authError.message.includes('already registered')) {
         setError('이미 가입된 전화번호예요. 로그인해주세요.')
@@ -109,86 +40,23 @@ export default function SignupPage() {
       return
     }
 
-    if (selectedRole === 'teacher') {
-      router.push('/onboarding')
-    } else if (selectedRole === 'student') {
-      router.push('/student')
-    } else {
-      router.push('/parent')
-    }
-  }
-
-  if (step === 'role') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-slate-800">회원가입</h1>
-            <p className="text-slate-500 text-sm mt-1">어떤 역할로 사용하시나요?</p>
-          </div>
-
-          <div className="space-y-3">
-            {roles.map(role => {
-              const Icon = role.icon
-              const colors = colorMap[role.color as keyof typeof colorMap]
-              const isSelected = selectedRole === role.key
-              return (
-                <button
-                  key={role.key}
-                  onClick={() => setSelectedRole(role.key)}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
-                    isSelected
-                      ? colors.border
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <div className={`p-2.5 rounded-xl ${isSelected ? colors.icon : 'bg-slate-100 text-slate-500'}`}>
-                    <Icon size={22} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-800">{role.label}</p>
-                    <p className="text-sm text-slate-500">{role.desc}</p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          <button
-            onClick={handleRoleNext}
-            disabled={!selectedRole}
-            className="w-full mt-5 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            다음
-          </button>
-
-          <p className="text-center text-sm text-slate-500 mt-4">
-            이미 계정이 있으신가요?{' '}
-            <Link href="/login" className="text-blue-600 font-medium hover:underline">
-              로그인
-            </Link>
-          </p>
-        </div>
-      </div>
-    )
+    router.push('/onboarding')
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <button
-            onClick={() => setStep('role')}
-            className="text-sm text-slate-500 hover:text-slate-700 mb-4 inline-flex items-center gap-1"
-          >
-            ← 역할 다시 선택
-          </button>
-          <h1 className="text-2xl font-bold text-slate-800">정보 입력</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {selectedRole === 'teacher' ? '선생님' : selectedRole === 'student' ? '학생' : '학부모'} 계정을 만들게요
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-10">
+      <div className="w-full max-w-sm space-y-5">
+
+        {/* 헤더 */}
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-2xl mb-4">
+            <GraduationCap size={28} className="text-blue-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800">원장 계정 만들기</h1>
+          <p className="text-slate-500 text-sm mt-1">학원을 개설하고 팀을 구성해요</p>
         </div>
 
+        {/* 가입 폼 */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
@@ -245,10 +113,42 @@ export default function SignupPage() {
               disabled={loading}
               className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '가입 중...' : '가입하기'}
+              {loading ? '가입 중...' : '학원 개설하기'}
             </button>
           </form>
         </div>
+
+        {/* 학생·학부모 안내 */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">학생 · 학부모 계정 안내</p>
+          <div className="space-y-2">
+            <div className="flex items-start gap-3">
+              <div className="p-1.5 bg-emerald-50 rounded-lg flex-shrink-0 mt-0.5">
+                <BookOpen size={14} className="text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-700">학생</p>
+                <p className="text-xs text-slate-400 leading-relaxed">별도 가입 없이 학원 선생님이 계정을 만들어 드려요. 소속 학원에 문의해주세요.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="p-1.5 bg-violet-50 rounded-lg flex-shrink-0 mt-0.5">
+                <Users size={14} className="text-violet-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-700">학부모</p>
+                <p className="text-xs text-slate-400 leading-relaxed">자녀가 다니는 학원 선생님께 계정 등록을 요청해주세요.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-center text-sm text-slate-500">
+          이미 계정이 있으신가요?{' '}
+          <Link href="/login" className="text-blue-600 font-medium hover:underline">
+            로그인
+          </Link>
+        </p>
       </div>
     </div>
   )
