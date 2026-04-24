@@ -22,7 +22,7 @@ type Student = {
   parent_relation: string | null; memo: string | null
 }
 type Session      = { id: string; date: string; start_time: string; end_time: string; status: string }
-type ClinicSession = { id: string; class_id: string; date: string; note: string | null }
+type ClinicSession = { id: string; class_id: string; date: string; note: string | null; start_time: string | null; end_time: string | null }
 type AttendanceRecord = {
   id: string | null; student_id: string
   status: 'present' | 'absent' | 'late' | 'early_leave' | null; note: string | null
@@ -116,6 +116,12 @@ export default function ClassDetailPage() {
   const [showTypeChoice, setShowTypeChoice]   = useState(false)
   const [typeChoiceDate, setTypeChoiceDate]   = useState('')
 
+  const [showAddExtraClinic, setShowAddExtraClinic]   = useState(false)
+  const [extraClinicDate, setExtraClinicDate]         = useState('')
+  const [extraClinicForm, setExtraClinicForm]         = useState({ start_time: '16:00', end_time: '18:00' })
+  const [savingExtraClinic, setSavingExtraClinic]     = useState(false)
+  const [extraClinicError, setExtraClinicError]       = useState('')
+
   // ── 시험
   const [dateTests, setDateTests] = useState<{ id: string; name: string; max_score: number }[]>([])
 
@@ -136,13 +142,14 @@ export default function ClassDetailPage() {
       if (showAddHomework) { setShowAddHomework(false); return }
       if (showClinicScheduleForm) { setShowClinicScheduleForm(false); return }
       if (showTypeChoice) { setShowTypeChoice(false); return }
+      if (showAddExtraClinic) { setShowAddExtraClinic(false); return }
       if (showAddExtra) { setShowAddExtra(false); return }
       if (showAddStudent) { setShowAddStudent(false); setSelectedNewIds(new Set()); setStudentSearch(''); return }
       if (showScheduleForm) { setShowScheduleForm(false); return }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [showScheduleForm, showAddStudent, showAddExtra, showClinicScheduleForm, showAddHomework, showTypeChoice])
+  }, [showScheduleForm, showAddStudent, showAddExtra, showClinicScheduleForm, showAddHomework, showTypeChoice, showAddExtraClinic])
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -511,6 +518,31 @@ export default function ClassDetailPage() {
       setSelectedDate(extraDate); setSelectedSession(ns)
       setAttendanceList(students.map(s => ({ id: null, student_id: s.id, status: null, note: null })))
       setDetailStudent(null)
+    }
+  }
+
+  async function addExtraClinicSession(e: React.FormEvent) {
+    e.preventDefault()
+    setExtraClinicError('')
+    if (extraClinicForm.end_time <= extraClinicForm.start_time) {
+      setExtraClinicError('종료 시간은 시작 시간보다 늦어야 해요.')
+      return
+    }
+    setSavingExtraClinic(true)
+    const { data: ns } = await supabase.from('clinic_sessions').insert({
+      class_id: classId, date: extraClinicDate,
+      start_time: extraClinicForm.start_time, end_time: extraClinicForm.end_time, note: null,
+    }).select().single()
+    setSavingExtraClinic(false)
+    setShowAddExtraClinic(false)
+    setExtraClinicError('')
+    await loadMonthSessions()
+    if (ns) {
+      setSelectedDate(extraClinicDate)
+      setSelectedClinicSession(ns)
+      setClinicAttList(students.map(s => ({ id: null, student_id: s.id, status: null })))
+      setDetailStudent(null)
+      setPanelTab('clinic')
     }
   }
 
@@ -1040,8 +1072,11 @@ export default function ClassDetailPage() {
                     <p className="font-bold text-slate-800">
                       {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
                     </p>
-                    {selectedSession && (
+                    {selectedSession && panelTab === 'attendance' && (
                       <p className="text-sm text-slate-500 mt-0.5">{selectedSession.start_time.slice(0,5)} ~ {selectedSession.end_time.slice(0,5)}</p>
+                    )}
+                    {selectedClinicSession && panelTab === 'clinic' && selectedClinicSession.start_time && (
+                      <p className="text-sm text-violet-500 mt-0.5">{selectedClinicSession.start_time.slice(0,5)} ~ {selectedClinicSession.end_time?.slice(0,5)}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -1411,7 +1446,9 @@ export default function ClassDetailPage() {
               <button
                 onClick={() => {
                   setShowTypeChoice(false)
-                  selectDate(typeChoiceDate, undefined, undefined, 'clinic')
+                  setExtraClinicDate(typeChoiceDate)
+                  setExtraClinicForm({ start_time: '16:00', end_time: '18:00' })
+                  setShowAddExtraClinic(true)
                 }}
                 className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-violet-400 hover:bg-violet-50 transition-all group"
               >
@@ -1459,6 +1496,48 @@ export default function ClassDetailPage() {
                 <button type="submit" disabled={savingExtra}
                   className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
                   {savingExtra ? '추가 중...' : '수업 추가'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ 클리닉 추가 모달 ════════ */}
+      {showAddExtraClinic && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div>
+                <h2 className="font-bold text-slate-800">클리닉 추가</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {new Date(extraClinicDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                </p>
+              </div>
+              <button onClick={() => setShowAddExtraClinic(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+            <form onSubmit={addExtraClinicSession} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">시작 시간</label>
+                  <input type="time" value={extraClinicForm.start_time}
+                    onChange={e => setExtraClinicForm({ ...extraClinicForm, start_time: e.target.value })} required
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">종료 시간</label>
+                  <input type="time" value={extraClinicForm.end_time}
+                    onChange={e => setExtraClinicForm({ ...extraClinicForm, end_time: e.target.value })} required
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+              {extraClinicError && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{extraClinicError}</p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setShowAddExtraClinic(false); setExtraClinicError('') }}
+                  className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
+                <button type="submit" disabled={savingExtraClinic}
+                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
+                  {savingExtraClinic ? '추가 중...' : '클리닉 추가'}
                 </button>
               </div>
             </form>
