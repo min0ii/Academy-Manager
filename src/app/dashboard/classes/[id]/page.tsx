@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity,
+  BookOpen, Activity, TrendingUp,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -38,7 +38,16 @@ type HomeworkStatusRecord = {
   id: string | null; student_id: string; status: 'done' | 'partial' | 'none' | null
 }
 
-type Tab      = 'schedule' | 'students' | 'calendar'
+type Tab      = 'schedule' | 'students' | 'calendar' | 'stats'
+
+type StatSession = {
+  id: string; date: string; start_time: string; end_time: string
+  present: number; late: number; early_leave: number; absent: number; total: number
+}
+type StatStudent = {
+  id: string; name: string
+  present: number; late: number; early_leave: number; absent: number; sessions: number
+}
 type PanelTab = 'attendance' | 'homework' | 'clinic'
 
 const ATT_LABEL  = { present: '출석', late: '지각', early_leave: '조퇴', absent: '결석' } as const
@@ -122,6 +131,12 @@ export default function ClassDetailPage() {
   const [savingExtraClinic, setSavingExtraClinic]     = useState(false)
   const [extraClinicError, setExtraClinicError]       = useState('')
 
+  // ── 출결 현황
+  const [statsLoading, setStatsLoading]   = useState(false)
+  const [statsLoaded, setStatsLoaded]     = useState(false)
+  const [statsSessions, setStatsSessions] = useState<StatSession[]>([])
+  const [statsStudents, setStatsStudents] = useState<StatStudent[]>([])
+
   // ── 시험
   const [dateTests, setDateTests] = useState<{ id: string; name: string; max_score: number }[]>([])
 
@@ -135,6 +150,7 @@ export default function ClassDetailPage() {
   const [savingHomework, setSavingHomework]     = useState(false)
 
   useEffect(() => { loadData() }, [classId])
+  useEffect(() => { if (tab === 'stats' && !statsLoaded) loadAttendanceStats() }, [tab])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -611,6 +627,65 @@ export default function ClassDetailPage() {
     await loadMonthSessions()
   }
 
+  // ── 출결 현황 통계
+  async function loadAttendanceStats() {
+    setStatsLoading(true)
+    const { data: sessData } = await supabase
+      .from('sessions')
+      .select('id, date, start_time, end_time')
+      .eq('class_id', classId)
+      .order('date', { ascending: false })
+
+    if (!sessData || sessData.length === 0) {
+      setStatsSessions([]); setStatsStudents([])
+      setStatsLoading(false); setStatsLoaded(true); return
+    }
+
+    const sessIds = sessData.map((s: any) => s.id)
+    const { data: attData } = await supabase
+      .from('attendance')
+      .select('session_id, student_id, status')
+      .in('session_id', sessIds)
+
+    // 세션별 집계
+    const sessMap: Record<string, StatSession> = {}
+    for (const s of sessData) {
+      sessMap[s.id] = { id: s.id, date: s.date, start_time: s.start_time, end_time: s.end_time, present: 0, late: 0, early_leave: 0, absent: 0, total: students.length }
+    }
+    // 학생별 집계
+    const studentMap: Record<string, StatStudent> = {}
+    for (const s of students) {
+      studentMap[s.id] = { id: s.id, name: s.name, present: 0, late: 0, early_leave: 0, absent: 0, sessions: sessData.length }
+    }
+
+    for (const a of (attData ?? []) as { session_id: string; student_id: string; status: string }[]) {
+      const sm = sessMap[a.session_id]
+      if (sm) {
+        if (a.status === 'present') sm.present++
+        else if (a.status === 'late') sm.late++
+        else if (a.status === 'early_leave') sm.early_leave++
+        else if (a.status === 'absent') sm.absent++
+      }
+      const um = studentMap[a.student_id]
+      if (um) {
+        if (a.status === 'present') um.present++
+        else if (a.status === 'late') um.late++
+        else if (a.status === 'early_leave') um.early_leave++
+        else if (a.status === 'absent') um.absent++
+      }
+    }
+
+    setStatsSessions(Object.values(sessMap))
+    setStatsStudents(
+      Object.values(studentMap).sort((a, b) => {
+        const ra = a.sessions > 0 ? (a.present + a.late) / a.sessions : 0
+        const rb = b.sessions > 0 ? (b.present + b.late) / b.sessions : 0
+        return rb - ra
+      })
+    )
+    setStatsLoading(false); setStatsLoaded(true)
+  }
+
   // ── 숙제
   async function addHomework(e: React.FormEvent) {
     e.preventDefault(); setSavingHomework(true)
@@ -735,20 +810,139 @@ export default function ClassDetailPage() {
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto">
         {([
-          { key: 'calendar' as Tab, label: '캘린더', Icon: CalendarDays },
-          { key: 'students' as Tab, label: '학생',   Icon: Users },
+          { key: 'calendar' as Tab, label: '캘린더',       Icon: CalendarDays },
+          { key: 'stats'    as Tab, label: '출결 현황',    Icon: TrendingUp },
+          { key: 'students' as Tab, label: '학생',          Icon: Users },
           { key: 'schedule' as Tab, label: '수업·클리닉 일정', Icon: Clock },
         ]).map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            className={`flex-1 min-w-max flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
               tab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}>
             <Icon size={15} />{label}
           </button>
         ))}
       </div>
+
+      {/* ════════ 출결 현황 탭 ════════ */}
+      {tab === 'stats' && (
+        <div className="space-y-6">
+          {statsLoading ? (
+            <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+          ) : statsSessions.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <TrendingUp size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">아직 수업 기록이 없어요</p>
+              <p className="text-xs mt-1">캘린더에서 날짜를 선택해 출결을 기록해보세요</p>
+            </div>
+          ) : (() => {
+            // 전체 요약
+            const totalSess = statsSessions.length
+            const totalPresent     = statsSessions.reduce((s, r) => s + r.present, 0)
+            const totalLate        = statsSessions.reduce((s, r) => s + r.late, 0)
+            const totalEarlyLeave  = statsSessions.reduce((s, r) => s + r.early_leave, 0)
+            const totalAbsent      = statsSessions.reduce((s, r) => s + r.absent, 0)
+            const totalSlots       = statsSessions.reduce((s, r) => s + r.total, 0)
+            const avgRate = totalSlots > 0 ? Math.round((totalPresent / totalSlots) * 100) : 0
+
+            return (
+              <>
+                {/* 요약 카드 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: '총 수업 횟수', val: `${totalSess}회`,    color: 'text-slate-700',   bg: 'bg-slate-50'   },
+                    { label: '평균 출석률',  val: `${avgRate}%`,        color: 'text-blue-600',    bg: 'bg-blue-50'    },
+                    { label: '누적 출석',    val: `${totalPresent}건`,  color: 'text-green-600',   bg: 'bg-green-50'   },
+                    { label: '누적 결석',    val: `${totalAbsent}건`,   color: 'text-red-500',     bg: 'bg-red-50'     },
+                  ].map(({ label, val, color, bg }) => (
+                    <div key={label} className={`rounded-2xl border border-slate-200 p-4 text-center ${bg}`}>
+                      <p className="text-xs text-slate-500 mb-1">{label}</p>
+                      <p className={`text-2xl font-bold ${color}`}>{val}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 수업별 현황 */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <p className="font-semibold text-slate-800 text-sm">수업별 출결 현황</p>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {statsSessions.map(s => {
+                      const recorded = s.present + s.late + s.early_leave + s.absent
+                      const rate = s.total > 0 ? Math.round((s.present / s.total) * 100) : 0
+                      const rateColor = rate >= 80 ? 'text-green-600' : rate >= 60 ? 'text-amber-500' : 'text-red-500'
+                      return (
+                        <div key={s.id} className="px-4 py-3">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div>
+                              <span className="text-sm font-medium text-slate-700">
+                                {new Date(s.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })}
+                              </span>
+                              <span className="text-xs text-slate-400 ml-2">{s.start_time?.slice(0,5)} ~ {s.end_time?.slice(0,5)}</span>
+                            </div>
+                            <span className={`text-sm font-bold ${rateColor}`}>{rate}%</span>
+                          </div>
+                          {/* 바 */}
+                          <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 mb-1.5">
+                            {s.total > 0 && <>
+                              <div className="bg-green-500 transition-all"  style={{ width: `${(s.present     / s.total) * 100}%` }} />
+                              <div className="bg-amber-400 transition-all"  style={{ width: `${(s.late        / s.total) * 100}%` }} />
+                              <div className="bg-purple-400 transition-all" style={{ width: `${(s.early_leave / s.total) * 100}%` }} />
+                              <div className="bg-red-400 transition-all"    style={{ width: `${(s.absent      / s.total) * 100}%` }} />
+                            </>}
+                          </div>
+                          <div className="flex gap-3 text-xs text-slate-500">
+                            <span className="text-green-600 font-medium">출석 {s.present}</span>
+                            {s.late > 0        && <span className="text-amber-500 font-medium">지각 {s.late}</span>}
+                            {s.early_leave > 0 && <span className="text-purple-500 font-medium">조퇴 {s.early_leave}</span>}
+                            {s.absent > 0      && <span className="text-red-500 font-medium">결석 {s.absent}</span>}
+                            {recorded < s.total && <span className="text-slate-400">미기록 {s.total - recorded}</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 학생별 현황 */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <p className="font-semibold text-slate-800 text-sm">학생별 출결 현황</p>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {statsStudents.map((s, i) => {
+                      const recorded = s.present + s.late + s.early_leave + s.absent
+                      const rate = s.sessions > 0 ? Math.round((s.present / s.sessions) * 100) : 0
+                      const rateColor = rate >= 80 ? 'text-green-600' : rate >= 60 ? 'text-amber-500' : 'text-red-500'
+                      return (
+                        <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-blue-600">{i + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800">{s.name}</p>
+                            <div className="flex gap-2 text-xs mt-0.5">
+                              <span className="text-green-600">출석 {s.present}</span>
+                              {s.late > 0        && <span className="text-amber-500">지각 {s.late}</span>}
+                              {s.early_leave > 0 && <span className="text-purple-500">조퇴 {s.early_leave}</span>}
+                              {s.absent > 0      && <span className="text-red-500">결석 {s.absent}</span>}
+                              {recorded < s.sessions && <span className="text-slate-400">미기록 {s.sessions - recorded}</span>}
+                            </div>
+                          </div>
+                          <span className={`text-sm font-bold flex-shrink-0 ${rateColor}`}>{rate}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )
+          })()}
+        </div>
+      )}
 
       {/* ════════ 시간표 탭 ════════ */}
       {tab === 'schedule' && (
