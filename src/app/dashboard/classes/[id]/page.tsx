@@ -22,7 +22,7 @@ type Student = {
   parent_relation: string | null; memo: string | null
 }
 type Session      = { id: string; date: string; start_time: string; end_time: string; status: string }
-type ClinicSession = { id: string; class_id: string; date: string; note: string | null; start_time: string | null; end_time: string | null }
+type ClinicSession = { id: string; class_id: string; date: string; note: string | null; name: string | null; start_time: string | null; end_time: string | null }
 type AttendanceRecord = {
   id: string | null; student_id: string
   status: 'present' | 'absent' | 'late' | 'early_leave' | null; note: string | null
@@ -118,7 +118,7 @@ export default function ClassDetailPage() {
 
   const [showAddExtraClinic, setShowAddExtraClinic]   = useState(false)
   const [extraClinicDate, setExtraClinicDate]         = useState('')
-  const [extraClinicForm, setExtraClinicForm]         = useState({ start_time: '16:00', end_time: '18:00' })
+  const [extraClinicForm, setExtraClinicForm]         = useState({ name: '', start_time: '16:00', end_time: '18:00' })
   const [savingExtraClinic, setSavingExtraClinic]     = useState(false)
   const [extraClinicError, setExtraClinicError]       = useState('')
 
@@ -531,6 +531,7 @@ export default function ClassDetailPage() {
     setSavingExtraClinic(true)
     const { data: ns } = await supabase.from('clinic_sessions').insert({
       class_id: classId, date: extraClinicDate,
+      name: extraClinicForm.name || null,
       start_time: extraClinicForm.start_time, end_time: extraClinicForm.end_time, note: null,
     }).select().single()
     setSavingExtraClinic(false)
@@ -599,6 +600,14 @@ export default function ClassDetailPage() {
     await supabase.from('clinic_sessions').delete().eq('id', selectedClinicSession.id)
     setSelectedClinicSession(null)
     setClinicAttList(students.map(s => ({ id: null, student_id: s.id, status: null })))
+    await loadMonthSessions()
+  }
+
+  async function saveClinicName(name: string) {
+    if (!selectedClinicSession) return
+    const trimmed = name.trim() || null
+    await supabase.from('clinic_sessions').update({ name: trimmed }).eq('id', selectedClinicSession.id)
+    setSelectedClinicSession({ ...selectedClinicSession, name: trimmed })
     await loadMonthSessions()
   }
 
@@ -1075,8 +1084,17 @@ export default function ClassDetailPage() {
                     {selectedSession && panelTab === 'attendance' && (
                       <p className="text-sm text-slate-500 mt-0.5">{selectedSession.start_time.slice(0,5)} ~ {selectedSession.end_time.slice(0,5)}</p>
                     )}
+                    {selectedClinicSession && panelTab === 'clinic' && (
+                      <input
+                        key={selectedClinicSession.id}
+                        defaultValue={selectedClinicSession.name ?? ''}
+                        onBlur={e => saveClinicName(e.target.value)}
+                        placeholder="클리닉 이름 (예: 오답 클리닉)"
+                        className="text-sm text-violet-600 font-medium mt-0.5 bg-transparent border-b border-transparent hover:border-violet-300 focus:border-violet-500 focus:outline-none w-full max-w-[200px] placeholder:text-slate-300"
+                      />
+                    )}
                     {selectedClinicSession && panelTab === 'clinic' && selectedClinicSession.start_time && (
-                      <p className="text-sm text-violet-500 mt-0.5">{selectedClinicSession.start_time.slice(0,5)} ~ {selectedClinicSession.end_time?.slice(0,5)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{selectedClinicSession.start_time.slice(0,5)} ~ {selectedClinicSession.end_time?.slice(0,5)}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -1353,11 +1371,11 @@ export default function ClassDetailPage() {
                         <div className="py-10 text-center text-slate-400 text-sm">클리닉 일에 열려요</div>
                       ) : (
                         <>
-                          {/* 클리닉 범위 입력 */}
+                          {/* 클리닉 이름 표시 */}
                           {(() => {
                             const dow = new Date(selectedDate + 'T00:00:00').getDay()
                             const cs  = clinicSchedules.find(s => s.day_of_week === dow)
-                            const title = cs?.name || `${DAYS[dow]}요일 클리닉`
+                            const title = selectedClinicSession?.name || cs?.name || `${DAYS[dow]}요일 클리닉`
                             return (
                               <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
                                 <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
@@ -1447,7 +1465,7 @@ export default function ClassDetailPage() {
                 onClick={() => {
                   setShowTypeChoice(false)
                   setExtraClinicDate(typeChoiceDate)
-                  setExtraClinicForm({ start_time: '16:00', end_time: '18:00' })
+                  setExtraClinicForm({ name: '', start_time: '16:00', end_time: '18:00' })
                   setShowAddExtraClinic(true)
                 }}
                 className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-violet-400 hover:bg-violet-50 transition-all group"
@@ -1517,6 +1535,13 @@ export default function ClassDetailPage() {
               <button onClick={() => setShowAddExtraClinic(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
             <form onSubmit={addExtraClinicSession} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">클리닉 이름 (선택)</label>
+                <input type="text" value={extraClinicForm.name}
+                  onChange={e => setExtraClinicForm({ ...extraClinicForm, name: e.target.value })}
+                  placeholder="예: 오답 클리닉, 개념 보충" autoFocus
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">시작 시간</label>
