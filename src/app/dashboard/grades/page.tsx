@@ -57,12 +57,13 @@ function GradesContent() {
   const [testMaxScore, setTestMaxScore] = useState('100')
   const [testDate, setTestDate] = useState(new Date().toISOString().slice(0, 10))
   const [addingTest, setAddingTest] = useState(false)
+  const [testDateHasSession, setTestDateHasSession] = useState<boolean | null>(null)
 
   const from = searchParams.get('from')
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && showAddTest) setShowAddTest(false)
+      if (e.key === 'Escape' && showAddTest) { setShowAddTest(false); setTestDateHasSession(null) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -244,6 +245,17 @@ function GradesContent() {
     setSaving(false); setSaved(true)
   }
 
+  async function checkTestDate(date: string) {
+    if (!selectedClass || !date) { setTestDateHasSession(null); return }
+    const { data } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('class_id', selectedClass.id)
+      .eq('date', date)
+      .limit(1)
+    setTestDateHasSession((data ?? []).length > 0)
+  }
+
   async function addTest(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedClass || !testName.trim()) return
@@ -351,7 +363,7 @@ function GradesContent() {
             <h1 className="text-2xl font-bold text-slate-800">{selectedClass.name}</h1>
             <p className="text-sm text-slate-500 mt-0.5">시험 목록</p>
           </div>
-          <button onClick={() => setShowAddTest(true)}
+          <button onClick={() => { setTestDateHasSession(null); setShowAddTest(true); checkTestDate(testDate) }}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm">
             <Plus size={16} /> 시험 추가
           </button>
@@ -450,11 +462,21 @@ function GradesContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">날짜</label>
-                  <input type="date" value={testDate} onChange={e => setTestDate(e.target.value)}
+                  <input type="date" value={testDate}
+                    onChange={e => { setTestDate(e.target.value); checkTestDate(e.target.value) }}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                 </div>
+                {testDateHasSession === false && (
+                  <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                    <span className="text-amber-500 mt-0.5 flex-shrink-0">⚠️</span>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      이날은 등록된 수업이 없어요.<br />
+                      추가는 가능하지만, 수업일과 다른 날짜예요.
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setShowAddTest(false)}
+                  <button type="button" onClick={() => { setShowAddTest(false); setTestDateHasSession(null) }}
                     className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                   <button type="submit" disabled={addingTest}
                     className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
