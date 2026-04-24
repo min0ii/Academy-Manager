@@ -257,7 +257,7 @@ function StudentReportContent() {
           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-xl font-bold text-slate-800">학생 리포트</h1>
+        <h1 className="text-xl font-bold text-slate-800">학생 상세정보</h1>
       </div>
 
       {/* 기본 정보 */}
@@ -325,7 +325,7 @@ function StudentReportContent() {
                 disabled={actionLoading}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
               >
-                <ArrowRightLeft size={14} /> 전반
+                <ArrowRightLeft size={14} /> 소속반 변경
               </button>
               <button
                 onClick={withdrawStudent}
@@ -581,8 +581,8 @@ function StudentReportContent() {
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div>
-                <h2 className="font-bold text-slate-800">전반 — 반 변경</h2>
-                <p className="text-xs text-slate-400 mt-0.5">이전 반 기록은 그대로 보존돼요</p>
+                <h2 className="font-bold text-slate-800">소속반 변경</h2>
+                <p className="text-xs text-slate-400 mt-0.5">여러 반 동시 배정 가능 · 이전 기록은 보존돼요</p>
               </div>
               <button onClick={() => setShowTransferModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
