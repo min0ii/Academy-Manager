@@ -113,6 +113,9 @@ export default function ClassDetailPage() {
   const [extraForm, setExtraForm]       = useState({ start_time: '15:00', end_time: '17:00' })
   const [savingExtra, setSavingExtra]   = useState(false)
 
+  const [showTypeChoice, setShowTypeChoice]   = useState(false)
+  const [typeChoiceDate, setTypeChoiceDate]   = useState('')
+
   // ── 시험
   const [dateTests, setDateTests] = useState<{ id: string; name: string; max_score: number }[]>([])
 
@@ -132,13 +135,14 @@ export default function ClassDetailPage() {
       if (e.key !== 'Escape') return
       if (showAddHomework) { setShowAddHomework(false); return }
       if (showClinicScheduleForm) { setShowClinicScheduleForm(false); return }
+      if (showTypeChoice) { setShowTypeChoice(false); return }
       if (showAddExtra) { setShowAddExtra(false); return }
       if (showAddStudent) { setShowAddStudent(false); setSelectedNewIds(new Set()); setStudentSearch(''); return }
       if (showScheduleForm) { setShowScheduleForm(false); return }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [showScheduleForm, showAddStudent, showAddExtra, showClinicScheduleForm, showAddHomework])
+  }, [showScheduleForm, showAddStudent, showAddExtra, showClinicScheduleForm, showAddHomework, showTypeChoice])
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -358,6 +362,7 @@ export default function ClassDetailPage() {
     dateStr: string,
     sessMap?: Record<string, Session>,
     clinicMap?: Record<string, ClinicSession>,
+    forceTab?: PanelTab,
   ) {
     setSelectedDate(dateStr)
     setDetailStudent(null)
@@ -380,7 +385,8 @@ export default function ClassDetailPage() {
     const isRegularDay = !!session || schedules.some(s => s.day_of_week === dow)
     const isClinicDay  = !!clinicSession || clinicSchedules.some(s => s.day_of_week === dow)
 
-    if (isRegularDay) setPanelTab('attendance')
+    if (forceTab) setPanelTab(forceTab)
+    else if (isRegularDay) setPanelTab('attendance')
     else if (isClinicDay) setPanelTab('clinic')
     else setPanelTab('attendance')
 
@@ -975,9 +981,8 @@ export default function ClassDetailPage() {
                   if (hasSession || isClassDay || hasClinicSess || isClinicDay) {
                     selectDate(dateStr)
                   } else {
-                    setExtraDate(dateStr)
-                    setExtraForm({ start_time: '15:00', end_time: '17:00' })
-                    setShowAddExtra(true)
+                    setTypeChoiceDate(dateStr)
+                    setShowTypeChoice(true)
                   }
                 }
 
@@ -1022,10 +1027,7 @@ export default function ClassDetailPage() {
             const isRegDay   = !!selectedSession   || schedules.some(s => s.day_of_week === dow)
             const isClinicDy = !!selectedClinicSession || clinicSchedules.some(s => s.day_of_week === dow)
 
-            const availTabs: PanelTab[] = []
-            if (isRegDay)   { availTabs.push('attendance', 'homework') }
-            if (isClinicDy) { availTabs.push('clinic') }
-            if (availTabs.length === 0) availTabs.push('attendance')
+            const availTabs: PanelTab[] = ['attendance', 'homework', 'clinic']
 
             const PTAB_LABEL: Record<PanelTab, string> = { attendance: '출결', homework: '숙제', clinic: '클리닉' }
 
@@ -1373,6 +1375,53 @@ export default function ClassDetailPage() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* ════════ 수업/클리닉 선택 모달 ════════ */}
+      {showTypeChoice && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div>
+                <h2 className="font-bold text-slate-800">무엇을 추가할까요?</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {new Date(typeChoiceDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                </p>
+              </div>
+              <button onClick={() => setShowTypeChoice(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setShowTypeChoice(false)
+                  setExtraDate(typeChoiceDate)
+                  setExtraForm({ start_time: '15:00', end_time: '17:00' })
+                  setShowAddExtra(true)
+                }}
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all group"
+              >
+                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <CalendarDays size={22} className="text-blue-600" />
+                </div>
+                <span className="text-sm font-semibold text-slate-700">수업</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowTypeChoice(false)
+                  selectDate(typeChoiceDate, undefined, undefined, 'clinic')
+                }}
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-violet-400 hover:bg-violet-50 transition-all group"
+              >
+                <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center group-hover:bg-violet-200 transition-colors">
+                  <Activity size={22} className="text-violet-600" />
+                </div>
+                <span className="text-sm font-semibold text-slate-700">클리닉</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
