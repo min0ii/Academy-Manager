@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import {
   BookOpen, ChevronRight, ChevronLeft, CheckCircle2,
   Circle, AlertCircle, Users, Calendar,
-  ClipboardList, Beaker, TrendingDown, Star,
+  ClipboardList, Beaker, TrendingDown,
 } from 'lucide-react'
 
 type ClassItem = { id: string; name: string }
@@ -258,7 +258,7 @@ export default function HomeworkPage() {
   }
 
   const HwStatusBadge = ({ status }: { status: string | null }) => {
-    if (status === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full ring-1 ring-teal-200"><Star size={10} fill="currentColor" /> 오답 완료</span>
+    if (status === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full ring-1 ring-teal-200">오답(완벽) 완료</span>
     if (status === 'done')    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> 완료</span>
     if (status === 'none')    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><AlertCircle size={11} /> 미제출</span>
     return <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full"><Circle size={11} /> 미기록</span>
@@ -374,7 +374,7 @@ export default function HomeworkPage() {
                 </div>
                 <RateBar done={hw.done + hw.partial} total={hw.total} color="bg-teal-500" />
                 <div className="flex gap-3 text-xs text-center">
-                  <div className="flex-1 bg-teal-50 rounded-lg py-2 ring-1 ring-teal-100"><div className="font-bold text-teal-600">{hw.partial}</div><div className="text-slate-500">★ 오답 완료</div></div>
+                  <div className="flex-1 bg-teal-50 rounded-lg py-2 ring-1 ring-teal-100"><div className="font-bold text-teal-600">{hw.partial}</div><div className="text-slate-500">오답(완벽) 완료</div></div>
                   <div className="flex-1 bg-emerald-50 rounded-lg py-2"><div className="font-bold text-emerald-600">{hw.done}</div><div className="text-slate-500">완료</div></div>
                   <div className="flex-1 bg-red-50 rounded-lg py-2"><div className="font-bold text-red-500">{hw.none}</div><div className="text-slate-500">미제출</div></div>
                   <div className="flex-1 bg-slate-50 rounded-lg py-2"><div className="font-bold text-slate-500">{hw.total - hw.done - hw.partial - hw.none}</div><div className="text-slate-500">미기록</div></div>
@@ -456,7 +456,7 @@ export default function HomeworkPage() {
                   <div className="grid grid-cols-3 gap-2 text-xs text-center pt-1">
                     <div className="bg-teal-50 rounded-lg py-2 ring-1 ring-teal-100">
                       <div className="font-bold text-teal-600">{homeworks.reduce((s, h) => s + h.partial, 0)}</div>
-                      <div className="text-slate-500">★ 오답 완료</div>
+                      <div className="text-slate-500">오답(완벽) 완료</div>
                     </div>
                     <div className="bg-emerald-50 rounded-lg py-2">
                       <div className="font-bold text-emerald-600">{homeworks.reduce((s, h) => s + h.done, 0)}</div>
@@ -519,7 +519,7 @@ export default function HomeworkPage() {
                         </div>
                         <RateBar done={completed} total={hw.total} color="bg-teal-500" />
                         <div className="flex gap-2 mt-2.5 text-xs">
-                          {hw.partial > 0 && <><span className="text-teal-600 font-semibold">★ 오답 완료 {hw.partial}</span><span className="text-slate-300">·</span></>}
+                          {hw.partial > 0 && <><span className="text-teal-600 font-semibold">오답(완벽) 완료 {hw.partial}</span><span className="text-slate-300">·</span></>}
                           <span className="text-emerald-600 font-medium">완료 {hw.done}</span>
                           <span className="text-slate-300">·</span>
                           <span className="text-red-500 font-medium">미제출 {hw.none}</span>
