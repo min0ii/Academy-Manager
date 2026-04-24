@@ -361,7 +361,7 @@ export default function HomeworkPage() {
         <div>
           {detail.kind === 'homework' ? (() => {
             const hw = detail.item
-            const doneRate = hw.total > 0 ? Math.round((hw.done / hw.total) * 100) : 0
+            const doneRate = hw.total > 0 ? Math.round(((hw.done + hw.partial) / hw.total) * 100) : 0
             return (
               <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 space-y-3">
                 <div className="flex items-center justify-between">

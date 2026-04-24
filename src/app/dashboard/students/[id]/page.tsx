@@ -240,7 +240,7 @@ function StudentReportContent() {
   const hwPartial = homeworks.filter(h => h.status === 'partial').length
   const hwNone    = homeworks.filter(h => h.status === 'none').length
   const hwTotal   = homeworks.length
-  const hwRate    = hwTotal > 0 ? Math.round((hwDone / hwTotal) * 100) : null
+  const hwRate    = hwTotal > 0 ? Math.round(((hwDone + hwPartial) / hwTotal) * 100) : null
 
   const clinicDone  = clinicData.filter(c => c.status === 'done').length
   const clinicTotal = clinicData.length
