@@ -474,16 +474,18 @@ function StudentReportContent() {
                 ) : (
                   <>
                     <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
-                      {[
-                        { label: '완료',   val: hwDone,    color: 'text-green-600' },
-                        { label: '오답',   val: hwPartial, color: 'text-amber-500' },
-                        { label: '미제출', val: hwNone,    color: 'text-red-500' },
-                      ].map(({ label, val, color }) => (
-                        <div key={label} className="py-3 text-center">
-                          <p className={`text-xl font-bold ${color}`}>{val}</p>
-                          <p className="text-xs text-slate-400">{label}</p>
-                        </div>
-                      ))}
+                      <div className="py-3 text-center bg-teal-50/60">
+                        <p className="text-xl font-bold text-teal-600">{hwPartial}</p>
+                        <p className="text-xs text-teal-500 font-medium">★ 오답 완료</p>
+                      </div>
+                      <div className="py-3 text-center">
+                        <p className="text-xl font-bold text-green-600">{hwDone}</p>
+                        <p className="text-xs text-slate-400">완료</p>
+                      </div>
+                      <div className="py-3 text-center">
+                        <p className="text-xl font-bold text-red-500">{hwNone}</p>
+                        <p className="text-xs text-slate-400">미제출</p>
+                      </div>
                     </div>
                     <div className="divide-y divide-slate-50">
                       {(showAllHomework ? homeworks : homeworks.slice(0, 5)).map(h => (
@@ -495,9 +497,9 @@ function StudentReportContent() {
                               {h.due_date && <span className="ml-1">· 마감 {h.due_date}</span>}
                             </p>
                           </div>
-                          {h.status === 'done' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-100 text-green-700 flex-shrink-0">완료</span>}
-                          {h.status === 'partial' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">오답</span>}
-                          {h.status === 'none' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-100 text-red-600 flex-shrink-0">미제출</span>}
+                          {h.status === 'partial' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-600 ring-1 ring-teal-200 flex-shrink-0">★ 오답 완료</span>}
+                          {h.status === 'done'    && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-100 text-green-700 flex-shrink-0">완료</span>}
+                          {h.status === 'none'    && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-100 text-red-600 flex-shrink-0">미제출</span>}
                           {!h.status && <span className="text-xs text-slate-300 flex-shrink-0">기록 없음</span>}
                         </div>
                       ))}

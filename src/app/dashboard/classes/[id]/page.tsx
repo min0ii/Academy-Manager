@@ -57,10 +57,10 @@ const ATT_ACTIVE = {
   early_leave: 'bg-purple-500 text-white border-purple-500',
   absent:      'bg-red-500 text-white border-red-500',
 } as const
-const HW_LABEL  = { done: '완료', partial: '오답', none: '미제출' } as const
+const HW_LABEL  = { partial: '★ 오답 완료', done: '완료', none: '미제출' } as const
 const HW_ACTIVE = {
+  partial: 'bg-teal-500 text-white border-teal-500 ring-2 ring-teal-300 ring-offset-1',
   done:    'bg-green-500 text-white border-green-500',
-  partial: 'bg-amber-400 text-white border-amber-400',
   none:    'bg-red-500 text-white border-red-500',
 } as const
 
@@ -1520,7 +1520,10 @@ export default function ClassDetailPage() {
                                       />
                                     </div>
                                     {statuses.length > 0 && (
-                                      <span className="text-xs text-slate-400">완료 {doneCount} · 오답 {partCount} · 미제출 {noneCount}</span>
+                                      <span className="text-xs text-slate-400">
+                                        {partCount > 0 && <span className="text-teal-600 font-medium">★ 오답 완료 {partCount} · </span>}
+                                        완료 {doneCount} · 미제출 {noneCount}
+                                      </span>
                                     )}
                                   </div>
                                 </div>
@@ -1551,7 +1554,7 @@ export default function ClassDetailPage() {
                                         <p className="text-xs text-slate-400">{student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}</p>
                                       </div>
                                       <div className="flex gap-1 flex-shrink-0">
-                                        {(['done', 'partial', 'none'] as const).map(s => (
+                                        {(['partial', 'done', 'none'] as const).map(s => (
                                           <button key={s} onClick={() => setHomeworkStatus(hw.id, rec.student_id, s)}
                                             className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                                               rec.status === s ? HW_ACTIVE[s] : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'

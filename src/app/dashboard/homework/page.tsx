@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   BookOpen, ChevronRight, ChevronLeft, CheckCircle2,
-  Circle, MinusCircle, AlertCircle, Users, Calendar,
-  ClipboardList, Beaker, TrendingDown,
+  Circle, AlertCircle, Users, Calendar,
+  ClipboardList, Beaker, TrendingDown, Star,
 } from 'lucide-react'
 
 type ClassItem = { id: string; name: string }
@@ -258,8 +258,8 @@ export default function HomeworkPage() {
   }
 
   const HwStatusBadge = ({ status }: { status: string | null }) => {
+    if (status === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full ring-1 ring-teal-200"><Star size={10} fill="currentColor" /> 오답 완료</span>
     if (status === 'done')    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> 완료</span>
-    if (status === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"><MinusCircle size={11} /> 오답</span>
     if (status === 'none')    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><AlertCircle size={11} /> 미제출</span>
     return <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full"><Circle size={11} /> 미기록</span>
   }
@@ -319,9 +319,9 @@ export default function HomeworkPage() {
   // 전체 평균 완료율 계산
   const hwAvgRate = (() => {
     if (homeworks.length === 0) return null
-    const total = homeworks.reduce((s, h) => s + h.total, 0)
-    const done  = homeworks.reduce((s, h) => s + h.done, 0)
-    return total > 0 ? Math.round((done / total) * 100) : null
+    const total     = homeworks.reduce((s, h) => s + h.total, 0)
+    const completed = homeworks.reduce((s, h) => s + h.done + h.partial, 0)
+    return total > 0 ? Math.round((completed / total) * 100) : null
   })()
   const clinicAvgRate = (() => {
     if (clinics.length === 0) return null
@@ -370,12 +370,12 @@ export default function HomeworkPage() {
                     <span>출제일 {fmtDate(hw.assigned_date)}</span>
                     {hw.due_date && <span>· 마감 {fmtDate(hw.due_date)}</span>}
                   </div>
-                  <span className="text-xl font-bold text-blue-600">{doneRate}%</span>
+                  <span className="text-xl font-bold text-teal-600">{doneRate}%</span>
                 </div>
-                <RateBar done={hw.done} total={hw.total} color="bg-blue-500" />
+                <RateBar done={hw.done + hw.partial} total={hw.total} color="bg-teal-500" />
                 <div className="flex gap-3 text-xs text-center">
+                  <div className="flex-1 bg-teal-50 rounded-lg py-2 ring-1 ring-teal-100"><div className="font-bold text-teal-600">{hw.partial}</div><div className="text-slate-500">★ 오답 완료</div></div>
                   <div className="flex-1 bg-emerald-50 rounded-lg py-2"><div className="font-bold text-emerald-600">{hw.done}</div><div className="text-slate-500">완료</div></div>
-                  <div className="flex-1 bg-amber-50 rounded-lg py-2"><div className="font-bold text-amber-600">{hw.partial}</div><div className="text-slate-500">오답</div></div>
                   <div className="flex-1 bg-red-50 rounded-lg py-2"><div className="font-bold text-red-500">{hw.none}</div><div className="text-slate-500">미제출</div></div>
                   <div className="flex-1 bg-slate-50 rounded-lg py-2"><div className="font-bold text-slate-500">{hw.total - hw.done - hw.partial - hw.none}</div><div className="text-slate-500">미기록</div></div>
                 </div>
@@ -449,22 +449,22 @@ export default function HomeworkPage() {
                     <span className="text-2xl font-bold text-blue-600">{hwAvgRate ?? 0}%</span>
                   </div>
                   <RateBar
-                    done={homeworks.reduce((s, h) => s + h.done, 0)}
+                    done={homeworks.reduce((s, h) => s + h.done + h.partial, 0)}
                     total={homeworks.reduce((s, h) => s + h.total, 0)}
-                    color="bg-blue-500"
+                    color="bg-teal-500"
                   />
                   <div className="grid grid-cols-3 gap-2 text-xs text-center pt-1">
+                    <div className="bg-teal-50 rounded-lg py-2 ring-1 ring-teal-100">
+                      <div className="font-bold text-teal-600">{homeworks.reduce((s, h) => s + h.partial, 0)}</div>
+                      <div className="text-slate-500">★ 오답 완료</div>
+                    </div>
                     <div className="bg-emerald-50 rounded-lg py-2">
                       <div className="font-bold text-emerald-600">{homeworks.reduce((s, h) => s + h.done, 0)}</div>
-                      <div className="text-slate-500">총 완료</div>
-                    </div>
-                    <div className="bg-amber-50 rounded-lg py-2">
-                      <div className="font-bold text-amber-600">{homeworks.reduce((s, h) => s + h.partial, 0)}</div>
-                      <div className="text-slate-500">총 오답</div>
+                      <div className="text-slate-500">완료</div>
                     </div>
                     <div className="bg-red-50 rounded-lg py-2">
                       <div className="font-bold text-red-500">{homeworks.reduce((s, h) => s + h.none, 0)}</div>
-                      <div className="text-slate-500">총 미제출</div>
+                      <div className="text-slate-500">미제출</div>
                     </div>
                   </div>
 
@@ -500,27 +500,27 @@ export default function HomeworkPage() {
               ) : (
                 <div className="space-y-2">
                   {homeworks.map(hw => {
-                    const doneRate = hw.total > 0 ? Math.round((hw.done / hw.total) * 100) : 0
+                    const completed = hw.done + hw.partial
+                    const doneRate = hw.total > 0 ? Math.round((completed / hw.total) * 100) : 0
                     return (
                       <button key={hw.id} onClick={() => openDetail({ kind: 'homework', item: hw })}
-                        className="w-full bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all text-left group">
+                        className="w-full bg-white border border-slate-200 rounded-xl p-4 hover:border-teal-300 hover:bg-teal-50/20 transition-all text-left group">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1 pr-3">
-                            <p className="font-semibold text-slate-800 group-hover:text-blue-700 text-sm leading-snug">{hw.title}</p>
+                            <p className="font-semibold text-slate-800 group-hover:text-teal-700 text-sm leading-snug">{hw.title}</p>
                             <p className="text-xs text-slate-400 mt-0.5">
                               출제 {fmtDate(hw.assigned_date)}{hw.due_date && ` · 마감 ${fmtDate(hw.due_date)}`}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="text-lg font-bold text-blue-600">{doneRate}%</span>
-                            <p className="text-xs text-slate-400">{hw.done}/{hw.total}명 완료</p>
+                            <span className="text-lg font-bold text-teal-600">{doneRate}%</span>
+                            <p className="text-xs text-slate-400">{completed}/{hw.total}명 완료</p>
                           </div>
                         </div>
-                        <RateBar done={hw.done} total={hw.total} color="bg-blue-500" />
+                        <RateBar done={completed} total={hw.total} color="bg-teal-500" />
                         <div className="flex gap-2 mt-2.5 text-xs">
+                          {hw.partial > 0 && <><span className="text-teal-600 font-semibold">★ 오답 완료 {hw.partial}</span><span className="text-slate-300">·</span></>}
                           <span className="text-emerald-600 font-medium">완료 {hw.done}</span>
-                          <span className="text-slate-300">·</span>
-                          <span className="text-amber-600 font-medium">오답 {hw.partial}</span>
                           <span className="text-slate-300">·</span>
                           <span className="text-red-500 font-medium">미제출 {hw.none}</span>
                         </div>
