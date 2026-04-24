@@ -2,11 +2,12 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Plus, X, ChevronRight, ChevronLeft, BarChart2, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, X, ChevronRight, ChevronLeft, BarChart2, Trash2, AlertTriangle, TrendingUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 type ClassItem = { id: string; name: string; test_count: number }
-type Test = { id: string; name: string; max_score: number; date: string; takers: number }
+type Test = { id: string; name: string; max_score: number; date: string; takers: number; avgScore: number | null }
 type TestScore = { student_id: string; student_name: string; score: number | null }
 
 function pct(score: number | null, max: number): number | null {
@@ -19,6 +20,19 @@ function scoreColor(p: number | null) {
   if (p >= 80) return 'text-emerald-600'
   if (p >= 60) return 'text-amber-600'
   return 'text-red-500'
+}
+
+function scoreBg(p: number | null) {
+  if (p === null) return 'bg-slate-50'
+  if (p >= 80) return 'bg-emerald-50'
+  if (p >= 60) return 'bg-amber-50'
+  return 'bg-red-50'
+}
+
+function computeAvg(testScores: { score: number; absent: boolean }[], maxScore: number): number | null {
+  const valid = testScores.filter(s => !s.absent && s.score !== null).map(s => s.score)
+  if (valid.length === 0) return null
+  return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length)
 }
 
 function GradesContent() {
@@ -77,35 +91,34 @@ function GradesContent() {
 
   async function autoSelectFromUrl(classIdParam: string, testIdParam: string) {
     setLoading(true)
-
     const { data: classData } = await supabase
       .from('classes').select('id, name').eq('id', classIdParam).single()
-
     if (!classData) { setLoading(false); loadClasses(); return }
 
     const classItem: ClassItem = { id: classData.id, name: classData.name, test_count: 0 }
     setSelectedClass(classItem)
     setLoading(false)
-
     setLoadingTests(true)
+
     const { data: testsData } = await supabase
-      .from('tests').select('id, name, max_score, date').eq('class_id', classIdParam).order('date', { ascending: false })
+      .from('tests')
+      .select('id, name, max_score, date, test_scores(student_id, score, absent)')
+      .eq('class_id', classIdParam)
+      .order('date', { ascending: true })
 
     const testsList: Test[] = (testsData ?? []).map((t: any) => ({
-      id: t.id, name: t.name, max_score: t.max_score, date: t.date, takers: 0,
+      id: t.id, name: t.name, max_score: t.max_score, date: t.date,
+      takers: (t.test_scores ?? []).length,
+      avgScore: computeAvg(t.test_scores ?? [], t.max_score),
     }))
     setTests(testsList)
     setLoadingTests(false)
 
     if (!testIdParam) return
-
     const target = testsList.find(t => t.id === testIdParam)
     if (target) {
-      const { count } = await supabase
-        .from('test_scores').select('*', { count: 'exact', head: true }).eq('test_id', testIdParam)
-      const test: Test = { ...target, takers: count ?? 0 }
-      setSelectedTest(test)
-      await loadScoresForTest(test, classIdParam)
+      setSelectedTest(target)
+      await loadScoresForTest(target, classIdParam)
     }
   }
 
@@ -139,13 +152,14 @@ function GradesContent() {
 
     const { data } = await supabase
       .from('tests')
-      .select('id, name, max_score, date, test_scores(student_id)')
+      .select('id, name, max_score, date, test_scores(student_id, score, absent)')
       .eq('class_id', c.id)
-      .order('date', { ascending: false })
+      .order('date', { ascending: true })
 
     const formatted: Test[] = (data ?? []).map((t: any) => ({
       id: t.id, name: t.name, max_score: t.max_score, date: t.date,
       takers: (t.test_scores ?? []).length,
+      avgScore: computeAvg(t.test_scores ?? [], t.max_score),
     }))
 
     setTests(formatted)
@@ -154,7 +168,6 @@ function GradesContent() {
 
   async function loadScoresForTest(t: Test, classId: string) {
     setLoadingScores(true)
-
     const { data: classStudents } = await supabase
       .from('class_students')
       .select('students(id, name)')
@@ -198,12 +211,8 @@ function GradesContent() {
     setSaved(false)
     setAbsentIds(prev => {
       const next = new Set(prev)
-      if (next.has(studentId)) {
-        next.delete(studentId)
-      } else {
-        next.add(studentId)
-        setEditScores(e => ({ ...e, [studentId]: '' }))
-      }
+      if (next.has(studentId)) next.delete(studentId)
+      else { next.add(studentId); setEditScores(e => ({ ...e, [studentId]: '' })) }
       return next
     })
   }
@@ -212,21 +221,18 @@ function GradesContent() {
     if (!selectedTest) return
     setSaving(true)
 
-    // 응시 + 점수 있음 → upsert
     const rows = Object.entries(editScores)
       .filter(([id, v]) => v !== '' && !absentIds.has(id))
       .map(([student_id, v]) => ({ test_id: selectedTest.id, student_id, score: Number(v), absent: false }))
     if (rows.length > 0)
       await supabase.from('test_scores').upsert(rows, { onConflict: 'test_id,student_id' })
 
-    // 미응시 → absent=true, score=0 으로 upsert
     const absentRows = [...absentIds].map(student_id => ({
       test_id: selectedTest.id, student_id, score: 0, absent: true,
     }))
     if (absentRows.length > 0)
       await supabase.from('test_scores').upsert(absentRows, { onConflict: 'test_id,student_id' })
 
-    // 응시인데 점수 비어있으면 기존 기록 삭제
     const clearIds = Object.entries(editScores)
       .filter(([id, v]) => v === '' && !absentIds.has(id))
       .map(([id]) => id)
@@ -235,8 +241,7 @@ function GradesContent() {
         .eq('test_id', selectedTest.id).in('student_id', clearIds)
 
     await loadScoresForTest(selectedTest, selectedClass!.id)
-    setSaving(false)
-    setSaved(true)
+    setSaving(false); setSaved(true)
   }
 
   async function addTest(e: React.FormEvent) {
@@ -251,11 +256,9 @@ function GradesContent() {
       date: testDate,
     })
 
-    setTestName('')
-    setTestMaxScore('100')
+    setTestName(''); setTestMaxScore('100')
     setTestDate(new Date().toISOString().slice(0, 10))
-    setShowAddTest(false)
-    setAddingTest(false)
+    setShowAddTest(false); setAddingTest(false)
     await selectClass(selectedClass)
   }
 
@@ -270,9 +273,26 @@ function GradesContent() {
   const filledNums = scores
     .filter(s => !absentIds.has(s.student_id) && editScores[s.student_id] !== '' && editScores[s.student_id] !== undefined)
     .map(s => Number(editScores[s.student_id]))
-  const avg = filledNums.length > 0 ? filledNums.reduce((a, b) => a + b, 0) / filledNums.length : null
+  const avg    = filledNums.length > 0 ? filledNums.reduce((a, b) => a + b, 0) / filledNums.length : null
   const maxVal = filledNums.length > 0 ? Math.max(...filledNums) : null
   const minVal = filledNums.length > 0 ? Math.min(...filledNums) : null
+
+  // 취약 학생 (입력된 점수 기준 60% 미만)
+  const weakStudents = selectedTest ? scores.filter(s => {
+    if (absentIds.has(s.student_id)) return false
+    const v = editScores[s.student_id]
+    if (!v || v === '') return false
+    const p = pct(Number(v), selectedTest.max_score)
+    return p !== null && p < 60
+  }) : []
+
+  // 차트 데이터 (오름차순 날짜)
+  const chartData = tests
+    .filter(t => t.avgScore !== null)
+    .map(t => ({
+      name: t.name.length > 7 ? t.name.slice(0, 7) + '…' : t.name,
+      평균: pct(t.avgScore, t.max_score),
+    }))
 
   // ── LEVEL 1: 반 목록 ──
   if (!selectedClass) {
@@ -345,27 +365,67 @@ function GradesContent() {
             <p className="text-sm">시험을 추가하고 학생별 점수를 입력해보세요</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {tests.map(t => (
-              <div key={t.id} onClick={() => selectTest(t)}
-                className="flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <BarChart2 size={20} className="text-emerald-600" />
+          <>
+            {/* 평균 추이 그래프 */}
+            {chartData.length >= 2 && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp size={16} className="text-blue-500" />
+                  <p className="text-sm font-semibold text-slate-700">시험 평균 추이</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800">{t.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{t.date} · 만점 {t.max_score}점 · {t.takers}명 입력됨</p>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={e => deleteTest(t.id, e)}
-                    className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={15} />
-                  </button>
-                  <ChevronRight size={16} className="text-slate-300" />
-                </div>
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" />
+                    <Tooltip
+                      formatter={(v: any) => [`${v}%`, '평균']}
+                      contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    />
+                    <Line
+                      type="monotone" dataKey="평균" stroke="#3b82f6" strokeWidth={2.5}
+                      dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+            )}
+
+            {/* 시험 목록 */}
+            <div className="space-y-2">
+              {[...tests].reverse().map(t => {
+                const avgP = pct(t.avgScore, t.max_score)
+                return (
+                  <div key={t.id} onClick={() => selectTest(t)}
+                    className="flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${avgP !== null ? scoreBg(avgP) : 'bg-emerald-50'}`}>
+                      <BarChart2 size={20} className={avgP !== null ? scoreColor(avgP) : 'text-emerald-600'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-800">{t.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                        {t.date} · 만점 {t.max_score}점 · {t.takers}명 입력됨
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {t.avgScore !== null && (
+                        <div className="text-right">
+                          <p className={`text-base font-bold ${scoreColor(avgP)}`}>{t.avgScore}점</p>
+                          {avgP !== null && <p className={`text-xs font-medium ${scoreColor(avgP)}`}>{avgP}%</p>}
+                        </div>
+                      )}
+                      <button onClick={e => deleteTest(t.id, e)}
+                        className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={15} />
+                      </button>
+                      <ChevronRight size={16} className="text-slate-300" />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
 
         {showAddTest && (
@@ -422,7 +482,7 @@ function GradesContent() {
           <p className="text-sm text-slate-500 mt-0.5">{selectedTest.date} · 만점 {selectedTest.max_score}점</p>
         </div>
         <button onClick={saveScores} disabled={saving || saved}
-          className={`px-4 py-2.5 font-semibold rounded-xl transition-colors text-sm flex-shrink-0 ${saved ? 'bg-emerald-100 text-emerald-700 cursor-default opacity-100' : saving ? 'bg-blue-600 text-white opacity-50 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+          className={`px-4 py-2.5 font-semibold rounded-xl transition-colors text-sm flex-shrink-0 ${saved ? 'bg-emerald-100 text-emerald-700 cursor-default' : saving ? 'bg-blue-600 text-white opacity-50 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
           {saving ? '저장 중...' : saved ? '저장됨 ✓' : '저장'}
         </button>
       </div>
@@ -437,7 +497,7 @@ function GradesContent() {
           ].map(({ label, val }) => {
             const p = pct(val, selectedTest.max_score)
             return (
-              <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4 text-center">
+              <div key={label} className={`rounded-2xl border border-slate-200 p-4 text-center ${scoreBg(p)}`}>
                 <p className="text-xs text-slate-400 mb-1">{label}</p>
                 <p className={`text-2xl font-bold ${scoreColor(p)}`}>
                   {val ?? '-'}<span className="text-sm font-normal text-slate-400">점</span>
@@ -446,6 +506,28 @@ function GradesContent() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* 취약 학생 배너 */}
+      {weakStudents.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-red-700">성적 취약 학생 — 60% 미만 ({weakStudents.length}명)</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {weakStudents.map(s => {
+              const v = editScores[s.student_id]
+              const p = pct(Number(v), selectedTest.max_score)
+              return (
+                <div key={s.student_id} className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-red-100">
+                  <span className="text-sm text-slate-700 font-medium truncate">{s.student_name}</span>
+                  <span className="text-sm font-bold text-red-500 ml-2 flex-shrink-0">{p}%</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -477,13 +559,11 @@ function GradesContent() {
               const p = !isAbsent && v !== '' ? pct(Number(v), selectedTest.max_score) : null
               return (
                 <div key={s.student_id} className={`flex items-center gap-3 px-4 py-3 ${isAbsent ? 'bg-slate-50' : ''}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isAbsent ? 'bg-slate-100' : 'bg-emerald-50'}`}>
-                    <span className={`font-bold text-sm ${isAbsent ? 'text-slate-400' : 'text-emerald-600'}`}>{s.student_name[0]}</span>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isAbsent ? 'bg-slate-100' : p !== null ? scoreBg(p) : 'bg-emerald-50'}`}>
+                    <span className={`font-bold text-sm ${isAbsent ? 'text-slate-400' : p !== null ? scoreColor(p) : 'text-emerald-600'}`}>{s.student_name[0]}</span>
                   </div>
                   <p className={`flex-1 font-medium text-sm ${isAbsent ? 'text-slate-400' : 'text-slate-800'}`}>{s.student_name}</p>
-
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* 응시/미응시 토글 */}
                     <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
                       <button
                         onClick={() => isAbsent && toggleAbsent(s.student_id)}
@@ -494,8 +574,6 @@ function GradesContent() {
                         className={`px-2.5 py-1.5 font-medium transition-colors border-l border-slate-200 ${isAbsent ? 'bg-slate-400 text-white' : 'text-slate-400 hover:bg-slate-50'}`}
                       >미응시</button>
                     </div>
-
-                    {/* 점수 입력 (응시만) */}
                     {!isAbsent ? (
                       <div className="flex items-center gap-1">
                         {p !== null && (
@@ -505,10 +583,10 @@ function GradesContent() {
                           type="number"
                           value={v}
                           onChange={e => {
-                            const v = e.target.value
-                            if (v !== '' && (Number(v) > selectedTest.max_score || Number(v) < 0)) return
+                            const val = e.target.value
+                            if (val !== '' && (Number(val) > selectedTest.max_score || Number(val) < 0)) return
                             setSaved(false)
-                            setEditScores(prev => ({ ...prev, [s.student_id]: v }))
+                            setEditScores(prev => ({ ...prev, [s.student_id]: val }))
                           }}
                           placeholder="-"
                           min="0"
