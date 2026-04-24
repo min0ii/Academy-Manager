@@ -688,7 +688,12 @@ export default function ClassDetailPage() {
 
   // ── 숙제
   async function addHomework(e: React.FormEvent) {
-    e.preventDefault(); setSavingHomework(true)
+    e.preventDefault()
+    if (homeworkForm.due_date && homeworkForm.due_date < homeworkForm.assigned_date) {
+      alert('마감일은 출제일보다 늦어야 해요.')
+      return
+    }
+    setSavingHomework(true)
     const assignedDate = homeworkForm.assigned_date
     const { error } = await supabase.from('homework').insert({
       class_id: classId,
@@ -718,6 +723,12 @@ export default function ClassDetailPage() {
   }
 
   async function saveHomeworkDueDate(hwId: string, dueDate: string) {
+    const hw = dateHomeworks.find(h => h.id === hwId)
+    if (dueDate && hw && dueDate < hw.assigned_date) {
+      alert('마감일은 출제일보다 늦어야 해요.')
+      setHwDueDateEdits(prev => ({ ...prev, [hwId]: hw.due_date ?? '' }))
+      return
+    }
     const value = dueDate || null
     await supabase.from('homework').update({ due_date: value }).eq('id', hwId)
     setDateHomeworks(prev => prev.map(h => h.id === hwId ? { ...h, due_date: value } : h))
@@ -1891,6 +1902,7 @@ export default function ClassDetailPage() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">마감일 (선택)</label>
                   <input type="date" value={homeworkForm.due_date}
+                    min={homeworkForm.assigned_date || undefined}
                     onChange={e => setHomeworkForm({ ...homeworkForm, due_date: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
