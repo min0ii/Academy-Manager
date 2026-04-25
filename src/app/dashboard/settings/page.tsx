@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import {
   Building2, User, Users, Check, X, Plus,
-  Eye, EyeOff, Crown, Shield, Loader2, Camera,
+  Eye, EyeOff, Crown, Shield, Loader2, Camera, UserPlus,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'team'
@@ -52,6 +52,16 @@ export default function SettingsPage() {
   const [savingPw, setSavingPw] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwSaved, setPwSaved] = useState(false)
+
+  // 계정 일괄 생성
+  const [creatingAccounts, setCreatingAccounts] = useState(false)
+  const [accountResult, setAccountResult] = useState<{
+    studentCreated: number
+    studentSkipped: number
+    parentCreated: number
+    parentSkipped: number
+    errors: string[]
+  } | null>(null)
 
   // 팀 관리
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
@@ -210,6 +220,30 @@ export default function SettingsPage() {
     await loadTeam(academyId)
   }
 
+  async function createAllAccounts() {
+    if (!confirm('모든 학생과 학부모 계정을 일괄 생성할까요?\n이미 계정이 있는 경우는 건너뜁니다.')) return
+    setCreatingAccounts(true)
+    setAccountResult(null)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/create-student-accounts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+      },
+    })
+    const result = await res.json()
+    setCreatingAccounts(false)
+
+    if (!res.ok) {
+      setAccountResult(null)
+      alert(result.error ?? '오류가 발생했어요.')
+      return
+    }
+    setAccountResult(result)
+  }
+
   async function saveTitle(memberId: string, title: '원장' | '관리자' | '강사') {
     await supabase.from('academy_teachers').update({ title }).eq('id', memberId)
     setTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, title } : m))
@@ -357,6 +391,67 @@ export default function SettingsPage() {
               <p className="text-xs text-slate-400 mt-1.5">학원 정보는 원장만 수정할 수 있어요</p>
             )}
           </div>
+
+          {/* 계정 일괄 생성 */}
+          {isAdmin && (
+            <div className="border-t border-slate-100 pt-5 space-y-3">
+              <div>
+                <h3 className="font-semibold text-slate-800 text-sm">학생·학부모 계정 일괄 생성</h3>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  등록된 모든 학생과 학부모의 로그인 계정을 자동 생성해요.<br />
+                  <span className="font-medium">학생</span>: 전화번호 → ID, 뒤 4자리 → 초기 비밀번호<br />
+                  <span className="font-medium">학부모</span>: 학부모 연락처 → ID, 뒤 4자리 → 초기 비밀번호<br />
+                  이미 계정이 있는 경우는 건너뜁니다.
+                </p>
+              </div>
+
+              <button
+                onClick={createAllAccounts}
+                disabled={creatingAccounts}
+                className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50"
+              >
+                {creatingAccounts
+                  ? <><Loader2 size={15} className="animate-spin" /> 계정 생성 중...</>
+                  : <><UserPlus size={15} /> 계정 일괄 생성</>
+                }
+              </button>
+
+              {accountResult && (
+                <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
+                  <p className="font-semibold text-slate-700">생성 완료!</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white rounded-lg px-3 py-2 border border-slate-200">
+                      <p className="text-xs text-slate-500">학생 계정 생성</p>
+                      <p className="font-bold text-violet-700 text-lg">{accountResult.studentCreated}명</p>
+                    </div>
+                    <div className="bg-white rounded-lg px-3 py-2 border border-slate-200">
+                      <p className="text-xs text-slate-500">학생 건너뜀</p>
+                      <p className="font-bold text-slate-500 text-lg">{accountResult.studentSkipped}명</p>
+                    </div>
+                    <div className="bg-white rounded-lg px-3 py-2 border border-slate-200">
+                      <p className="text-xs text-slate-500">학부모 계정 생성</p>
+                      <p className="font-bold text-violet-700 text-lg">{accountResult.parentCreated}명</p>
+                    </div>
+                    <div className="bg-white rounded-lg px-3 py-2 border border-slate-200">
+                      <p className="text-xs text-slate-500">학부모 건너뜀</p>
+                      <p className="font-bold text-slate-500 text-lg">{accountResult.parentSkipped}명</p>
+                    </div>
+                  </div>
+                  {accountResult.errors.length > 0 && (
+                    <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      <p className="text-xs font-medium text-red-700 mb-1">오류 발생 항목</p>
+                      {accountResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs text-red-600">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400">
+                    * 학생/학부모에게 전화번호와 "뒤 4자리" 비밀번호를 알려주세요.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
