@@ -61,9 +61,9 @@ export async function POST(req: NextRequest) {
         studentSkipped++
       } else if (student.phone) {
         const digits = String(student.phone).replace(/\D/g, '')
-        if (digits.length >= 4) {
+        if (digits.length >= 6) {
           const email = `${digits}@academy.local`
-          const password = digits.slice(-4) // 뒤 4자리
+          const password = digits.slice(-8) // 010 제외 뒤 8자리
 
           const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email,
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       }
 
       const parentEmail = `${parentDigits}@academy.local`
-      const parentPassword = parentDigits.slice(-4)
+      const parentPassword = parentDigits.slice(-8)
 
       const { data: parentAuthData, error: parentCreateError } = await supabaseAdmin.auth.admin.createUser({
         email: parentEmail,

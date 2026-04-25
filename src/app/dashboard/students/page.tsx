@@ -667,7 +667,8 @@ export default function StudentsPage() {
               <div>
                 <h2 className="font-bold text-violet-800 text-sm">계정 일괄 생성</h2>
                 <p className="text-xs text-violet-600 mt-1 leading-relaxed">
-                  전화번호 → 로그인 ID &nbsp;·&nbsp; 뒤 4자리 → 초기 비밀번호<br />
+                  전화번호 → 로그인 ID &nbsp;·&nbsp; 010 제외 뒤 8자리 → 초기 비밀번호<br />
+                  예) 010-1234-5678 → 비밀번호: <span className="font-semibold">12345678</span><br />
                   이미 계정이 있는 경우는 자동으로 건너뜁니다.
                 </p>
               </div>
@@ -856,7 +857,7 @@ export default function StudentsPage() {
           )}
 
           <p className="text-xs text-slate-400 text-center pb-2">
-            * 계정 생성 후 학생·학부모에게 <span className="font-medium">전화번호</span>와 <span className="font-medium">뒤 4자리</span>를 초기 비밀번호로 알려주세요.
+            * 계정 생성 후 학생·학부모에게 <span className="font-medium">전화번호</span>와 <span className="font-medium">010 제외 뒤 8자리</span>를 초기 비밀번호로 알려주세요.
           </p>
         </>
       )}

@@ -63,12 +63,12 @@ export async function POST(req: NextRequest) {
       }
 
       const digits = String(student.phone).replace(/\D/g, '')
-      if (digits.length < 4) {
+      if (digits.length < 6) {
         return NextResponse.json({ error: '전화번호가 너무 짧아요.' }, { status: 400 })
       }
 
       const email = `${digits}@academy.local`
-      const password = digits.slice(-4)
+      const password = digits.slice(-8)
 
       const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email,
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
       }
 
       const digits = String(student.parent_phone).replace(/\D/g, '')
-      if (digits.length < 4) {
+      if (digits.length < 6) {
         return NextResponse.json({ error: '학부모 전화번호가 너무 짧아요.' }, { status: 400 })
       }
 
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       }
 
       const email = `${digits}@academy.local`
-      const password = digits.slice(-4)
+      const password = digits.slice(-8)
 
       const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email,
