@@ -135,9 +135,17 @@ export default function ParentPage() {
   }
 
   async function loadClassInfo(studentId: string) {
+    // classes.academy_id 를 통해 academies.name 을 직접 조인
     const { data: classStudents } = await supabase
       .from('class_students')
-      .select('class_id, classes(id, name, teacher_id, class_schedules(day_of_week, start_time, end_time))')
+      .select(`
+        class_id,
+        classes(
+          id, name, academy_id, teacher_id,
+          academies(name),
+          class_schedules(day_of_week, start_time, end_time)
+        )
+      `)
       .eq('student_id', studentId)
 
     if (!classStudents || classStudents.length === 0) return
@@ -145,7 +153,11 @@ export default function ParentPage() {
     const cls = (classStudents[0] as any).classes
     if (!cls) return
 
-    // 담당 선생님 이름
+    // 학원 이름 — classes.academy_id → academies.name (teacher_id 컬럼 불필요)
+    const acName = cls.academies?.name ?? ''
+    setAcademyName(acName)
+
+    // 담당 선생님 이름 (classes.teacher_id 컬럼이 있을 때만)
     let teacherName: string | null = null
     if (cls.teacher_id) {
       const { data: tp } = await supabase
@@ -154,14 +166,6 @@ export default function ParentPage() {
         .eq('id', cls.teacher_id)
         .single()
       teacherName = tp?.name ?? null
-
-      // 학원 이름
-      const { data: at } = await supabase
-        .from('academy_teachers')
-        .select('academies(name)')
-        .eq('teacher_id', cls.teacher_id)
-        .maybeSingle()
-      setAcademyName((at as any)?.academies?.name ?? '')
     }
 
     setClassInfo({
