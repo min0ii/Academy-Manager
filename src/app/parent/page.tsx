@@ -36,19 +36,18 @@ type AttendanceRecord = {
 
 type TestRecord = {
   id: string
-  title: string
+  name: string      // tests 테이블 컬럼명
   date: string
   score: number | null
   max_score: number
   absent: boolean
-  type: 'example' | 'review' | 'test'
 }
 
 type ClinicRecord = {
   id: string
   name: string
   date: string
-  scope: string | null
+  note: string | null  // clinic_sessions 컬럼명
   status: 'done' | 'partial' | 'none' | null
 }
 
@@ -62,11 +61,6 @@ const ATTEND_STYLE: Record<string, { label: string; color: string; dot: string }
   cancelled:   { label: '휴강', color: 'text-slate-400',   dot: 'bg-slate-300' },
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  example: '예제',
-  review: '복습',
-  test: '시험',
-}
 
 const CLINIC_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   done:    { label: '완료',    color: 'text-emerald-700', bg: 'bg-emerald-50' },
@@ -209,9 +203,10 @@ export default function ParentPage() {
     if (!student || !classInfo) return
     setGradesLoaded(true)
 
+    // tests 테이블 컬럼: id, name, max_score, date (title/type 없음)
     const { data: testData } = await supabase
       .from('tests')
-      .select('id, title, date, type, max_score, test_scores(student_id, score, absent)')
+      .select('id, name, date, max_score, test_scores(student_id, score, absent)')
       .eq('class_id', classInfo.id)
       .order('date', { ascending: true })
 
@@ -219,9 +214,8 @@ export default function ParentPage() {
       const my = (t.test_scores ?? []).find((s: any) => s.student_id === student.id)
       return {
         id: t.id,
-        title: t.title,
+        name: t.name,
         date: t.date,
-        type: t.type,
         max_score: t.max_score,
         score: my?.score ?? null,
         absent: my?.absent ?? false,
@@ -235,9 +229,11 @@ export default function ParentPage() {
     if (!student || !classInfo) return
     setClinicLoaded(true)
 
+    // clinic_sessions 컬럼: id, name, date, note (scope 없음)
+    // clinic_attendance FK: clinic_session_id
     const { data: clinicData } = await supabase
       .from('clinic_sessions')
-      .select('id, name, date, scope, clinic_attendance(student_id, status)')
+      .select('id, name, date, note, clinic_attendance(student_id, status)')
       .eq('class_id', classInfo.id)
       .order('date', { ascending: false })
 
@@ -247,7 +243,7 @@ export default function ParentPage() {
         id: c.id,
         name: c.name ?? `${c.date} 클리닉`,
         date: c.date,
-        scope: c.scope,
+        note: c.note ?? null,
         status: my?.status ?? null,
       }
     })
@@ -300,7 +296,7 @@ export default function ParentPage() {
   const minPct = pcts.length > 0 ? Math.min(...pcts) : null
 
   const chartData = scoredTests.map(t => ({
-    label: `${t.date.slice(5)} ${t.title}`,
+    label: `${t.date.slice(5)} ${t.name}`,
     pct: Math.round((t.score! / t.max_score) * 100),
   }))
 
@@ -634,10 +630,7 @@ export default function ParentPage() {
                           <div key={t.id} className="flex items-center gap-3 px-5 py-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-semibold text-slate-800 truncate">{t.title}</span>
-                                <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full flex-shrink-0">
-                                  {TYPE_LABEL[t.type] ?? t.type}
-                                </span>
+                                <span className="text-sm font-semibold text-slate-800 truncate">{t.name}</span>
                               </div>
                               <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g, '. ')}</p>
                             </div>
@@ -709,8 +702,8 @@ export default function ParentPage() {
                           <div key={c.id} className="flex items-center gap-3 px-5 py-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
-                              {c.scope && (
-                                <p className="text-xs text-slate-400 mt-0.5 truncate">{c.scope}</p>
+                              {c.note && (
+                                <p className="text-xs text-slate-400 mt-0.5 truncate">{c.note}</p>
                               )}
                               <p className="text-xs text-slate-400">{c.date.replace(/-/g, '. ')}</p>
                             </div>
