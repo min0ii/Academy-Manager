@@ -246,29 +246,42 @@ function GradesContent() {
   }
 
   async function saveScores() {
-    if (!selectedTest) return
+    if (!selectedTest || !scores.length) return
     setSaving(true)
 
-    const rows = Object.entries(editScores)
-      .filter(([id, v]) => v !== '' && !absentIds.has(id))
-      .map(([student_id, v]) => ({ test_id: selectedTest.id, student_id, score: Number(v), absent: false }))
-    if (rows.length > 0)
-      await supabase.from('test_scores').upsert(rows, { onConflict: 'test_id,student_id' })
+    // upsert 대신 DELETE → INSERT (더 안정적, conflict 설정 불필요)
+    const { error: delErr } = await supabase
+      .from('test_scores')
+      .delete()
+      .eq('test_id', selectedTest.id)
 
-    const absentRows = [...absentIds].map(student_id => ({
-      test_id: selectedTest.id, student_id, score: 0, absent: true,
-    }))
-    if (absentRows.length > 0)
-      await supabase.from('test_scores').upsert(absentRows, { onConflict: 'test_id,student_id' })
+    if (delErr) {
+      alert('저장 오류: ' + delErr.message)
+      setSaving(false)
+      return
+    }
 
-    const clearIds = Object.entries(editScores)
-      .filter(([id, v]) => v === '' && !absentIds.has(id))
-      .map(([id]) => id)
-    if (clearIds.length > 0)
-      await supabase.from('test_scores').delete()
-        .eq('test_id', selectedTest.id).in('student_id', clearIds)
+    const newRows: { test_id: string; student_id: string; score: number; absent: boolean }[] = []
+    for (const s of scores) {
+      const v = editScores[s.student_id]
+      if (absentIds.has(s.student_id)) {
+        newRows.push({ test_id: selectedTest.id, student_id: s.student_id, score: 0, absent: true })
+      } else if (v !== '' && v !== undefined) {
+        newRows.push({ test_id: selectedTest.id, student_id: s.student_id, score: Number(v), absent: false })
+      }
+    }
 
-    setSaving(false); setSaved(true)
+    if (newRows.length > 0) {
+      const { error: insErr } = await supabase.from('test_scores').insert(newRows)
+      if (insErr) {
+        alert('저장 오류: ' + insErr.message)
+        setSaving(false)
+        return
+      }
+    }
+
+    setSaving(false)
+    setSaved(true)
   }
 
   async function checkTestDate(date: string) {
