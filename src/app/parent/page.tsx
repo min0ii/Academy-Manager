@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, BookOpen, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
+  KeyRound, Eye, EyeOff, X, Check,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -76,6 +77,17 @@ export default function ParentPage() {
   const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
   const [academyName, setAcademyName] = useState('')
 
+  // 비밀번호 변경 안내
+  const [mustChangePw, setMustChangePw] = useState(false)
+  const [showPwModal, setShowPwModal] = useState(false)
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [showNewPw, setShowNewPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwDone, setPwDone] = useState(false)
+
   // 출석
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [calMonth, setCalMonth] = useState(() => new Date())
@@ -105,11 +117,17 @@ export default function ParentPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name, phone')
+      .select('name, phone, must_change_password')
       .eq('id', user.id)
       .single()
 
-    if (profile) setParentName(profile.name)
+    if (profile) {
+      setParentName(profile.name)
+      if (profile.must_change_password) {
+        setMustChangePw(true)
+        setShowPwModal(true)
+      }
+    }
 
     const parentPhone = profile?.phone ?? ''
 
@@ -251,6 +269,23 @@ export default function ParentPage() {
     setClinics(records)
   }
 
+  async function handleChangePw(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    if (newPw.length < 6) { setPwError('비밀번호는 6자 이상이어야 해요.'); return }
+    if (newPw !== confirmPw) { setPwError('비밀번호가 일치하지 않아요.'); return }
+    setPwSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: newPw })
+    if (error) { setPwError(error.message); setPwSaving(false); return }
+    // must_change_password = false 로 업데이트
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
+    setPwSaving(false)
+    setPwDone(true)
+    setMustChangePw(false)
+    setTimeout(() => { setShowPwModal(false); setPwDone(false); setNewPw(''); setConfirmPw('') }, 1800)
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     window.location.href = '/login'
@@ -338,6 +373,16 @@ export default function ParentPage() {
           <span className="hidden sm:block">로그아웃</span>
         </button>
       </header>
+
+      {/* 비밀번호 변경 배너 (모달 닫은 후에도 상단에 표시) */}
+      {mustChangePw && !showPwModal && (
+        <div
+          onClick={() => setShowPwModal(true)}
+          className="bg-amber-500 text-white text-xs text-center py-2.5 px-4 font-medium cursor-pointer hover:bg-amber-600 transition-colors"
+        >
+          🔒 초기 비밀번호를 사용 중이에요. 탭하여 비밀번호를 변경해주세요.
+        </div>
+      )}
 
       {/* 콘텐츠 */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 pb-28 space-y-4">
@@ -741,6 +786,96 @@ export default function ParentPage() {
           </button>
         ))}
       </nav>
+
+      {/* 비밀번호 변경 모달 */}
+      {showPwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound size={18} className="text-amber-500" />
+                <h2 className="font-bold text-slate-800">비밀번호 변경</h2>
+              </div>
+              {!mustChangePw && (
+                <button onClick={() => setShowPwModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {pwDone ? (
+              <div className="p-8 flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <Check size={28} className="text-emerald-600" />
+                </div>
+                <p className="font-bold text-slate-800">변경 완료!</p>
+                <p className="text-xs text-slate-400">새 비밀번호로 로그인할 수 있어요.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleChangePw} className="p-5 space-y-4">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    현재 <span className="font-semibold">초기 비밀번호</span>(전화번호 뒤 8자리)를 사용 중이에요.<br />
+                    보안을 위해 새 비밀번호로 변경해주세요.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">새 비밀번호</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPw ? 'text' : 'password'}
+                      value={newPw}
+                      onChange={e => setNewPw(e.target.value)}
+                      placeholder="6자 이상"
+                      required
+                      className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <button type="button" onClick={() => setShowNewPw(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      {showNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">비밀번호 확인</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPw ? 'text' : 'password'}
+                      value={confirmPw}
+                      onChange={e => setConfirmPw(e.target.value)}
+                      placeholder="비밀번호 재입력"
+                      required
+                      className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <button type="button" onClick={() => setShowConfirmPw(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      {showConfirmPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+                {pwError && <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{pwError}</p>}
+                <div className="flex gap-2 pt-1">
+                  {!mustChangePw && (
+                    <button type="button" onClick={() => setShowPwModal(false)}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">
+                      나중에
+                    </button>
+                  )}
+                  <button type="submit" disabled={pwSaving}
+                    className="flex-1 py-2.5 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 transition-colors text-sm disabled:opacity-50">
+                    {pwSaving ? '변경 중...' : '변경하기'}
+                  </button>
+                </div>
+                {mustChangePw && (
+                  <p className="text-xs text-slate-400 text-center">
+                    비밀번호를 변경해야 이용할 수 있어요
+                  </p>
+                )}
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
