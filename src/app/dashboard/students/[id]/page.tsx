@@ -100,7 +100,7 @@ function StudentReportContent() {
     setActionLoading(true)
     await supabase.from('students').update({ status: 'inactive', withdrawn_at: new Date().toISOString() }).eq('id', studentId)
     await supabase.from('class_students').delete().eq('student_id', studentId)
-    await loadStudent()
+    await loadStudent(ctx!.academyId)
     setActionLoading(false)
   }
 
@@ -110,7 +110,7 @@ function StudentReportContent() {
     if (!confirm(`${student.name} 학생을 재원으로 복귀할까요?\n반 배정은 학생 관리에서 다시 설정해주세요.`)) return
     setActionLoading(true)
     await supabase.from('students').update({ status: 'active', withdrawn_at: null }).eq('id', studentId)
-    await loadStudent()
+    await loadStudent(ctx!.academyId)
     setActionLoading(false)
   }
 
@@ -127,7 +127,7 @@ function StudentReportContent() {
       await supabase.from('class_students').insert(transferClassIds.map(cid => ({ class_id: cid, student_id: studentId })))
     }
     setShowTransferModal(false)
-    await loadStudent()
+    await loadStudent(ctx!.academyId)
     setTransferring(false)
   }
 
