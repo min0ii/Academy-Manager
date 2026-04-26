@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera,
@@ -43,36 +44,18 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState('')
   const [pwSaved, setPwSaved] = useState(false)
 
-  useEffect(() => { loadData() }, [])
-
-  async function loadData() {
-    setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (!user) return
-    setMyId(user.id)
-
-    const [{ data: profile }, { data: membership }] = await Promise.all([
-      supabase.from('profiles').select('name').eq('id', user.id).single(),
-      supabase.from('academy_teachers')
-        .select('academy_id, role, academies(id, name, logo_url)')
-        .eq('teacher_id', user.id)
-        .single(),
-    ])
-
-    if (profile) setMyName(profile.name)
-    if (membership) {
-      const ac = (membership as any).academies
-      setAcademyId(membership.academy_id)
-      setMyRole(membership.role as 'owner' | 'staff')
-      setMyTitle((membership as any).title ?? '강사')
-      if (ac) {
-        setAcademyName(ac.name)
-        setAcademyLogoUrl(ac.logo_url ?? null)
-      }
-    }
+  const ctx = useAcademy()
+  useEffect(() => {
+    if (!ctx) return
+    setMyId(ctx.userId)
+    setAcademyId(ctx.academyId)
+    setMyRole(ctx.myRole)
+    setMyTitle(ctx.myTitle as Title)
+    setMyName(ctx.teacherName)
+    setAcademyName(ctx.academyName)
+    setAcademyLogoUrl(ctx.academyLogoUrl)
     setLoading(false)
-  }
+  }, [ctx])
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

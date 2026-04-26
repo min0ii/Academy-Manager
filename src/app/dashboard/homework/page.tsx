@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAcademy } from '@/lib/academy-context'
 import {
   BookOpen, ChevronRight, ChevronLeft, CheckCircle2,
   Circle, AlertCircle, Users, Calendar,
@@ -73,19 +74,13 @@ export default function HomeworkPage() {
   const [detailStudents, setDetailStudents] = useState<StudentStatus[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
 
+  const ctx = useAcademy()
   // 반 목록 로드
   useEffect(() => {
-    ;(async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      const user = session?.user
-      if (!user) return
-      const { data: membership } = await supabase
-        .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
-      if (!membership) return
-      const { data } = await supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name')
-      setClasses(data ?? [])
-    })()
-  }, [])
+    if (!ctx) return
+    supabase.from('classes').select('id, name').eq('academy_id', ctx.academyId).order('name')
+      .then(({ data }) => setClasses(data ?? []))
+  }, [ctx])
 
   // 반 선택 시 숙제·클리닉 로드
   const loadClassData = useCallback(async (cls: ClassItem) => {

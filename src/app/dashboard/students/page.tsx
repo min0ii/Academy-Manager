@@ -7,6 +7,7 @@ import {
   Users, KeyRound, CheckCircle2, XCircle, Loader2, RefreshCw, UserPlus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAcademy } from '@/lib/academy-context'
 import { formatPhone } from '@/lib/auth'
 
 type PageTab = 'list' | 'accounts'
@@ -103,7 +104,8 @@ export default function StudentsPage() {
   // 마지막 계정 현황 로드 시각 (30초 캐시)
   const [accountStatusLoadedAt, setAccountStatusLoadedAt] = useState<number>(0)
 
-  useEffect(() => { loadData() }, [])
+  const ctx = useAcademy()
+  useEffect(() => { if (ctx) loadData(ctx.academyId) }, [ctx])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -125,24 +127,16 @@ export default function StudentsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageTab])
 
-  async function loadData() {
+  async function loadData(academyId: string) {
     setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (!user) return
-
-    const { data: membership } = await supabase
-      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
-    if (!membership) return
-
-    setAcademyId(membership.academy_id)
+    setAcademyId(academyId)
 
     const [{ data: studentData }, { data: classData }] = await Promise.all([
       supabase.from('students')
         .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at, user_id, class_students(classes(id, name))')
-        .eq('academy_id', membership.academy_id)
+        .eq('academy_id', academyId)
         .order('name'),
-      supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name'),
+      supabase.from('classes').select('id, name').eq('academy_id', academyId).order('name'),
     ])
 
     setStudents((studentData as any) ?? [])
@@ -379,7 +373,7 @@ export default function StudentsPage() {
         await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: newStudent.id })))
     }
 
-    await loadData()
+    await loadData(academyId!)
     setSaving(false)
     setShowForm(false)
   }
@@ -387,7 +381,7 @@ export default function StudentsPage() {
   async function handleDelete(id: string, name: string) {
     if (!confirm(`${name} 학생을 삭제할까요?`)) return
     await supabase.from('students').delete().eq('id', id)
-    await loadData()
+    await loadData(academyId!)
   }
 
   function toggleSelect(id: string) {
@@ -409,7 +403,7 @@ export default function StudentsPage() {
     await supabase.from('students').delete().in('id', [...selectedIds])
     setSelectedIds(new Set())
     setSelectMode(false)
-    await loadData()
+    await loadData(academyId!)
   }
 
   function exitSelectMode() { setSelectMode(false); setSelectedIds(new Set()) }
@@ -487,7 +481,7 @@ export default function StudentsPage() {
         )
       }
     }
-    await loadData()
+    await loadData(academyId!)
     setImporting(false)
   }
 

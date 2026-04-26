@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
+import { AcademyContext, type AcademyCtx } from '@/lib/academy-context'
 
 const NAV = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, exact: true },
@@ -26,28 +27,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [teacherName, setTeacherName] = useState('')
   const [teacherTitle, setTeacherTitle] = useState('선생')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [ctxValue, setCtxValue] = useState<AcademyCtx | null>(null)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: profile } = await supabase
-        .from('profiles').select('name, role').eq('id', user.id).single()
-      if (!profile || profile.role !== 'teacher') {
-        router.push('/login')
-        return
-      }
-      setTeacherName(profile.name)
+      // 프로필 + 소속 정보 병렬 조회
+      const [{ data: profile }, { data: membership }] = await Promise.all([
+        supabase.from('profiles').select('name, role').eq('id', user.id).single(),
+        supabase.from('academy_teachers')
+          .select('academy_id, role, title, academies(name, logo_url)')
+          .eq('teacher_id', user.id)
+          .single(),
+      ])
 
-      const { data: membership } = await supabase
-        .from('academy_teachers')
-        .select('title, academies(name, logo_url)')
-        .eq('teacher_id', user.id)
-        .single()
+      if (!profile || profile.role !== 'teacher') { router.push('/login'); return }
+
       const ac = (membership as any)?.academies
+      setTeacherName(profile.name)
       if (ac) setAcademy(ac)
       if (membership?.title) setTeacherTitle(membership.title)
+
+      // 모든 하위 페이지가 공유할 Context 설정
+      setCtxValue({
+        userId: user.id,
+        academyId: membership?.academy_id ?? '',
+        myRole: (membership?.role ?? 'staff') as 'owner' | 'staff',
+        myTitle: membership?.title ?? '',
+        teacherName: profile.name,
+        academyName: ac?.name ?? '',
+        academyLogoUrl: ac?.logo_url ?? null,
+      })
     }
     load()
   }, [router])
@@ -177,7 +189,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* 콘텐츠 */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-          {children}
+          <AcademyContext.Provider value={ctxValue}>
+            {children}
+          </AcademyContext.Provider>
         </main>
       </div>
     </div>

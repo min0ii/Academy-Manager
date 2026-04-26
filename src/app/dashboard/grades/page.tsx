@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Plus, X, ChevronRight, ChevronLeft, BarChart2, Trash2, AlertTriangle, TrendingUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAcademy } from '@/lib/academy-context'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 type ClassItem = { id: string; name: string; test_count: number }
@@ -38,6 +39,7 @@ function computeAvg(testScores: { score: number; absent: boolean }[], maxScore: 
 function GradesContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const ctx = useAcademy()
 
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null)
@@ -79,6 +81,7 @@ function GradesContent() {
   }
 
   useEffect(() => {
+    if (!ctx) return
     const classIdParam = searchParams.get('classId')
     const testIdParam = searchParams.get('testId')
     if (classIdParam && testIdParam) {
@@ -86,15 +89,15 @@ function GradesContent() {
     } else if (classIdParam) {
       autoSelectFromUrl(classIdParam, '')
     } else {
-      loadClasses()
+      loadClasses(ctx.academyId)
     }
-  }, [])
+  }, [ctx])
 
   async function autoSelectFromUrl(classIdParam: string, testIdParam: string) {
     setLoading(true)
     const { data: classData } = await supabase
       .from('classes').select('id, name').eq('id', classIdParam).single()
-    if (!classData) { setLoading(false); loadClasses(); return }
+    if (!classData) { setLoading(false); if (ctx) loadClasses(ctx.academyId); return }
 
     const classItem: ClassItem = { id: classData.id, name: classData.name, test_count: 0 }
     setSelectedClass(classItem)
@@ -103,15 +106,26 @@ function GradesContent() {
 
     const { data: testsData } = await supabase
       .from('tests')
-      .select('id, name, max_score, date, test_scores(student_id, score, absent)')
+      .select('id, name, max_score, date')
       .eq('class_id', classIdParam)
       .order('date', { ascending: true })
 
-    const testsList: Test[] = (testsData ?? []).map((t: any) => ({
-      id: t.id, name: t.name, max_score: t.max_score, date: t.date,
-      takers: (t.test_scores ?? []).length,
-      avgScore: computeAvg(t.test_scores ?? [], t.max_score),
-    }))
+    let testsList: Test[] = []
+    if (testsData?.length) {
+      const { data: scoresData } = await supabase
+        .from('test_scores').select('test_id, student_id, score, absent')
+        .in('test_id', testsData.map(t => t.id))
+      const byTest = new Map<string, any[]>()
+      for (const s of (scoresData ?? [])) {
+        if (!byTest.has(s.test_id)) byTest.set(s.test_id, [])
+        byTest.get(s.test_id)!.push(s)
+      }
+      testsList = testsData.map(t => ({
+        id: t.id, name: t.name, max_score: t.max_score, date: t.date,
+        takers: (byTest.get(t.id) ?? []).length,
+        avgScore: computeAvg(byTest.get(t.id) ?? [], t.max_score),
+      }))
+    }
     setTests(testsList)
     setLoadingTests(false)
 
@@ -123,27 +137,26 @@ function GradesContent() {
     }
   }
 
-  async function loadClasses() {
+  async function loadClasses(academyId: string) {
     setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (!user) { setLoading(false); return }
-
-    const { data: membership } = await supabase
-      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
-    if (!membership) { setLoading(false); return }
 
     const { data: classData } = await supabase
-      .from('classes')
-      .select('id, name, tests(id)')
-      .eq('academy_id', membership.academy_id)
-      .order('name')
+      .from('classes').select('id, name').eq('academy_id', academyId).order('name')
 
-    const classList: ClassItem[] = (classData ?? []).map((c: any) => ({
-      id: c.id, name: c.name, test_count: (c.tests ?? []).length,
-    }))
+    if (!classData?.length) { setClasses([]); setLoading(false); return }
 
-    setClasses(classList)
+    // 시험 수를 한 번에 조회 (N+1 방지 + embed FK 오류 방지)
+    const { data: testsData } = await supabase
+      .from('tests').select('class_id').in('class_id', classData.map(c => c.id))
+
+    const countByClass = new Map<string, number>()
+    for (const t of (testsData ?? [])) {
+      countByClass.set(t.class_id, (countByClass.get(t.class_id) ?? 0) + 1)
+    }
+
+    setClasses(classData.map(c => ({
+      id: c.id, name: c.name, test_count: countByClass.get(c.id) ?? 0,
+    })))
     setLoading(false)
   }
 
@@ -153,17 +166,33 @@ function GradesContent() {
     setUrl(c.id)
     setLoadingTests(true)
 
-    const { data } = await supabase
+    // test_scores embed 대신 별도 조회 (FK 없어도 동작, RLS 오류 방지)
+    const { data: testsData } = await supabase
       .from('tests')
-      .select('id, name, max_score, date, test_scores(student_id, score, absent)')
+      .select('id, name, max_score, date')
       .eq('class_id', c.id)
       .order('date', { ascending: true })
 
-    const formatted: Test[] = (data ?? []).map((t: any) => ({
-      id: t.id, name: t.name, max_score: t.max_score, date: t.date,
-      takers: (t.test_scores ?? []).length,
-      avgScore: computeAvg(t.test_scores ?? [], t.max_score),
-    }))
+    if (!testsData?.length) { setTests([]); setLoadingTests(false); return }
+
+    const { data: scoresData } = await supabase
+      .from('test_scores').select('test_id, student_id, score, absent')
+      .in('test_id', testsData.map(t => t.id))
+
+    const byTest = new Map<string, { student_id: string; score: number; absent: boolean }[]>()
+    for (const s of (scoresData ?? [])) {
+      if (!byTest.has(s.test_id)) byTest.set(s.test_id, [])
+      byTest.get(s.test_id)!.push(s)
+    }
+
+    const formatted: Test[] = testsData.map(t => {
+      const scores = byTest.get(t.id) ?? []
+      return {
+        id: t.id, name: t.name, max_score: t.max_score, date: t.date,
+        takers: scores.length,
+        avgScore: computeAvg(scores, t.max_score),
+      }
+    })
 
     setTests(formatted)
     setLoadingTests(false)
@@ -171,15 +200,11 @@ function GradesContent() {
 
   async function loadScoresForTest(t: Test, classId: string) {
     setLoadingScores(true)
-    const { data: classStudents } = await supabase
-      .from('class_students')
-      .select('students(id, name)')
-      .eq('class_id', classId)
-
-    const { data: scoreData } = await supabase
-      .from('test_scores')
-      .select('student_id, score, absent')
-      .eq('test_id', t.id)
+    // 두 쿼리 병렬 실행
+    const [{ data: classStudents }, { data: scoreData }] = await Promise.all([
+      supabase.from('class_students').select('students(id, name)').eq('class_id', classId),
+      supabase.from('test_scores').select('student_id, score, absent').eq('test_id', t.id),
+    ])
 
     const scoreMap: Record<string, number> = {}
     const absentSet = new Set<string>()
@@ -357,7 +382,7 @@ function GradesContent() {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setSelectedClass(null); setUrl(); if (classes.length === 0) loadClasses() }}
+          <button onClick={() => { setSelectedClass(null); setUrl(); if (classes.length === 0 && ctx) loadClasses(ctx.academyId) }}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
             <ChevronLeft size={20} />
           </button>

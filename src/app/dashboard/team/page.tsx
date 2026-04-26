@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAcademy } from '@/lib/academy-context'
 import { formatPhone } from '@/lib/auth'
 import {
   User, Plus, X,
@@ -37,28 +38,14 @@ export default function TeamPage() {
   const [addError, setAddError] = useState('')
   const [teamError, setTeamError] = useState('')
 
-  useEffect(() => { loadData() }, [])
-
-  async function loadData() {
-    setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (!user) return
-    setMyId(user.id)
-
-    const { data: membership } = await supabase
-      .from('academy_teachers')
-      .select('academy_id, role, title')
-      .eq('teacher_id', user.id)
-      .single()
-
-    if (membership) {
-      setAcademyId(membership.academy_id)
-      setMyTitle((membership as any).title ?? '강사')
-      await loadTeam(membership.academy_id)
-    }
-    setLoading(false)
-  }
+  const ctx = useAcademy()
+  useEffect(() => {
+    if (!ctx) return
+    setMyId(ctx.userId)
+    setMyTitle(ctx.myTitle as Title)
+    setAcademyId(ctx.academyId)
+    loadTeam(ctx.academyId)
+  }, [ctx])
 
   async function loadTeam(acadId: string) {
     const { data } = await supabase
@@ -78,6 +65,7 @@ export default function TeamPage() {
     // owner 먼저 정렬
     members.sort((a, b) => (a.role === 'owner' ? -1 : 1) - (b.role === 'owner' ? -1 : 1))
     setTeamMembers(members)
+    setLoading(false)
   }
 
   async function addTeacher(e: React.FormEvent) {

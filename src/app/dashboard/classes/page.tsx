@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X, Pencil, Trash2, ChevronRight, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAcademy } from '@/lib/academy-context'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -26,23 +27,17 @@ export default function ClassesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => { loadData() }, [])
+  const ctx = useAcademy()
+  useEffect(() => { if (ctx) loadData(ctx.academyId) }, [ctx])
 
-  async function loadData() {
+  async function loadData(academyId: string) {
     setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (!user) return
-
-    const { data: membership } = await supabase
-      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
-    if (!membership) return
-    setAcademyId(membership.academy_id)
+    setAcademyId(academyId)
 
     const { data } = await supabase
       .from('classes')
       .select('id, name, class_students(student_id), class_schedules(day_of_week, start_time, end_time)')
-      .eq('academy_id', membership.academy_id)
+      .eq('academy_id', academyId)
       .order('name')
 
     const formatted: Class[] = (data ?? []).map((c: any) => ({
@@ -85,7 +80,7 @@ export default function ClassesPage() {
       if (err) { setError('저장 중 오류가 발생했어요.'); setSaving(false); return }
     }
 
-    await loadData()
+    await loadData(academyId!)
     setSaving(false)
     setShowForm(false)
   }
@@ -94,7 +89,7 @@ export default function ClassesPage() {
     e.stopPropagation()
     if (!confirm(`"${className}" 반을 삭제할까요?\n소속 학생의 반 배정 정보와 수업 세션이 모두 삭제돼요.`)) return
     await supabase.from('classes').delete().eq('id', id)
-    await loadData()
+    await loadData(academyId!)
   }
 
   function formatSchedule(schedules: Schedule[]) {
