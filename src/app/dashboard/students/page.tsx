@@ -140,58 +140,49 @@ export default function StudentsPage() {
     setLoading(false)
   }
 
-  // 계정 현황 로드
-  // - 학생 계정: students.user_id 로 판단 (가장 정확, RLS 영향 없음)
-  // - 학부모 계정: profiles 테이블에서 전화번호로 조회
+  // 계정 현황 로드 — 서비스 롤 API를 통해 RLS 우회, profiles 테이블 기준으로 정확하게 조회
   async function loadAccountStatuses(force = false) {
     if (accountsLoading && !force) return
     setAccountsLoading(true)
     setBulkResult(null)
 
-    // 최신 students 데이터를 다시 가져옴 (user_id 포함)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setAccountsLoading(false); return }
-    const { data: membership } = await supabase
-      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
-    if (!membership) { setAccountsLoading(false); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setAccountsLoading(false); return }
 
-    const { data: freshStudents } = await supabase
-      .from('students')
-      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at, user_id, class_students(classes(id, name))')
-      .eq('academy_id', membership.academy_id)
-      .order('name')
+    const res = await fetch('/api/account-status', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
 
-    if (freshStudents) setStudents(freshStudents as any)
-
-    const activeStudents = (freshStudents ?? []).filter((s: any) => (s.status ?? 'active') === 'active')
-
-    // 학부모 전화번호만 profiles에서 확인
-    const parentPhones = new Set<string>()
-    for (const s of activeStudents) {
-      if ((s as any).parent_phone) parentPhones.add((s as any).parent_phone.replace(/\D/g, ''))
+    if (!res.ok) {
+      setAccountsLoading(false)
+      return
     }
 
-    let parentProfilePhones = new Set<string>()
-    if (parentPhones.size > 0) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('phone')
-        .in('phone', [...parentPhones])
-      parentProfilePhones = new Set((profileData ?? []).map((p: any) => p.phone))
-    }
+    const json = await res.json()
+    const statusMap = new Map<string, { studentHasAccount: boolean; parentHasAccount: boolean }>(
+      (json.data ?? []).map((item: any) => [
+        item.studentId,
+        { studentHasAccount: item.studentHasAccount, parentHasAccount: item.parentHasAccount },
+      ])
+    )
 
-    const statuses: AccountStatus[] = activeStudents.map((s: any) => ({
-      studentId: s.id,
-      // 학생 계정: students.user_id가 있으면 계정 있음
-      studentHasAccount: !!s.user_id,
-      // 학부모 계정: profiles에서 전화번호 확인
-      parentHasAccount: s.parent_phone
-        ? parentProfilePhones.has(s.parent_phone.replace(/\D/g, ''))
-        : false,
-      creating: null,
-    }))
+    setAccountStatuses(prev => {
+      // 기존 creating 상태는 유지하면서 has/account 값만 갱신
+      const next: AccountStatus[] = students
+        .filter(s => (s.status ?? 'active') === 'active')
+        .map(s => {
+          const info = statusMap.get(s.id)
+          const existing = prev.find(p => p.studentId === s.id)
+          return {
+            studentId: s.id,
+            studentHasAccount: info?.studentHasAccount ?? false,
+            parentHasAccount: info?.parentHasAccount ?? false,
+            creating: existing?.creating ?? null,
+          }
+        })
+      return next
+    })
 
-    setAccountStatuses(statuses)
     setAccountsLoading(false)
   }
 
