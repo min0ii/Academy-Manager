@@ -49,24 +49,23 @@ export async function POST(req: NextRequest) {
     if (!rawPhone) return NextResponse.json({ error: '전화번호 정보가 없어요.' }, { status: 400 })
 
     const digits = String(rawPhone).replace(/\D/g, '')
-    const email = `${digits}@academy.local`
     const newPassword = digits.slice(-8)
 
-    // auth 유저 조회 (이메일로)
-    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-    if (listError) return NextResponse.json({ error: '유저 목록 조회 실패.' }, { status: 500 })
+    // profiles 테이블에서 전화번호로 유저 ID 직접 조회 (listUsers() 대신)
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('phone', digits)
+      .single()
 
-    const authUser = users.find(u => u.email === email)
-    if (!authUser) return NextResponse.json({ error: '계정을 찾을 수 없어요.' }, { status: 404 })
+    if (!profile) return NextResponse.json({ error: '계정을 찾을 수 없어요.' }, { status: 404 })
 
-    // 비밀번호 초기화
-    const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
-      password: newPassword,
-    })
+    // 비밀번호 초기화 + must_change_password 병렬 처리
+    const [{ error: resetError }] = await Promise.all([
+      supabaseAdmin.auth.admin.updateUserById(profile.id, { password: newPassword }),
+      supabaseAdmin.from('profiles').update({ must_change_password: true }).eq('id', profile.id),
+    ])
     if (resetError) return NextResponse.json({ error: resetError.message }, { status: 400 })
-
-    // must_change_password = true 로 재설정
-    await supabaseAdmin.from('profiles').update({ must_change_password: true }).eq('id', authUser.id)
 
     return NextResponse.json({ success: true })
   } catch {

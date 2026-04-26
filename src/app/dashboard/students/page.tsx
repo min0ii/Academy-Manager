@@ -100,6 +100,8 @@ export default function StudentsPage() {
   // 계정 선택 (다중 삭제용)
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  // 마지막 계정 현황 로드 시각 (30초 캐시)
+  const [accountStatusLoadedAt, setAccountStatusLoadedAt] = useState<number>(0)
 
   useEffect(() => { loadData() }, [])
 
@@ -113,10 +115,12 @@ export default function StudentsPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [showForm, showConflictModal])
 
-  // 계정 탭으로 전환할 때마다 최신 현황 로드
+  // 계정 탭 전환 시 30초 캐시 — 최근에 로드했으면 재조회 생략
   useEffect(() => {
     if (pageTab === 'accounts') {
-      loadAccountStatuses(true)
+      const age = Date.now() - accountStatusLoadedAt
+      const isStale = age > 30_000  // 30초 이상 지났으면 재조회
+      loadAccountStatuses(isStale)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageTab])
@@ -147,7 +151,8 @@ export default function StudentsPage() {
 
   // 계정 현황 로드 — 서비스 롤 API를 통해 RLS 우회, profiles 테이블 기준으로 정확하게 조회
   async function loadAccountStatuses(force = false) {
-    if (accountsLoading && !force) return
+    if (accountsLoading) return
+    if (!force && accountStatuses.length > 0) return  // 캐시 유효 시 스킵
     setAccountsLoading(true)
     setBulkResult(null)
 
@@ -190,6 +195,7 @@ export default function StudentsPage() {
       return next
     })
 
+    setAccountStatusLoadedAt(Date.now())
     setAccountsLoading(false)
   }
 

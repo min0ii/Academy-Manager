@@ -31,61 +31,71 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
     }
 
-    // { student_id, target: 'student' | 'parent' } 또는
-    // { student_ids: string[], target: 'student' | 'parent' | 'both' } (일괄)
+    // 요청 파싱
     const body = await req.json()
-    const targets: { student_id: string; target: 'student' | 'parent' }[] = []
+    const studentIds: string[] = body.student_ids ?? (body.student_id ? [body.student_id] : [])
+    const targetType: 'student' | 'parent' | 'both' = body.target ?? 'student'
 
-    if (body.student_ids && Array.isArray(body.student_ids)) {
-      // 일괄 처리
-      for (const sid of body.student_ids) {
-        if (body.target === 'both') {
-          targets.push({ student_id: sid, target: 'student' })
-          targets.push({ student_id: sid, target: 'parent' })
-        } else {
-          targets.push({ student_id: sid, target: body.target })
+    if (studentIds.length === 0) return NextResponse.json({ error: '잘못된 요청이에요.' }, { status: 400 })
+
+    // 학원 소속 학생 한 번에 조회
+    const { data: studentRows } = await supabaseAdmin
+      .from('students')
+      .select('id, name, phone, parent_phone')
+      .in('id', studentIds)
+      .eq('academy_id', membership.academy_id)
+
+    if (!studentRows || studentRows.length === 0) {
+      return NextResponse.json({ error: '학생을 찾을 수 없어요.' }, { status: 404 })
+    }
+
+    // 삭제할 전화번호 목록 수집
+    const phonesToDelete: { digits: string; studentId: string; isStudent: boolean }[] = []
+    for (const student of studentRows) {
+      if (targetType === 'student' || targetType === 'both') {
+        if (student.phone) {
+          phonesToDelete.push({ digits: String(student.phone).replace(/\D/g, ''), studentId: student.id, isStudent: true })
         }
       }
-    } else {
-      targets.push({ student_id: body.student_id, target: body.target })
+      if (targetType === 'parent' || targetType === 'both') {
+        if (student.parent_phone) {
+          phonesToDelete.push({ digits: String(student.parent_phone).replace(/\D/g, ''), studentId: student.id, isStudent: false })
+        }
+      }
     }
+
+    // profiles 테이블에서 전화번호로 user id 한 번에 조회 (listUsers() 대신)
+    const allDigits = phonesToDelete.map(p => p.digits)
+    const { data: profileRows } = await supabaseAdmin
+      .from('profiles')
+      .select('id, phone')
+      .in('phone', allDigits)
+
+    const phoneToUserId = new Map((profileRows ?? []).map((p: any) => [p.phone, p.id]))
 
     const errors: string[] = []
 
-    for (const { student_id, target } of targets) {
-      // 학생 조회 (학원 소속 확인)
-      const { data: student } = await supabaseAdmin
-        .from('students')
-        .select('id, name, phone, parent_phone')
-        .eq('id', student_id)
-        .eq('academy_id', membership.academy_id)
-        .single()
+    // 각 계정 삭제 — auth 삭제 + profiles 삭제 + user_id 초기화 병렬 처리
+    await Promise.all(phonesToDelete.map(async ({ digits, studentId, isStudent }) => {
+      const userId = phoneToUserId.get(digits)
+      if (!userId) return  // 이미 계정 없음
 
-      if (!student) { errors.push(`학생을 찾을 수 없어요 (${student_id})`); continue }
+      const student = studentRows.find(s => s.id === studentId)
 
-      const rawPhone = target === 'student' ? student.phone : student.parent_phone
-      if (!rawPhone) continue  // 전화번호 없으면 스킵
+      const [{ error: deleteError }] = await Promise.all([
+        supabaseAdmin.auth.admin.deleteUser(userId),
+        supabaseAdmin.from('profiles').delete().eq('id', userId),
+        // 학생 계정이면 students.user_id 초기화
+        ...(isStudent
+          ? [supabaseAdmin.from('students').update({ user_id: null }).eq('id', studentId)]
+          : []
+        ),
+      ])
 
-      const digits = String(rawPhone).replace(/\D/g, '')
-      const email = `${digits}@academy.local`
-
-      // auth 유저 조회
-      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-      const authUser = users.find(u => u.email === email)
-      if (!authUser) continue  // 계정 없으면 스킵 (이미 없는 것)
-
-      // auth 유저 삭제
-      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(authUser.id)
-      if (deleteError) { errors.push(`${student.name} ${target === 'parent' ? '학부모' : ''}: ${deleteError.message}`); continue }
-
-      // profiles 삭제 (auth 삭제 시 cascade 안 될 경우 대비)
-      await supabaseAdmin.from('profiles').delete().eq('id', authUser.id)
-
-      // 학생 계정이면 students.user_id 초기화
-      if (target === 'student') {
-        await supabaseAdmin.from('students').update({ user_id: null }).eq('id', student_id)
+      if (deleteError) {
+        errors.push(`${student?.name ?? ''} ${isStudent ? '' : '학부모'}: ${deleteError.message}`.trim())
       }
-    }
+    }))
 
     return NextResponse.json({ success: true, errors })
   } catch {
