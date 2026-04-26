@@ -93,39 +93,29 @@ function GradesContent() {
     }
   }, [ctx])
 
+  async function getToken() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
+  }
+
   async function autoSelectFromUrl(classIdParam: string, testIdParam: string) {
     setLoading(true)
     const { data: classData } = await supabase
       .from('classes').select('id, name').eq('id', classIdParam).single()
     if (!classData) { setLoading(false); if (ctx) loadClasses(ctx.academyId); return }
 
-    const classItem: ClassItem = { id: classData.id, name: classData.name, test_count: 0 }
-    setSelectedClass(classItem)
+    setSelectedClass({ id: classData.id, name: classData.name, test_count: 0 })
     setLoading(false)
     setLoadingTests(true)
 
-    const { data: testsData } = await supabase
-      .from('tests')
-      .select('id, name, max_score, date')
-      .eq('class_id', classIdParam)
-      .order('date', { ascending: true })
+    const token = await getToken()
+    if (!token) { setLoadingTests(false); return }
 
-    let testsList: Test[] = []
-    if (testsData?.length) {
-      const { data: scoresData } = await supabase
-        .from('test_scores').select('test_id, student_id, score, absent')
-        .in('test_id', testsData.map(t => t.id))
-      const byTest = new Map<string, any[]>()
-      for (const s of (scoresData ?? [])) {
-        if (!byTest.has(s.test_id)) byTest.set(s.test_id, [])
-        byTest.get(s.test_id)!.push(s)
-      }
-      testsList = testsData.map(t => ({
-        id: t.id, name: t.name, max_score: t.max_score, date: t.date,
-        takers: (byTest.get(t.id) ?? []).length,
-        avgScore: computeAvg(byTest.get(t.id) ?? [], t.max_score),
-      }))
-    }
+    const res = await fetch(`/api/grades?action=tests&classId=${classIdParam}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    const testsList: Test[] = json.tests ?? []
     setTests(testsList)
     setLoadingTests(false)
 
@@ -166,55 +156,39 @@ function GradesContent() {
     setUrl(c.id)
     setLoadingTests(true)
 
-    // test_scores embed 대신 별도 조회 (FK 없어도 동작, RLS 오류 방지)
-    const { data: testsData } = await supabase
-      .from('tests')
-      .select('id, name, max_score, date')
-      .eq('class_id', c.id)
-      .order('date', { ascending: true })
+    const token = await getToken()
+    if (!token) { setLoadingTests(false); return }
 
-    if (!testsData?.length) { setTests([]); setLoadingTests(false); return }
-
-    const { data: scoresData } = await supabase
-      .from('test_scores').select('test_id, student_id, score, absent')
-      .in('test_id', testsData.map(t => t.id))
-
-    const byTest = new Map<string, { student_id: string; score: number; absent: boolean }[]>()
-    for (const s of (scoresData ?? [])) {
-      if (!byTest.has(s.test_id)) byTest.set(s.test_id, [])
-      byTest.get(s.test_id)!.push(s)
-    }
-
-    const formatted: Test[] = testsData.map(t => {
-      const scores = byTest.get(t.id) ?? []
-      return {
-        id: t.id, name: t.name, max_score: t.max_score, date: t.date,
-        takers: scores.length,
-        avgScore: computeAvg(scores, t.max_score),
-      }
+    const res = await fetch(`/api/grades?action=tests&classId=${c.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
-
-    setTests(formatted)
+    const json = await res.json()
+    setTests(json.tests ?? [])
     setLoadingTests(false)
   }
 
   async function loadScoresForTest(t: Test, classId: string) {
     setLoadingScores(true)
-    // 두 쿼리 병렬 실행
-    const [{ data: classStudents }, { data: scoreData }] = await Promise.all([
-      supabase.from('class_students').select('students(id, name)').eq('class_id', classId),
-      supabase.from('test_scores').select('student_id, score, absent').eq('test_id', t.id),
-    ])
+
+    const token = await getToken()
+    if (!token) { setLoadingScores(false); return }
+
+    const res = await fetch(`/api/grades?action=scores&testId=${t.id}&classId=${classId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    const classStudents: any[] = json.students ?? []
+    const scoreData: { student_id: string; score: number; absent: boolean }[] = json.scores ?? []
 
     const scoreMap: Record<string, number> = {}
     const absentSet = new Set<string>()
-    for (const s of (scoreData ?? [])) {
+    for (const s of scoreData) {
       if (s.absent) absentSet.add(s.student_id)
       else scoreMap[s.student_id] = s.score
     }
 
-    const list: TestScore[] = ((classStudents ?? []) as any[])
-      .map(cs => ({
+    const list: TestScore[] = classStudents
+      .map((cs: any) => ({
         student_id: cs.students.id,
         student_name: cs.students.name,
         score: scoreMap[cs.students.id] ?? null,
@@ -249,35 +223,29 @@ function GradesContent() {
     if (!selectedTest || !scores.length) return
     setSaving(true)
 
-    // upsert 대신 DELETE → INSERT (더 안정적, conflict 설정 불필요)
-    const { error: delErr } = await supabase
-      .from('test_scores')
-      .delete()
-      .eq('test_id', selectedTest.id)
+    const token = await getToken()
+    if (!token) { setSaving(false); return }
 
-    if (delErr) {
-      alert('저장 오류: ' + delErr.message)
-      setSaving(false)
-      return
-    }
-
-    const newRows: { test_id: string; student_id: string; score: number; absent: boolean }[] = []
+    const newRows: { student_id: string; score: number; absent: boolean }[] = []
     for (const s of scores) {
       const v = editScores[s.student_id]
       if (absentIds.has(s.student_id)) {
-        newRows.push({ test_id: selectedTest.id, student_id: s.student_id, score: 0, absent: true })
+        newRows.push({ student_id: s.student_id, score: 0, absent: true })
       } else if (v !== '' && v !== undefined) {
-        newRows.push({ test_id: selectedTest.id, student_id: s.student_id, score: Number(v), absent: false })
+        newRows.push({ student_id: s.student_id, score: Number(v), absent: false })
       }
     }
 
-    if (newRows.length > 0) {
-      const { error: insErr } = await supabase.from('test_scores').insert(newRows)
-      if (insErr) {
-        alert('저장 오류: ' + insErr.message)
-        setSaving(false)
-        return
-      }
+    const res = await fetch('/api/grades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ testId: selectedTest.id, scores: newRows }),
+    })
+    const json = await res.json()
+    if (!res.ok) {
+      alert('저장 오류: ' + json.error)
+      setSaving(false)
+      return
     }
 
     setSaving(false)
