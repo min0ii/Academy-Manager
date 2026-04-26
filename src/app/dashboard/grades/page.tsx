@@ -268,7 +268,6 @@ function GradesContent() {
       await supabase.from('test_scores').delete()
         .eq('test_id', selectedTest.id).in('student_id', clearIds)
 
-    await loadScoresForTest(selectedTest, selectedClass!.id)
     setSaving(false); setSaved(true)
   }
 
