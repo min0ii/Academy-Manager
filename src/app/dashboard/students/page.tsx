@@ -463,11 +463,15 @@ export default function StudentsPage() {
     return s.name.includes(accountSearch) || s.phone.includes(accountSearch.replace(/-/g, ''))
   })
 
-  // 계정 없는 학생 수 (미사용 변수이지만 향후 확장용으로 유지)
-  const _missingCount = accountStatuses.filter(a =>
-    !a.studentHasAccount || (!a.parentHasAccount && !!activeStudents.find(st => st.id === a.studentId)?.parent_phone)
-  ).length
-  void _missingCount
+  // 계정이 아직 없는 학생/학부모 수
+  const missingCount = accountStatuses.length > 0
+    ? accountStatuses.filter(a =>
+        !a.studentHasAccount || (!a.parentHasAccount && !!activeStudents.find(st => st.id === a.studentId)?.parent_phone)
+      ).length
+    : null  // 아직 로드 전
+
+  // 전체 계정이 이미 모두 생성된 경우 일괄 생성 버튼 비활성화
+  const allAccountsCreated = accountStatuses.length > 0 && missingCount === 0
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
@@ -666,20 +670,31 @@ export default function StudentsPage() {
       {pageTab === 'accounts' && (
         <>
           {/* 안내 + 일괄 생성 */}
-          <div className="bg-violet-50 border border-violet-100 rounded-2xl p-5 space-y-3">
+          <div className={`border rounded-2xl p-5 space-y-3 ${allAccountsCreated ? 'bg-emerald-50 border-emerald-100' : 'bg-violet-50 border-violet-100'}`}>
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-bold text-violet-800 text-sm">계정 일괄 생성</h2>
-                <p className="text-xs text-violet-600 mt-1 leading-relaxed">
-                  전화번호 → 로그인 ID &nbsp;·&nbsp; 010 제외 뒤 8자리 → 초기 비밀번호<br />
-                  예) 010-1234-5678 → 비밀번호: <span className="font-semibold">12345678</span><br />
-                  이미 계정이 있는 경우는 자동으로 건너뜁니다.
-                </p>
+              <div className="flex-1">
+                <h2 className={`font-bold text-sm ${allAccountsCreated ? 'text-emerald-800' : 'text-violet-800'}`}>계정 일괄 생성</h2>
+                {allAccountsCreated ? (
+                  <p className="text-xs text-emerald-700 mt-1">
+                    ✅ 재원생 전원의 계정이 이미 생성되어 있어요.
+                  </p>
+                ) : (
+                  <p className="text-xs text-violet-600 mt-1 leading-relaxed">
+                    전화번호 → 로그인 ID &nbsp;·&nbsp; 010 제외 뒤 8자리 → 초기 비밀번호<br />
+                    예) 010-1234-5678 → 비밀번호: <span className="font-semibold">12345678</span><br />
+                    이미 계정이 있는 경우는 자동으로 건너뜁니다.
+                    {missingCount !== null && (
+                      <span className="block mt-1 font-semibold text-violet-700">
+                        현재 계정 미생성: {missingCount}명
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               <button
                 onClick={createAllAccounts}
-                disabled={bulkCreating}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                disabled={bulkCreating || allAccountsCreated}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
               >
                 {bulkCreating
                   ? <><Loader2 size={14} className="animate-spin" /> 생성 중...</>
@@ -688,8 +703,19 @@ export default function StudentsPage() {
               </button>
             </div>
 
+            {/* 생성 중 안내 */}
+            {bulkCreating && (
+              <div className="bg-white rounded-xl px-4 py-3 border border-violet-100 flex items-center gap-3">
+                <Loader2 size={16} className="animate-spin text-violet-500 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-slate-700">계정 생성 중이에요</p>
+                  <p className="text-xs text-slate-400 mt-0.5">학생 수에 따라 1~2분 정도 걸릴 수 있어요. 페이지를 닫지 마세요.</p>
+                </div>
+              </div>
+            )}
+
             {/* 일괄 생성 결과 */}
-            {bulkResult && (
+            {bulkResult && !bulkCreating && (
               <div className="bg-white rounded-xl p-4 space-y-2 border border-violet-100">
                 <p className="text-xs font-bold text-slate-700">생성 완료!</p>
                 <div className="grid grid-cols-2 gap-2">
