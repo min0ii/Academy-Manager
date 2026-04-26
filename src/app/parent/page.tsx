@@ -221,24 +221,28 @@ export default function ParentPage() {
     if (!student || !classInfo) return
     setGradesLoaded(true)
 
-    // tests 테이블 컬럼: id, name, max_score, date (title/type 없음)
-    const { data: testData } = await supabase
-      .from('tests')
-      .select('id, name, date, max_score, test_scores(student_id, score, absent)')
-      .eq('class_id', classInfo.id)
-      .order('date', { ascending: true })
+    // 시험 목록과 이 학생의 점수만 병렬로 조회 (전체 test_scores embed 제거 → 빠름)
+    const [{ data: testData }, { data: scoreData }] = await Promise.all([
+      supabase.from('tests')
+        .select('id, name, date, max_score')
+        .eq('class_id', classInfo.id)
+        .order('date', { ascending: true }),
+      supabase.from('test_scores')
+        .select('test_id, score, absent')
+        .eq('student_id', student.id),
+    ])
 
-    const records: TestRecord[] = (testData ?? []).map((t: any) => {
-      const my = (t.test_scores ?? []).find((s: any) => s.student_id === student.id)
-      return {
-        id: t.id,
-        name: t.name,
-        date: t.date,
-        max_score: t.max_score,
-        score: my?.score ?? null,
-        absent: my?.absent ?? false,
-      }
-    })
+    const scoreMap: Record<string, { score: number; absent: boolean }> = {}
+    for (const s of (scoreData ?? [])) scoreMap[s.test_id] = s
+
+    const records: TestRecord[] = (testData ?? []).map(t => ({
+      id: t.id,
+      name: t.name,
+      date: t.date,
+      max_score: t.max_score,
+      score: scoreMap[t.id]?.score ?? null,
+      absent: scoreMap[t.id]?.absent ?? false,
+    }))
 
     setTests(records)
   }
