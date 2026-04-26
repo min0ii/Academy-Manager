@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import {
   Building2, User, Users, Check, X, Plus,
-  Eye, EyeOff, Crown, Shield, Loader2, Camera,
+  Eye, EyeOff, Crown, Shield, GraduationCap, Loader2, Camera,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'team'
@@ -471,11 +471,12 @@ export default function SettingsPage() {
               {teamMembers.map(m => (
                 <div key={m.id} className="flex items-center gap-3 px-4 py-3">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    m.role === 'owner' ? 'bg-amber-100' : 'bg-blue-100'
+                    m.role === 'owner'   ? 'bg-amber-100' :
+                    m.title === '관리자' ? 'bg-blue-100'  : 'bg-slate-100'
                   }`}>
-                    {m.role === 'owner'
-                      ? <Crown size={15} className="text-amber-600" />
-                      : <Shield size={15} className="text-blue-600" />
+                    {m.role === 'owner'   ? <Crown size={15} className="text-amber-600" /> :
+                     m.title === '관리자' ? <Shield size={15} className="text-blue-600" /> :
+                                           <GraduationCap size={15} className="text-slate-500" />
                     }
                   </div>
                   <div className="flex-1 min-w-0">
