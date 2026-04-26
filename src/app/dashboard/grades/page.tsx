@@ -125,7 +125,8 @@ function GradesContent() {
 
   async function loadClasses() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) { setLoading(false); return }
 
     const { data: membership } = await supabase
@@ -133,12 +134,13 @@ function GradesContent() {
     if (!membership) { setLoading(false); return }
 
     const { data: classData } = await supabase
-      .from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name')
+      .from('classes')
+      .select('id, name, tests(id)')
+      .eq('academy_id', membership.academy_id)
+      .order('name')
 
-    const classList: ClassItem[] = await Promise.all((classData ?? []).map(async (c: any) => {
-      const { count } = await supabase
-        .from('tests').select('*', { count: 'exact', head: true }).eq('class_id', c.id)
-      return { id: c.id, name: c.name, test_count: count ?? 0 }
+    const classList: ClassItem[] = (classData ?? []).map((c: any) => ({
+      id: c.id, name: c.name, test_count: (c.tests ?? []).length,
     }))
 
     setClasses(classList)

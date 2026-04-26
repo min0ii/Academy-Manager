@@ -76,7 +76,8 @@ export default function HomeworkPage() {
   // 반 목록 로드
   useEffect(() => {
     ;(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) return
       const { data: membership } = await supabase
         .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
