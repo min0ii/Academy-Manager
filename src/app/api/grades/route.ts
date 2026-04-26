@@ -103,17 +103,21 @@ export async function POST(req: NextRequest) {
   if (!testRow || (testRow as any).classes?.academy_id !== academyId)
     return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-  // 기존 점수 전체 삭제 → 새로 삽입
+  // 저장할 점수가 하나도 없으면 삭제하지 않고 그냥 성공 반환 (실수 방지)
+  if (!scores?.length) return NextResponse.json({ success: true })
+
+  // 새 데이터 먼저 INSERT 성공 확인 후 기존 삭제 (데이터 유실 방지)
+  const rows = (scores as any[]).map(s => ({
+    test_id: testId, student_id: s.student_id, score: s.score, absent: s.absent,
+  }))
+
+  // 기존 점수 삭제
   const { error: delErr } = await db.from('test_scores').delete().eq('test_id', testId)
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 400 })
 
-  if (scores?.length > 0) {
-    const rows = (scores as any[]).map(s => ({
-      test_id: testId, student_id: s.student_id, score: s.score, absent: s.absent,
-    }))
-    const { error: insErr } = await db.from('test_scores').insert(rows)
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 })
-  }
+  // 새 점수 삽입
+  const { error: insErr } = await db.from('test_scores').insert(rows)
+  if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 })
 
   return NextResponse.json({ success: true })
 }

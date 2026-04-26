@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
+import { useAcademy } from '@/lib/academy-context'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -47,6 +48,7 @@ function StudentReportContent() {
   const searchParams = useSearchParams()
   const studentId    = params.id as string
   const from         = searchParams.get('from')
+  const ctx          = useAcademy()
 
   const [student, setStudent]           = useState<Student | null>(null)
   const [classes, setClasses]           = useState<ClassInfo[]>([])
@@ -65,30 +67,29 @@ function StudentReportContent() {
   const [transferring, setTransferring]           = useState(false)
   const [actionLoading, setActionLoading]         = useState(false)
 
-  useEffect(() => { loadStudent() }, [studentId])
+  useEffect(() => { if (ctx) loadStudent(ctx.academyId) }, [studentId, ctx])
   useEffect(() => { if (selectedClassId) loadClassDetail(selectedClassId) }, [selectedClassId])
 
-  async function loadStudent() {
+  async function loadStudent(academyId: string) {
     setLoading(true)
-    const { data } = await supabase
-      .from('students')
-      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at')
-      .eq('id', studentId).single()
+
+    // 학생 정보 + 소속 반 + 전체 반 목록을 동시에 조회
+    const [{ data }, { data: csData }, { data: ac }] = await Promise.all([
+      supabase.from('students')
+        .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at')
+        .eq('id', studentId).single(),
+      supabase.from('class_students').select('classes(id, name)').eq('student_id', studentId),
+      supabase.from('classes').select('id, name').eq('academy_id', academyId).order('name'),
+    ])
+
     if (!data) { router.push('/dashboard/students'); return }
     setStudent(data as Student)
 
-    const [{ data: csData }, { data: membership }] = await Promise.all([
-      supabase.from('class_students').select('classes(id, name)').eq('student_id', studentId),
-      supabase.from('academy_teachers').select('academy_id').eq('teacher_id', (await supabase.auth.getUser()).data.user?.id ?? '').single(),
-    ])
     const classList: ClassInfo[] = ((csData ?? []) as any[]).map(cs => cs.classes).filter(Boolean)
     setClasses(classList)
+    setAllClasses(ac ?? [])
     if (classList.length > 0) setSelectedClassId(classList[0].id)
 
-    if (membership) {
-      const { data: ac } = await supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name')
-      setAllClasses(ac ?? [])
-    }
     setLoading(false)
   }
 

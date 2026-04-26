@@ -221,10 +221,6 @@ function GradesContent() {
 
   async function saveScores() {
     if (!selectedTest || !scores.length) return
-    setSaving(true)
-
-    const token = await getToken()
-    if (!token) { setSaving(false); return }
 
     const newRows: { student_id: string; score: number; absent: boolean }[] = []
     for (const s of scores) {
@@ -236,20 +232,21 @@ function GradesContent() {
       }
     }
 
+    // 입력된 점수가 하나도 없으면 저장하지 않음 (실수로 전체 삭제 방지)
+    if (newRows.length === 0) return
+
+    setSaving(true)
+    const token = await getToken()
+    if (!token) { setSaving(false); return }
+
     const res = await fetch('/api/grades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ testId: selectedTest.id, scores: newRows }),
     })
-    const json = await res.json()
-    if (!res.ok) {
-      alert('저장 오류: ' + json.error)
-      setSaving(false)
-      return
-    }
 
     setSaving(false)
-    setSaved(true)
+    if (res.ok) setSaved(true)
   }
 
   async function checkTestDate(date: string) {
@@ -295,6 +292,11 @@ function GradesContent() {
   const avg    = filledNums.length > 0 ? filledNums.reduce((a, b) => a + b, 0) / filledNums.length : null
   const maxVal = filledNums.length > 0 ? Math.max(...filledNums) : null
   const minVal = filledNums.length > 0 ? Math.min(...filledNums) : null
+
+  function fmt(v: number | null) {
+    if (v === null) return '-'
+    return Number.isInteger(v) ? String(v) : v.toFixed(1)
+  }
 
   // 취약 학생 (입력된 점수 기준 60% 미만)
   const weakStudents = selectedTest ? scores.filter(s => {
@@ -520,7 +522,7 @@ function GradesContent() {
       {filledNums.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: '평균', val: avg !== null ? Math.round(avg) : null },
+            { label: '평균', val: avg },
             { label: '최고', val: maxVal },
             { label: '최저', val: minVal },
           ].map(({ label, val }) => {
@@ -529,7 +531,7 @@ function GradesContent() {
               <div key={label} className={`rounded-2xl border border-slate-200 p-4 text-center ${scoreBg(p)}`}>
                 <p className="text-xs text-slate-400 mb-1">{label}</p>
                 <p className={`text-2xl font-bold ${scoreColor(p)}`}>
-                  {val ?? '-'}<span className="text-sm font-normal text-slate-400">점</span>
+                  {fmt(val)}<span className="text-sm font-normal text-slate-400">점</span>
                 </p>
                 {p !== null && <p className={`text-xs mt-0.5 font-medium ${scoreColor(p)}`}>{p}%</p>}
               </div>
@@ -620,6 +622,7 @@ function GradesContent() {
                           placeholder="-"
                           min="0"
                           max={selectedTest.max_score}
+                          step="any"
                           className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${v === '' ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
                         />
                         <span className="text-xs text-slate-400">/ {selectedTest.max_score}</span>
