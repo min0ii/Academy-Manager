@@ -18,6 +18,7 @@ async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
 
 // GET ?action=tests&classId=xxx  → 시험 목록 + 통계
 // GET ?action=scores&testId=xxx&classId=xxx → 특정 시험의 학생별 점수
+// GET ?action=student-chart&classId=xxx&studentId=xxx → 학생 상세 페이지 성적 그래프 데이터
 export async function GET(req: NextRequest) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -77,6 +78,42 @@ export async function GET(req: NextRequest) {
       db.from('test_scores').select('student_id, score, absent').eq('test_id', testId),
     ])
     return NextResponse.json({ students: students ?? [], scores: scores ?? [] })
+  }
+
+  // ── 학생 상세 페이지 성적 그래프 (RLS 우회) ──
+  if (action === 'student-chart') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    const { data: tests } = await db.from('tests')
+      .select('id, name, max_score').eq('class_id', classId).order('date', { ascending: true })
+
+    if (!tests?.length) return NextResponse.json({ points: [] })
+
+    const testIds = tests.map(t => t.id)
+    const [{ data: myScores }, { data: allScores }] = await Promise.all([
+      db.from('test_scores').select('test_id, score').eq('student_id', studentId).eq('absent', false).in('test_id', testIds),
+      db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
+    ])
+
+    const myMap: Record<string, number> = {}
+    for (const s of (myScores ?? [])) myMap[s.test_id] = s.score
+
+    const allMap: Record<string, number[]> = {}
+    for (const s of (allScores ?? [])) {
+      if (!allMap[s.test_id]) allMap[s.test_id] = []
+      allMap[s.test_id].push(s.score)
+    }
+
+    const points = tests.map(t => {
+      const myRaw  = myMap[t.id] ?? null
+      const myPct  = myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null
+      const arr    = allMap[t.id] ?? []
+      const avgPct = arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / t.max_score * 100) : null
+      return { name: t.name, 내점수: myPct, 반평균: avgPct }
+    })
+    return NextResponse.json({ points })
   }
 
   return NextResponse.json({ error: '잘못된 action' }, { status: 400 })

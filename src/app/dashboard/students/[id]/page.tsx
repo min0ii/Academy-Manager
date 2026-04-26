@@ -131,49 +131,56 @@ function StudentReportContent() {
     setTransferring(false)
   }
 
+  async function getToken() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
+  }
+
   async function loadClassDetail(classId: string) {
     setLoadingDetail(true)
     setShowAllHomework(false)
     setShowAllClinic(false)
 
-    // ── 1단계: 메타 데이터 병렬 조회
+    const token = await getToken()
+
+    // ── 1단계: 출결·숙제·클리닉 메타 + 성적 그래프 전부 동시에 조회
     const [
       { data: sessions },
-      { data: tests },
       { data: hwData },
       { data: clinicSessions },
       { data: clinicScheds },
+      gradesJson,
     ] = await Promise.all([
       supabase.from('sessions').select('id, date').eq('class_id', classId).order('date', { ascending: false }),
-      supabase.from('tests').select('id, name, max_score').eq('class_id', classId).order('date'),
       supabase.from('homework').select('id, title, assigned_date, due_date').eq('class_id', classId).order('assigned_date'),
       supabase.from('clinic_sessions').select('id, date').eq('class_id', classId).order('date', { ascending: false }),
       supabase.from('clinic_schedules').select('day_of_week, name').eq('class_id', classId),
+      // test_scores RLS 우회 — 서비스 롤 API로 직접 호출
+      token
+        ? fetch(`/api/grades?action=student-chart&classId=${classId}&studentId=${studentId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.json())
+        : Promise.resolve({ points: [] }),
     ])
 
-    const sessionIds   = (sessions       ?? []).map(s => s.id)
-    const testIds      = (tests          ?? []).map(t => t.id)
-    const hwIds        = (hwData         ?? []).map(h => h.id)
-    const csIds        = (clinicSessions ?? []).map(s => s.id)
+    // 성적 그래프 세팅
+    setGrades(gradesJson.points ?? [])
 
-    // ── 2단계: 상세 데이터 전부 동시에 조회 (순차 → 완전 병렬)
-    const empty = Promise.resolve({ data: [] as any[] })
-    const [attData, myScores, allScores, hwStatuses, clinicAtts] = await Promise.all([
+    const sessionIds = (sessions       ?? []).map(s => s.id)
+    const hwIds      = (hwData         ?? []).map(h => h.id)
+    const csIds      = (clinicSessions ?? []).map(s => s.id)
+
+    // ── 2단계: 출결·숙제·클리닉 상세 동시에 조회
+    const [attData, hwStatuses, clinicAtts] = await Promise.all([
       sessionIds.length > 0
         ? supabase.from('attendance').select('session_id, status, note').eq('student_id', studentId).in('session_id', sessionIds).then(r => r.data ?? [])
-        : empty.then(r => r.data),
-      testIds.length > 0
-        ? supabase.from('test_scores').select('test_id, score').eq('student_id', studentId).in('test_id', testIds).then(r => r.data ?? [])
-        : empty.then(r => r.data),
-      testIds.length > 0
-        ? supabase.from('test_scores').select('test_id, score').in('test_id', testIds).then(r => r.data ?? [])
-        : empty.then(r => r.data),
+        : Promise.resolve([] as any[]),
       hwIds.length > 0
         ? supabase.from('homework_status').select('homework_id, status').eq('student_id', studentId).in('homework_id', hwIds).then(r => r.data ?? [])
-        : empty.then(r => r.data),
+        : Promise.resolve([] as any[]),
       csIds.length > 0
         ? supabase.from('clinic_attendance').select('clinic_session_id, status').eq('student_id', studentId).in('clinic_session_id', csIds).then(r => r.data ?? [])
-        : empty.then(r => r.data),
+        : Promise.resolve([] as any[]),
     ])
 
     // ── 출석 조합
@@ -184,22 +191,6 @@ function StudentReportContent() {
       status: attMap[s.id]?.status ?? null,
       note:   attMap[s.id]?.note   ?? null,
     })))
-
-    // ── 시험 성적 조합
-    const myMap: Record<string, number> = {}
-    for (const s of myScores) myMap[s.test_id] = s.score
-    const allMap: Record<string, number[]> = {}
-    for (const s of allScores) {
-      if (!allMap[s.test_id]) allMap[s.test_id] = []
-      allMap[s.test_id].push(s.score)
-    }
-    setGrades((tests ?? []).map(t => {
-      const myRaw = myMap[t.id] ?? null
-      const myPct = myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null
-      const arr   = allMap[t.id] ?? []
-      const avgPct = arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / t.max_score * 100) : null
-      return { name: t.name, 내점수: myPct, 반평균: avgPct }
-    }))
 
     // ── 숙제 조합
     const hwStatusMap: Record<string, string> = {}
