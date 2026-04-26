@@ -53,6 +53,8 @@ type AccountStatus = {
   studentHasAccount: boolean
   parentHasAccount: boolean
   creating: 'student' | 'parent' | null
+  resetting: 'student' | 'parent' | null
+  deleting: 'student' | 'parent' | 'both' | null
 }
 
 export default function StudentsPage() {
@@ -95,6 +97,9 @@ export default function StudentsPage() {
     studentCreated: number; studentSkipped: number
     parentCreated: number; parentSkipped: number; errors: string[]
   } | null>(null)
+  // 계정 선택 (다중 삭제용)
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -178,6 +183,8 @@ export default function StudentsPage() {
             studentHasAccount: info?.studentHasAccount ?? false,
             parentHasAccount: info?.parentHasAccount ?? false,
             creating: existing?.creating ?? null,
+            resetting: existing?.resetting ?? null,
+            deleting: existing?.deleting ?? null,
           }
         })
       return next
@@ -217,6 +224,79 @@ export default function StudentsPage() {
         parentHasAccount: target === 'parent' ? true : s.parentHasAccount,
       }
     }))
+  }
+
+  // 비밀번호 초기화
+  async function resetPassword(studentId: string, target: 'student' | 'parent') {
+    const student = students.find(s => s.id === studentId)
+    if (!confirm(`${student?.name ?? ''} ${target === 'parent' ? '학부모' : '학생'} 계정의 비밀번호를 초기화할까요?\n(전화번호 뒤 8자리로 재설정돼요)`)) return
+
+    setAccountStatuses(prev => prev.map(s =>
+      s.studentId === studentId ? { ...s, resetting: target } : s
+    ))
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ student_id: studentId, target }),
+    })
+    const result = await res.json()
+    if (!res.ok) alert(result.error ?? '초기화 중 오류가 발생했어요.')
+    else alert('비밀번호가 초기화됐어요.\n학생/학부모에게 전화번호 뒤 8자리를 알려주세요.')
+
+    setAccountStatuses(prev => prev.map(s =>
+      s.studentId === studentId ? { ...s, resetting: null } : s
+    ))
+  }
+
+  // 개별 계정 삭제
+  async function deleteAccount(studentId: string, target: 'student' | 'parent') {
+    const student = students.find(s => s.id === studentId)
+    if (!confirm(`${student?.name ?? ''} ${target === 'parent' ? '학부모' : '학생'} 계정을 삭제할까요?\n삭제 후 다시 생성할 수 있어요.`)) return
+
+    setAccountStatuses(prev => prev.map(s =>
+      s.studentId === studentId ? { ...s, deleting: target } : s
+    ))
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ student_id: studentId, target }),
+    })
+    const result = await res.json()
+    if (!res.ok) { alert(result.error ?? '삭제 중 오류가 발생했어요.') }
+
+    setAccountStatuses(prev => prev.map(s => {
+      if (s.studentId !== studentId) return s
+      return {
+        ...s,
+        deleting: null,
+        studentHasAccount: target === 'student' ? false : s.studentHasAccount,
+        parentHasAccount: target === 'parent' ? false : s.parentHasAccount,
+      }
+    }))
+  }
+
+  // 선택 계정 일괄 삭제
+  async function deleteBulkAccounts() {
+    if (selectedAccountIds.size === 0) return
+    if (!confirm(`선택한 ${selectedAccountIds.size}명의 학생+학부모 계정을 모두 삭제할까요?\n삭제 후 다시 생성할 수 있어요.`)) return
+
+    setBulkDeleting(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ student_ids: [...selectedAccountIds], target: 'both' }),
+    })
+    const result = await res.json()
+    if (!res.ok) alert(result.error ?? '삭제 중 오류가 발생했어요.')
+
+    setBulkDeleting(false)
+    setSelectedAccountIds(new Set())
+    await loadAccountStatuses(true)
   }
 
   // 일괄 계정 생성
@@ -744,36 +824,43 @@ export default function StudentsPage() {
           {/* 필터 + 검색 + 새로고침 */}
           <div className="flex gap-2 flex-wrap items-center">
             <div className="flex bg-slate-100 rounded-xl p-1 flex-shrink-0">
-              <button
-                onClick={() => setAccountFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  accountFilter === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-                }`}
+              <button onClick={() => setAccountFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${accountFilter === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
               >전체</button>
-              <button
-                onClick={() => setAccountFilter('missing')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  accountFilter === 'missing' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-                }`}
+              <button onClick={() => setAccountFilter('missing')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${accountFilter === 'missing' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
               >계정 없음</button>
             </div>
             <div className="relative flex-1 min-w-40">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)}
+              <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)}
                 placeholder="이름 또는 전화번호 검색"
                 className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
               />
             </div>
-            <button
-              onClick={() => loadAccountStatuses(true)}
-              disabled={accountsLoading}
-              className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-40"
-              title="새로고침"
-            >
+            <button onClick={() => loadAccountStatuses(true)} disabled={accountsLoading}
+              className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-40" title="새로고침">
               <RefreshCw size={15} className={accountsLoading ? 'animate-spin' : ''} />
             </button>
           </div>
+
+          {/* 선택 삭제 액션 바 */}
+          {selectedAccountIds.size > 0 && (
+            <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <span className="text-sm font-semibold text-red-700">{selectedAccountIds.size}명 선택됨</span>
+              <div className="flex gap-2">
+                <button onClick={() => setSelectedAccountIds(new Set())}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg bg-white hover:bg-slate-50">
+                  취소
+                </button>
+                <button onClick={deleteBulkAccounts} disabled={bulkDeleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600 disabled:opacity-50">
+                  {bulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  계정 전체 삭제
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* 계정 현황 목록 */}
           {accountsLoading ? (
@@ -804,24 +891,41 @@ export default function StudentsPage() {
                     const studentHas = acSt?.studentHasAccount ?? false
                     const parentHas = acSt?.parentHasAccount ?? false
                     const hasParent = !!s.parent_phone
+                    const isSelected = selectedAccountIds.has(s.id)
+                    const hasAnyAccount = studentHas || parentHas
 
                     return (
-                      <div key={s.id} className="px-5 py-4">
-                        {/* 학생 이름 행 */}
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                              <span className="text-blue-600 font-bold text-sm">{s.name[0]}</span>
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-800">{s.name}</p>
-                              <p className="text-xs text-slate-400">{s.school_name ? `${s.school_name} · ` : ''}{s.grade}학년</p>
-                            </div>
+                      <div key={s.id} className={`px-5 py-4 transition-colors ${isSelected ? 'bg-red-50' : ''}`}>
+                        {/* 학생 이름 행 + 체크박스 */}
+                        <div className="flex items-center gap-3 mb-3">
+                          {/* 체크박스 (계정 있을 때만) */}
+                          {hasAnyAccount ? (
+                            <button
+                              onClick={() => setSelectedAccountIds(prev => {
+                                const next = new Set(prev)
+                                next.has(s.id) ? next.delete(s.id) : next.add(s.id)
+                                return next
+                              })}
+                              className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                                isSelected ? 'bg-red-500 border-red-500' : 'border-slate-300 hover:border-red-400'
+                              }`}
+                            >
+                              {isSelected && <X size={12} className="text-white" />}
+                            </button>
+                          ) : (
+                            <div className="w-5 flex-shrink-0" />
+                          )}
+                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-blue-600 font-bold text-sm">{s.name[0]}</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-800">{s.name}</p>
+                            <p className="text-xs text-slate-400">{s.school_name ? `${s.school_name} · ` : ''}{s.grade}학년</p>
                           </div>
                         </div>
 
-                        {/* 학생 계정 */}
-                        <div className="flex items-center justify-between mb-2">
+                        {/* 학생 계정 행 */}
+                        <div className="flex items-center justify-between mb-2 ml-8">
                           <div className="flex items-center gap-2">
                             {studentHas
                               ? <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" />
@@ -832,23 +936,35 @@ export default function StudentsPage() {
                               <span className="text-xs text-slate-400 ml-1.5">{formatPhone(s.phone)}</span>
                             </div>
                           </div>
-                          {!studentHas && (
-                            <button
-                              onClick={() => createSingleAccount(s.id, 'student')}
-                              disabled={acSt?.creating === 'student'}
-                              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            >
-                              {acSt?.creating === 'student'
-                                ? <Loader2 size={11} className="animate-spin" />
-                                : <Plus size={11} />
-                              }
-                              계정 생성
-                            </button>
-                          )}
+                          <div className="flex gap-1.5">
+                            {studentHas ? (
+                              <>
+                                <button onClick={() => resetPassword(s.id, 'student')}
+                                  disabled={acSt?.resetting === 'student'}
+                                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50">
+                                  {acSt?.resetting === 'student' ? <Loader2 size={10} className="animate-spin" /> : <KeyRound size={10} />}
+                                  초기화
+                                </button>
+                                <button onClick={() => deleteAccount(s.id, 'student')}
+                                  disabled={acSt?.deleting === 'student'}
+                                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50">
+                                  {acSt?.deleting === 'student' ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                                  삭제
+                                </button>
+                              </>
+                            ) : (
+                              <button onClick={() => createSingleAccount(s.id, 'student')}
+                                disabled={acSt?.creating === 'student'}
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                                {acSt?.creating === 'student' ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                                계정 생성
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        {/* 학부모 계정 */}
-                        <div className="flex items-center justify-between">
+                        {/* 학부모 계정 행 */}
+                        <div className="flex items-center justify-between ml-8">
                           <div className="flex items-center gap-2">
                             {hasParent
                               ? parentHas
@@ -864,19 +980,31 @@ export default function StudentsPage() {
                               }
                             </div>
                           </div>
-                          {hasParent && !parentHas && (
-                            <button
-                              onClick={() => createSingleAccount(s.id, 'parent')}
-                              disabled={acSt?.creating === 'parent'}
-                              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50"
-                            >
-                              {acSt?.creating === 'parent'
-                                ? <Loader2 size={11} className="animate-spin" />
-                                : <Plus size={11} />
-                              }
-                              계정 생성
-                            </button>
-                          )}
+                          <div className="flex gap-1.5">
+                            {hasParent && parentHas ? (
+                              <>
+                                <button onClick={() => resetPassword(s.id, 'parent')}
+                                  disabled={acSt?.resetting === 'parent'}
+                                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50">
+                                  {acSt?.resetting === 'parent' ? <Loader2 size={10} className="animate-spin" /> : <KeyRound size={10} />}
+                                  초기화
+                                </button>
+                                <button onClick={() => deleteAccount(s.id, 'parent')}
+                                  disabled={acSt?.deleting === 'parent'}
+                                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50">
+                                  {acSt?.deleting === 'parent' ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                                  삭제
+                                </button>
+                              </>
+                            ) : hasParent && !parentHas ? (
+                              <button onClick={() => createSingleAccount(s.id, 'parent')}
+                                disabled={acSt?.creating === 'parent'}
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50">
+                                {acSt?.creating === 'parent' ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                                계정 생성
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     )
