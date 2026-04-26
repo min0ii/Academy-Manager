@@ -23,6 +23,7 @@ type Student = {
   enrolled_at: string
   status: 'active' | 'inactive'
   withdrawn_at: string | null
+  user_id: string | null
   class_students: { classes: { id: string; name: string } }[]
 }
 
@@ -107,13 +108,13 @@ export default function StudentsPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [showForm, showConflictModal])
 
-  // 계정 탭 전환 시 계정 현황 로드
+  // 계정 탭으로 전환할 때마다 최신 현황 로드
   useEffect(() => {
-    if (pageTab === 'accounts' && students.length > 0 && accountStatuses.length === 0) {
-      loadAccountStatuses()
+    if (pageTab === 'accounts') {
+      loadAccountStatuses(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageTab, students])
+  }, [pageTab])
 
   async function loadData() {
     setLoading(true)
@@ -128,7 +129,7 @@ export default function StudentsPage() {
 
     const [{ data: studentData }, { data: classData }] = await Promise.all([
       supabase.from('students')
-        .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at, class_students(classes(id, name))')
+        .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at, user_id, class_students(classes(id, name))')
         .eq('academy_id', membership.academy_id)
         .order('name'),
       supabase.from('classes').select('id, name').eq('academy_id', membership.academy_id).order('name'),
@@ -139,34 +140,53 @@ export default function StudentsPage() {
     setLoading(false)
   }
 
-  // 계정 현황 로드 (profiles 조회로 존재 여부 확인)
+  // 계정 현황 로드
+  // - 학생 계정: students.user_id 로 판단 (가장 정확, RLS 영향 없음)
+  // - 학부모 계정: profiles 테이블에서 전화번호로 조회
   async function loadAccountStatuses(force = false) {
     if (accountsLoading && !force) return
     setAccountsLoading(true)
     setBulkResult(null)
 
-    const activeStudents = students.filter(s => (s.status ?? 'active') === 'active')
+    // 최신 students 데이터를 다시 가져옴 (user_id 포함)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setAccountsLoading(false); return }
+    const { data: membership } = await supabase
+      .from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+    if (!membership) { setAccountsLoading(false); return }
 
-    // 학생 + 학부모 전화번호 모음
-    const allPhones = new Set<string>()
+    const { data: freshStudents } = await supabase
+      .from('students')
+      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at, user_id, class_students(classes(id, name))')
+      .eq('academy_id', membership.academy_id)
+      .order('name')
+
+    if (freshStudents) setStudents(freshStudents as any)
+
+    const activeStudents = (freshStudents ?? []).filter((s: any) => (s.status ?? 'active') === 'active')
+
+    // 학부모 전화번호만 profiles에서 확인
+    const parentPhones = new Set<string>()
     for (const s of activeStudents) {
-      if (s.phone) allPhones.add(s.phone.replace(/\D/g, ''))
-      if (s.parent_phone) allPhones.add(s.parent_phone.replace(/\D/g, ''))
+      if ((s as any).parent_phone) parentPhones.add((s as any).parent_phone.replace(/\D/g, ''))
     }
 
-    // profiles에서 해당 전화번호들 일괄 조회
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('phone, role')
-      .in('phone', [...allPhones])
+    let parentProfilePhones = new Set<string>()
+    if (parentPhones.size > 0) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('phone')
+        .in('phone', [...parentPhones])
+      parentProfilePhones = new Set((profileData ?? []).map((p: any) => p.phone))
+    }
 
-    const profilePhones = new Set((profileData ?? []).map((p: any) => p.phone))
-
-    const statuses: AccountStatus[] = activeStudents.map(s => ({
+    const statuses: AccountStatus[] = activeStudents.map((s: any) => ({
       studentId: s.id,
-      studentHasAccount: profilePhones.has(s.phone?.replace(/\D/g, '') ?? ''),
+      // 학생 계정: students.user_id가 있으면 계정 있음
+      studentHasAccount: !!s.user_id,
+      // 학부모 계정: profiles에서 전화번호 확인
       parentHasAccount: s.parent_phone
-        ? profilePhones.has(s.parent_phone.replace(/\D/g, ''))
+        ? parentProfilePhones.has(s.parent_phone.replace(/\D/g, ''))
         : false,
       creating: null,
     }))
