@@ -136,7 +136,7 @@ function StudentReportContent() {
     setShowAllHomework(false)
     setShowAllClinic(false)
 
-    // 출석 + 시험 + 숙제 + 클리닉 병렬 로드
+    // ── 1단계: 메타 데이터 병렬 조회
     const [
       { data: sessions },
       { data: tests },
@@ -151,80 +151,70 @@ function StudentReportContent() {
       supabase.from('clinic_schedules').select('day_of_week, name').eq('class_id', classId),
     ])
 
-    // ── 출석
-    const sessionIds = (sessions ?? []).map(s => s.id)
-    let attMap: Record<string, any> = {}
-    if (sessionIds.length > 0) {
-      const { data: attData } = await supabase
-        .from('attendance').select('session_id, status, note')
-        .eq('student_id', studentId).in('session_id', sessionIds)
-      for (const a of (attData ?? [])) attMap[a.session_id] = a
-    }
+    const sessionIds   = (sessions       ?? []).map(s => s.id)
+    const testIds      = (tests          ?? []).map(t => t.id)
+    const hwIds        = (hwData         ?? []).map(h => h.id)
+    const csIds        = (clinicSessions ?? []).map(s => s.id)
+
+    // ── 2단계: 상세 데이터 전부 동시에 조회 (순차 → 완전 병렬)
+    const empty = Promise.resolve({ data: [] as any[] })
+    const [attData, myScores, allScores, hwStatuses, clinicAtts] = await Promise.all([
+      sessionIds.length > 0
+        ? supabase.from('attendance').select('session_id, status, note').eq('student_id', studentId).in('session_id', sessionIds).then(r => r.data ?? [])
+        : empty.then(r => r.data),
+      testIds.length > 0
+        ? supabase.from('test_scores').select('test_id, score').eq('student_id', studentId).in('test_id', testIds).then(r => r.data ?? [])
+        : empty.then(r => r.data),
+      testIds.length > 0
+        ? supabase.from('test_scores').select('test_id, score').in('test_id', testIds).then(r => r.data ?? [])
+        : empty.then(r => r.data),
+      hwIds.length > 0
+        ? supabase.from('homework_status').select('homework_id, status').eq('student_id', studentId).in('homework_id', hwIds).then(r => r.data ?? [])
+        : empty.then(r => r.data),
+      csIds.length > 0
+        ? supabase.from('clinic_attendance').select('clinic_session_id, status').eq('student_id', studentId).in('clinic_session_id', csIds).then(r => r.data ?? [])
+        : empty.then(r => r.data),
+    ])
+
+    // ── 출석 조합
+    const attMap: Record<string, any> = {}
+    for (const a of attData) attMap[a.session_id] = a
     setAttendance((sessions ?? []).map(s => ({
       date: s.date,
       status: attMap[s.id]?.status ?? null,
       note:   attMap[s.id]?.note   ?? null,
     })))
 
-    // ── 시험 성적
-    let gradePoints: GradePoint[] = []
-    if (tests && tests.length > 0) {
-      const testIds = tests.map(t => t.id)
-      const [{ data: myScores }, { data: allScores }] = await Promise.all([
-        supabase.from('test_scores').select('test_id, score').eq('student_id', studentId).in('test_id', testIds),
-        supabase.from('test_scores').select('test_id, score').in('test_id', testIds),
-      ])
-      const myMap: Record<string, number> = {}
-      for (const s of (myScores ?? [])) myMap[s.test_id] = s.score
-      const allMap: Record<string, number[]> = {}
-      for (const s of (allScores ?? [])) {
-        if (!allMap[s.test_id]) allMap[s.test_id] = []
-        allMap[s.test_id].push(s.score)
-      }
-      gradePoints = tests.map(t => {
-        const myRaw  = myMap[t.id] ?? null
-        const myPct  = myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null
-        const arr    = allMap[t.id] ?? []
-        const avgPct = arr.length > 0
-          ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / t.max_score * 100)
-          : null
-        return { name: t.name, 내점수: myPct, 반평균: avgPct }
-      })
+    // ── 시험 성적 조합
+    const myMap: Record<string, number> = {}
+    for (const s of myScores) myMap[s.test_id] = s.score
+    const allMap: Record<string, number[]> = {}
+    for (const s of allScores) {
+      if (!allMap[s.test_id]) allMap[s.test_id] = []
+      allMap[s.test_id].push(s.score)
     }
-    setGrades(gradePoints)
+    setGrades((tests ?? []).map(t => {
+      const myRaw = myMap[t.id] ?? null
+      const myPct = myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null
+      const arr   = allMap[t.id] ?? []
+      const avgPct = arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / t.max_score * 100) : null
+      return { name: t.name, 내점수: myPct, 반평균: avgPct }
+    }))
 
-    // ── 숙제 현황
-    let hwRows: HomeworkRow[] = []
-    if (hwData && hwData.length > 0) {
-      const hwIds = hwData.map(h => h.id)
-      const { data: hwStatuses } = await supabase
-        .from('homework_status').select('homework_id, status')
-        .eq('student_id', studentId).in('homework_id', hwIds)
-      const statusMap: Record<string, string> = {}
-      for (const s of (hwStatuses ?? [])) statusMap[s.homework_id] = s.status
-      hwRows = hwData.map(h => ({ ...h, status: (statusMap[h.id] as any) ?? null }))
-    }
-    setHomeworks(hwRows)
+    // ── 숙제 조합
+    const hwStatusMap: Record<string, string> = {}
+    for (const s of hwStatuses) hwStatusMap[s.homework_id] = s.status
+    setHomeworks((hwData ?? []).map(h => ({ ...h, status: (hwStatusMap[h.id] as any) ?? null })))
 
-    // ── 클리닉 현황
-    let clinicRows: ClinicRow[] = []
-    if (clinicSessions && clinicSessions.length > 0) {
-      const csIds = clinicSessions.map(s => s.id)
-      const { data: clinicAtts } = await supabase
-        .from('clinic_attendance').select('clinic_session_id, status')
-        .eq('student_id', studentId).in('clinic_session_id', csIds)
-      const attMap2: Record<string, string> = {}
-      for (const a of (clinicAtts ?? [])) attMap2[a.clinic_session_id] = a.status
-      // 클리닉 일정 이름 맵 (요일 → 이름)
-      const schedNameMap: Record<number, string | null> = {}
-      for (const sc of (clinicScheds ?? [])) schedNameMap[sc.day_of_week] = sc.name
-      clinicRows = clinicSessions.map(s => {
-        const dow  = new Date(s.date + 'T00:00:00').getDay()
-        const name = schedNameMap[dow] ?? `${DAYS[dow]}요일 클리닉`
-        return { id: s.id, date: s.date, clinic_name: name, status: (attMap2[s.id] as any) ?? null }
-      })
-    }
-    setClinicData(clinicRows)
+    // ── 클리닉 조합
+    const clinicAttMap: Record<string, string> = {}
+    for (const a of clinicAtts) clinicAttMap[a.clinic_session_id] = a.status
+    const schedNameMap: Record<number, string | null> = {}
+    for (const sc of (clinicScheds ?? [])) schedNameMap[sc.day_of_week] = sc.name
+    setClinicData((clinicSessions ?? []).map(s => {
+      const dow = new Date(s.date + 'T00:00:00').getDay()
+      return { id: s.id, date: s.date, clinic_name: schedNameMap[dow] ?? `${DAYS[dow]}요일 클리닉`, status: (clinicAttMap[s.id] as any) ?? null }
+    }))
 
     setLoadingDetail(false)
   }
