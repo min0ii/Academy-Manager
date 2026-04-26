@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Users, LayoutGrid,
-  BarChart2, BookOpen, MessageSquare, Settings, LogOut, Menu, X
+  BarChart2, BookOpen, MessageSquare, Settings, LogOut, Menu, X, UsersRound,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
@@ -110,10 +110,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Link
           href="/dashboard/settings"
           onClick={() => setMobileOpen(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            isActive('/dashboard/settings')
+              ? 'bg-blue-50 text-blue-600'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+          }`}
         >
           <Settings size={18} />
           설정
+        </Link>
+        <Link
+          href="/dashboard/team"
+          onClick={() => setMobileOpen(false)}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            isActive('/dashboard/team')
+              ? 'bg-blue-50 text-blue-600'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+          }`}
+        >
+          <UsersRound size={18} />
+          팀 관리
         </Link>
         <button
           onClick={handleLogout}

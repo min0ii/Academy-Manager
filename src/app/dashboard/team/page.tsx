@@ -1,0 +1,338 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { formatPhone } from '@/lib/auth'
+import {
+  User, Plus, X,
+  Crown, Shield, GraduationCap, Loader2,
+} from 'lucide-react'
+
+type Title = '원장' | '관리자' | '강사' | '조교'
+type TeamMember = {
+  id: string
+  teacher_id: string
+  role: 'owner' | 'staff'
+  title: Title
+  name: string
+  phone: string
+}
+
+const SELECTABLE_TITLES: Title[] = ['관리자', '강사', '조교']
+
+export default function TeamPage() {
+  const [myId, setMyId] = useState('')
+  const [myTitle, setMyTitle] = useState<Title>('강사')
+  const [academyId, setAcademyId] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [newPwTeacher, setNewPwTeacher] = useState('')
+  const [confirmPwTeacher, setConfirmPwTeacher] = useState('')
+  const [newTitle, setNewTitle] = useState<Title>('강사')
+  const [addingTeacher, setAddingTeacher] = useState(false)
+  const [addError, setAddError] = useState('')
+  const [teamError, setTeamError] = useState('')
+
+  useEffect(() => { loadData() }, [])
+
+  async function loadData() {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setMyId(user.id)
+
+    const { data: membership } = await supabase
+      .from('academy_teachers')
+      .select('academy_id, role, title')
+      .eq('teacher_id', user.id)
+      .single()
+
+    if (membership) {
+      setAcademyId(membership.academy_id)
+      setMyTitle((membership as any).title ?? '강사')
+      await loadTeam(membership.academy_id)
+    }
+    setLoading(false)
+  }
+
+  async function loadTeam(acadId: string) {
+    const { data } = await supabase
+      .from('academy_teachers')
+      .select('id, teacher_id, role, title, profiles(name, phone)')
+      .eq('academy_id', acadId)
+      .order('role')
+
+    const members: TeamMember[] = (data ?? []).map((m: any) => ({
+      id: m.id,
+      teacher_id: m.teacher_id,
+      role: m.role,
+      title: m.title ?? '강사',
+      name: m.profiles?.name ?? '',
+      phone: m.profiles?.phone ?? '',
+    }))
+    // owner 먼저 정렬
+    members.sort((a, b) => (a.role === 'owner' ? -1 : 1) - (b.role === 'owner' ? -1 : 1))
+    setTeamMembers(members)
+  }
+
+  async function addTeacher(e: React.FormEvent) {
+    e.preventDefault()
+    setAddError('')
+    if (newPwTeacher.length < 6) { setAddError('비밀번호는 6자 이상이어야 해요.'); return }
+    if (newPwTeacher !== confirmPwTeacher) { setAddError('비밀번호가 일치하지 않아요.'); return }
+    setAddingTeacher(true)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/create-teacher', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({
+        name: newName,
+        phone: newPhone.replace(/\D/g, ''),
+        password: newPwTeacher,
+        title: newTitle,
+      }),
+    })
+    const result = await res.json()
+    setAddingTeacher(false)
+
+    if (!res.ok) { setAddError(result.error); return }
+
+    setNewName('')
+    setNewPhone('')
+    setNewPwTeacher('')
+    setConfirmPwTeacher('')
+    setNewTitle('강사')
+    setShowAddForm(false)
+    await loadTeam(academyId)
+  }
+
+  async function saveTitle(memberId: string, title: Title) {
+    await supabase.from('academy_teachers').update({ title }).eq('id', memberId)
+    setTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, title } : m))
+  }
+
+  async function removeTeacher(member: TeamMember) {
+    if (member.teacher_id === myId) return
+    if (!confirm(`${member.name} 선생님을 팀에서 제거할까요?\n로그인은 불가능해지지만 계정은 유지돼요.`)) return
+    setTeamError('')
+    const { error } = await supabase
+      .from('academy_teachers')
+      .delete()
+      .eq('id', member.id)
+    if (error) { setTeamError(error.message); return }
+    await loadTeam(academyId)
+  }
+
+  const isAdmin = myTitle !== '조교'
+
+  if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+
+  return (
+    <div className="max-w-xl mx-auto space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-800">팀 관리</h1>
+        {isAdmin && !showAddForm && (
+          <button
+            onClick={() => { setShowAddForm(true); setAddError('') }}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={14} /> 선생님 추가
+          </button>
+        )}
+      </div>
+
+      {/* 선생님 추가 폼 */}
+      {isAdmin && showAddForm && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-slate-800">새 선생님 추가</h2>
+            <button
+              onClick={() => { setShowAddForm(false); setAddError('') }}
+              className="text-slate-400 hover:text-slate-600 p-1"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={addTeacher} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">이름 *</label>
+              <input
+                type="text"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                required
+                placeholder="선생님 이름"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">전화번호 (로그인 ID) *</label>
+              <input
+                type="tel"
+                value={newPhone}
+                onChange={e => setNewPhone(formatPhone(e.target.value))}
+                required
+                placeholder="010-0000-0000"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">직급 *</label>
+              <div className="flex gap-2">
+                {SELECTABLE_TITLES.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNewTitle(t)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors border ${
+                      newTitle === t
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">초기 비밀번호 *</label>
+              <input
+                type="password"
+                value={newPwTeacher}
+                onChange={e => setNewPwTeacher(e.target.value)}
+                required
+                placeholder="6자 이상"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">비밀번호 확인 *</label>
+              <input
+                type="password"
+                value={confirmPwTeacher}
+                onChange={e => setConfirmPwTeacher(e.target.value)}
+                required
+                placeholder="비밀번호 재입력"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {addError && (
+              <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{addError}</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => { setShowAddForm(false); setAddError('') }}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 text-sm transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                disabled={addingTeacher}
+                className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 text-sm transition-colors disabled:opacity-50"
+              >
+                {addingTeacher ? <><Loader2 size={14} className="animate-spin inline mr-1" />추가 중...</> : '추가'}
+              </button>
+            </div>
+          </form>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+            <p className="text-xs text-amber-700 leading-relaxed">
+              💡 추가 후 선생님에게 <span className="font-semibold">전화번호와 초기 비밀번호</span>를 알려주세요.<br />
+              선생님은 로그인 후 설정에서 비밀번호를 변경할 수 있어요.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 팀 목록 */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800">팀 선생님</h2>
+          <p className="text-xs text-slate-400 mt-0.5">총 {teamMembers.length}명</p>
+        </div>
+
+        {teamError && (
+          <div className="mx-4 mt-3 text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{teamError}</div>
+        )}
+
+        <div className="divide-y divide-slate-50">
+          {teamMembers.map(m => (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                m.title === '원장'   ? 'bg-amber-100'  :
+                m.title === '관리자' ? 'bg-blue-100'   :
+                m.title === '강사'   ? 'bg-indigo-100' : 'bg-slate-100'
+              }`}>
+                {m.title === '원장'   ? <Crown size={15} className="text-amber-600" />         :
+                 m.title === '관리자' ? <Shield size={15} className="text-blue-600" />         :
+                 m.title === '강사'   ? <GraduationCap size={15} className="text-indigo-600" /> :
+                                       <User size={15} className="text-slate-500" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-slate-800">{m.name}</p>
+                  {m.teacher_id === myId && (
+                    <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full">나</span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">{formatPhone(m.phone)}</p>
+              </div>
+              {/* 직급 선택 */}
+              {m.role === 'owner' ? (
+                <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-lg font-medium flex-shrink-0">
+                  원장
+                </span>
+              ) : isAdmin ? (
+                <div className="flex gap-1 flex-shrink-0">
+                  {SELECTABLE_TITLES.map(t => (
+                    <button
+                      key={t}
+                      onClick={() => saveTitle(m.id, t)}
+                      className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                        m.title === t
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded-lg font-medium flex-shrink-0">
+                  {m.title}
+                </span>
+              )}
+              {isAdmin && m.teacher_id !== myId && (
+                <button
+                  onClick={() => removeTeacher(m)}
+                  className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+                  title="팀에서 제거"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {!isAdmin && (
+        <div className="bg-slate-50 rounded-xl px-4 py-3 text-sm text-slate-500 text-center">
+          팀 관리(선생님 추가·제거)는 원장·관리자·강사만 가능해요
+        </div>
+      )}
+    </div>
+  )
+}
