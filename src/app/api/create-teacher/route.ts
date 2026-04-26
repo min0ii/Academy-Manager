@@ -31,16 +31,17 @@ export async function POST(req: NextRequest) {
       .eq('teacher_id', requester.id)
       .single()
 
-    const isAdmin = membership?.role === 'owner' || (membership as any)?.title === '관리자'
+    // 조교를 제외한 모든 직급(원장·관리자·강사)이 팀원 추가 가능
+    const isAdmin = (membership as any)?.title !== '조교'
     if (!membership || !isAdmin) {
-      return NextResponse.json({ error: '원장 또는 관리자만 선생님을 추가할 수 있어요.' }, { status: 403 })
+      return NextResponse.json({ error: '원장·관리자·강사만 선생님을 추가할 수 있어요.' }, { status: 403 })
     }
 
     const { name, phone, password, title } = await req.json()
     if (!name || !phone || !password) {
       return NextResponse.json({ error: '이름, 전화번호, 비밀번호를 모두 입력해주세요.' }, { status: 400 })
     }
-    const validTitles = ['원장', '관리자', '강사']
+    const validTitles = ['관리자', '강사', '조교']  // 원장은 직접 추가 불가
     const teacherTitle = validTitles.includes(title) ? title : '강사'
 
     const digits = String(phone).replace(/\D/g, '')

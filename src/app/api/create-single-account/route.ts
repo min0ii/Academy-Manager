@@ -30,9 +30,9 @@ export async function POST(req: NextRequest) {
       .eq('teacher_id', requester.id)
       .single()
 
-    const isAdmin = membership?.role === 'owner' || (membership as any)?.title === '관리자'
+    const isAdmin = (membership as any)?.title !== '조교'
     if (!membership || !isAdmin) {
-      return NextResponse.json({ error: '원장 또는 관리자만 계정을 생성할 수 있어요.' }, { status: 403 })
+      return NextResponse.json({ error: '원장·관리자·강사만 계정을 생성할 수 있어요.' }, { status: 403 })
     }
 
     // { student_id, target: 'student' | 'parent' }

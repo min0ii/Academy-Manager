@@ -9,22 +9,25 @@ import {
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'team'
+type Title = '원장' | '관리자' | '강사' | '조교'
 type TeamMember = {
   id: string
   teacher_id: string
   role: 'owner' | 'staff'
-  title: '원장' | '관리자' | '강사'
+  title: Title
   name: string
   phone: string
 }
 
-const TITLES = ['원장', '관리자', '강사'] as const
+// 원장은 role=owner로 자동 부여되므로 선택 목록에서 제외
+const TITLES: Title[] = ['원장', '관리자', '강사', '조교']
+const SELECTABLE_TITLES: Title[] = ['관리자', '강사', '조교']
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('academy')
   const [myId, setMyId] = useState('')
   const [myRole, setMyRole] = useState<'owner' | 'staff'>('staff')
-  const [myTitle, setMyTitle] = useState<'원장' | '관리자' | '강사'>('강사')
+  const [myTitle, setMyTitle] = useState<Title>('강사')
   const [academyId, setAcademyId] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -60,7 +63,7 @@ export default function SettingsPage() {
   const [newPhone, setNewPhone] = useState('')
   const [newPwTeacher, setNewPwTeacher] = useState('')
   const [confirmPwTeacher, setConfirmPwTeacher] = useState('')
-  const [newTitle, setNewTitle] = useState<'원장' | '관리자' | '강사'>('강사')
+  const [newTitle, setNewTitle] = useState<Title>('강사')
   const [addingTeacher, setAddingTeacher] = useState(false)
   const [addError, setAddError] = useState('')
   const [teamError, setTeamError] = useState('')
@@ -210,7 +213,7 @@ export default function SettingsPage() {
     await loadTeam(academyId)
   }
 
-  async function saveTitle(memberId: string, title: '원장' | '관리자' | '강사') {
+  async function saveTitle(memberId: string, title: Title) {
     await supabase.from('academy_teachers').update({ title }).eq('id', memberId)
     setTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, title } : m))
   }
@@ -228,7 +231,8 @@ export default function SettingsPage() {
   }
 
   // 원장 또는 관리자 직급이면 전체 권한
-  const isAdmin = myRole === 'owner' || myTitle === '관리자'
+  // 조교만 제한, 원장·관리자·강사 모두 동등한 관리자 권한
+  const isAdmin = myTitle !== '조교'
 
   if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
 
@@ -471,12 +475,14 @@ export default function SettingsPage() {
               {teamMembers.map(m => (
                 <div key={m.id} className="flex items-center gap-3 px-4 py-3">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    m.role === 'owner'   ? 'bg-amber-100' :
-                    m.title === '관리자' ? 'bg-blue-100'  : 'bg-slate-100'
+                    m.title === '원장'   ? 'bg-amber-100'  :
+                    m.title === '관리자' ? 'bg-blue-100'   :
+                    m.title === '강사'   ? 'bg-indigo-100' : 'bg-slate-100'
                   }`}>
-                    {m.role === 'owner'   ? <Crown size={15} className="text-amber-600" /> :
-                     m.title === '관리자' ? <Shield size={15} className="text-blue-600" /> :
-                                           <GraduationCap size={15} className="text-slate-500" />
+                    {m.title === '원장'   ? <Crown size={15} className="text-amber-600" />         :
+                     m.title === '관리자' ? <Shield size={15} className="text-blue-600" />         :
+                     m.title === '강사'   ? <GraduationCap size={15} className="text-indigo-600" /> :
+                                           <User size={15} className="text-slate-500" />
                     }
                   </div>
                   <div className="flex-1 min-w-0">
@@ -496,7 +502,7 @@ export default function SettingsPage() {
                     </span>
                   ) : isAdmin ? (
                     <div className="flex gap-1 flex-shrink-0">
-                      {TITLES.filter(t => t !== '원장').map(t => (
+                      {SELECTABLE_TITLES.map(t => (
                         <button
                           key={t}
                           onClick={() => saveTitle(m.id, t)}
@@ -567,7 +573,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">직급 *</label>
                   <div className="flex gap-2">
-                    {TITLES.map(t => (
+                    {SELECTABLE_TITLES.map(t => (
                       <button
                         key={t}
                         type="button"
@@ -636,7 +642,7 @@ export default function SettingsPage() {
 
           {!isAdmin && (
             <div className="bg-slate-50 rounded-xl px-4 py-3 text-sm text-slate-500 text-center">
-              팀 관리(선생님 추가·제거)는 원장만 가능해요
+              팀 관리(선생님 추가·제거)는 원장·관리자·강사만 가능해요
             </div>
           )}
         </div>
