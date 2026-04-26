@@ -24,6 +24,12 @@ type AttendanceRow = {
   note: string | null
 }
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
+type GradeRecord = {
+  name: string; date: string; maxScore: number
+  myScore: number | null; myPct: number | null
+  avgScore: number | null; avgPct: number | null
+  absent: boolean
+}
 type HomeworkRow = {
   id: string; title: string; assigned_date: string; due_date: string | null
   status: 'done' | 'partial' | 'none' | null
@@ -57,6 +63,7 @@ function StudentReportContent() {
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [attendance, setAttendance]     = useState<AttendanceRow[]>([])
   const [grades, setGrades]             = useState<GradePoint[]>([])
+  const [gradeRecords, setGradeRecords] = useState<GradeRecord[]>([])
   const [homeworks, setHomeworks]       = useState<HomeworkRow[]>([])
   const [clinicData, setClinicData]     = useState<ClinicRow[]>([])
   const [showAllHomework, setShowAllHomework] = useState(false)
@@ -160,11 +167,12 @@ function StudentReportContent() {
         ? fetch(`/api/grades?action=student-chart&classId=${classId}&studentId=${studentId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }).then(r => r.json())
-        : Promise.resolve({ points: [] }),
+        : Promise.resolve({ points: [], records: [] }),
     ])
 
-    // 성적 그래프 세팅
+    // 성적 그래프 + 점수 목록 세팅
     setGrades(gradesJson.points ?? [])
+    setGradeRecords((gradesJson.records ?? []).slice().reverse()) // 최신순
 
     const sessionIds = (sessions       ?? []).map(s => s.id)
     const hwIds      = (hwData         ?? []).map(h => h.id)
@@ -436,6 +444,65 @@ function StudentReportContent() {
                   </div>
                 )}
               </div>
+
+              {/* ── 시험 점수 목록 ── */}
+              {gradeRecords.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="p-4 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-800">시험 점수 내역</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">최신순 · 반평균과 비교</p>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {gradeRecords.map((r, i) => {
+                      const myColor = r.myPct === null ? 'text-slate-400'
+                        : r.myPct >= 80 ? 'text-emerald-600'
+                        : r.myPct >= 60 ? 'text-amber-600'
+                        : 'text-red-500'
+                      const diff = (r.myPct !== null && r.avgPct !== null) ? r.myPct - r.avgPct : null
+                      return (
+                        <div key={i} className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">{r.name}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{r.date}</p>
+                          </div>
+                          {r.absent ? (
+                            <span className="text-xs px-2.5 py-1 bg-slate-100 text-slate-400 rounded-lg font-medium flex-shrink-0">미응시</span>
+                          ) : r.myScore === null ? (
+                            <span className="text-xs text-slate-300 flex-shrink-0">미입력</span>
+                          ) : (
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              {/* 반평균 */}
+                              <div className="text-right hidden sm:block">
+                                <p className="text-xs text-slate-400">반평균</p>
+                                <p className="text-sm font-medium text-slate-500">
+                                  {r.avgScore ?? '-'}<span className="text-xs text-slate-300">/{r.maxScore}</span>
+                                </p>
+                              </div>
+                              {/* 내 점수 */}
+                              <div className="text-right">
+                                <p className="text-xs text-slate-400">내 점수</p>
+                                <p className={`text-base font-bold ${myColor}`}>
+                                  {r.myScore}<span className="text-xs font-normal text-slate-300">/{r.maxScore}</span>
+                                </p>
+                              </div>
+                              {/* 반평균 대비 */}
+                              {diff !== null && (
+                                <div className={`text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0 ${
+                                  diff > 0 ? 'bg-emerald-50 text-emerald-600' :
+                                  diff < 0 ? 'bg-red-50 text-red-500' :
+                                  'bg-slate-100 text-slate-400'
+                                }`}>
+                                  {diff > 0 ? `+${diff}%` : diff < 0 ? `${diff}%` : '평균'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* ── 숙제 현황 ── */}
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">

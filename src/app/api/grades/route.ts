@@ -80,25 +80,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ students: students ?? [], scores: scores ?? [] })
   }
 
-  // ── 학생 상세 페이지 성적 그래프 (RLS 우회) ──
+  // ── 학생 상세 페이지 성적 그래프 + 점수 목록 (RLS 우회) ──
   if (action === 'student-chart') {
     const classId   = searchParams.get('classId')
     const studentId = searchParams.get('studentId')
     if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
     const { data: tests } = await db.from('tests')
-      .select('id, name, max_score').eq('class_id', classId).order('date', { ascending: true })
+      .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
 
-    if (!tests?.length) return NextResponse.json({ points: [] })
+    if (!tests?.length) return NextResponse.json({ points: [], records: [] })
 
     const testIds = tests.map(t => t.id)
     const [{ data: myScores }, { data: allScores }] = await Promise.all([
-      db.from('test_scores').select('test_id, score').eq('student_id', studentId).eq('absent', false).in('test_id', testIds),
+      db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
       db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
     ])
 
-    const myMap: Record<string, number> = {}
-    for (const s of (myScores ?? [])) myMap[s.test_id] = s.score
+    const myMap: Record<string, { score: number; absent: boolean }> = {}
+    for (const s of (myScores ?? [])) myMap[s.test_id] = { score: s.score, absent: s.absent }
 
     const allMap: Record<string, number[]> = {}
     for (const s of (allScores ?? [])) {
@@ -106,14 +106,36 @@ export async function GET(req: NextRequest) {
       allMap[s.test_id].push(s.score)
     }
 
+    // 그래프용 (퍼센트)
     const points = tests.map(t => {
-      const myRaw  = myMap[t.id] ?? null
+      const my     = myMap[t.id]
+      const myRaw  = (my && !my.absent) ? my.score : null
       const myPct  = myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null
       const arr    = allMap[t.id] ?? []
       const avgPct = arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / t.max_score * 100) : null
       return { name: t.name, 내점수: myPct, 반평균: avgPct }
     })
-    return NextResponse.json({ points })
+
+    // 목록용 (실제 점수 + 날짜)
+    const records = tests.map(t => {
+      const my     = myMap[t.id]
+      const myRaw  = (my && !my.absent) ? my.score : null
+      const absent = my?.absent ?? false
+      const arr    = allMap[t.id] ?? []
+      const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+      return {
+        name:     t.name,
+        date:     t.date,
+        maxScore: t.max_score,
+        myScore:  myRaw,
+        myPct:    myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+        avgScore: avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+        avgPct:   avgRaw !== null ? Math.round(avgRaw / t.max_score * 100) : null,
+        absent,
+      }
+    })
+
+    return NextResponse.json({ points, records })
   }
 
   return NextResponse.json({ error: '잘못된 action' }, { status: 400 })
