@@ -114,14 +114,20 @@ export default function StudentPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, student, classInfo])
 
+  async function getToken() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
+  }
+
   async function loadBase() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.replace('/login'); return }
 
+    // role 확인 (profiles는 RLS 허용됨)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name, role, must_change_password')
+      .select('role, must_change_password')
       .eq('id', user.id)
       .single()
 
@@ -137,85 +143,40 @@ export default function StudentPage() {
       setShowPwModal(true)
     }
 
-    // 학생 정보 (user_id로 연결)
-    const { data: studentData } = await supabase
-      .from('students')
-      .select('id, name, school_name, grade, phone')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // 학생 정보 + 반 정보를 서비스 롤 API로 조회 (RLS 우회)
+    const token = await getToken()
+    if (!token) { setLoading(false); return }
 
-    if (studentData) {
-      setStudent(studentData)
-      await loadClassInfo(studentData.id)
-    }
+    const res = await fetch('/api/student', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+
+    if (json.student) setStudent(json.student)
+    if (json.classInfo) setClassInfo(json.classInfo)
+    if (json.academyName) setAcademyName(json.academyName)
 
     setLoading(false)
-  }
-
-  async function loadClassInfo(studentId: string) {
-    const { data: classStudents } = await supabase
-      .from('class_students')
-      .select(`
-        class_id,
-        classes(
-          id, name, academy_id, teacher_id,
-          academies(name),
-          class_schedules(day_of_week, start_time, end_time)
-        )
-      `)
-      .eq('student_id', studentId)
-
-    if (!classStudents || classStudents.length === 0) return
-
-    const cls = (classStudents[0] as any).classes
-    if (!cls) return
-
-    setAcademyName(cls.academies?.name ?? '')
-
-    let teacherName: string | null = null
-    if (cls.teacher_id) {
-      const { data: tp } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', cls.teacher_id)
-        .single()
-      teacherName = tp?.name ?? null
-    }
-
-    setClassInfo({
-      id: cls.id,
-      name: cls.name,
-      teacher_name: teacherName,
-      schedules: cls.class_schedules ?? [],
-    })
   }
 
   async function loadAttendance() {
     if (!student || !classInfo) return
     setAttendLoaded(true)
 
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    const fromDate = sixMonthsAgo.toISOString().slice(0, 10)
+    const token = await getToken()
+    if (!token) return
 
-    const { data: sessions } = await supabase
-      .from('sessions')
-      .select('id, date, status, attendance(student_id, status, late_minutes, early_leave_minutes)')
-      .eq('class_id', classInfo.id)
-      .gte('date', fromDate)
-      .order('date', { ascending: false })
-
-    const records: AttendanceRecord[] = (sessions ?? []).map((s: any) => {
-      if (s.status === 'cancelled') return { date: s.date, status: 'cancelled' as const }
-      const my = (s.attendance ?? []).find((a: any) => a.student_id === student.id)
-      return {
-        date: s.date,
-        status: (my?.status ?? 'absent') as AttendanceRecord['status'],
-        late_minutes: my?.late_minutes,
-        early_leave_minutes: my?.early_leave_minutes,
-      }
-    })
-
+    const res = await fetch(
+      `/api/grades?action=my-attendance&classId=${classInfo.id}&studentId=${student.id}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    const json = await res.json()
+    const records: AttendanceRecord[] = (json.records ?? []).map((r: any) => ({
+      date: r.date,
+      status: r.status as AttendanceRecord['status'],
+      late_minutes: r.late_minutes ?? undefined,
+      early_leave_minutes: r.early_leave_minutes ?? undefined,
+    }))
     setAttendance(records)
   }
 
@@ -224,8 +185,7 @@ export default function StudentPage() {
     setGradesLoaded(true)
     setGradesLoading(true)
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
+    const token = await getToken()
     if (!token) { setGradesLoading(false); return }
 
     const res = await fetch(
@@ -242,8 +202,7 @@ export default function StudentPage() {
     setClinicLoaded(true)
     setClinicLoading(true)
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
+    const token = await getToken()
     if (!token) { setClinicLoading(false); return }
 
     const res = await fetch(

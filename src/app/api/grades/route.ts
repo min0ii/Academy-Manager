@@ -162,6 +162,50 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ records })
   }
 
+  // ── 학생 포털 출석 ──
+  if (action === 'my-attendance') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    const ok = await verifyStudent(db, token, studentId)
+    if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+    const fromDate = sixMonthsAgo.toISOString().slice(0, 10)
+
+    const { data: sessions } = await db.from('sessions')
+      .select('id, date, status')
+      .eq('class_id', classId)
+      .gte('date', fromDate)
+      .order('date', { ascending: false })
+
+    if (!sessions?.length) return NextResponse.json({ records: [] })
+
+    const sessionIds = sessions.map((s: any) => s.id)
+    const { data: attRows } = await db.from('attendance')
+      .select('session_id, status, late_minutes, early_leave_minutes')
+      .eq('student_id', studentId)
+      .in('session_id', sessionIds)
+
+    const attMap: Record<string, any> = {}
+    for (const a of (attRows ?? [])) attMap[a.session_id] = a
+
+    const records = sessions.map((s: any) => {
+      if (s.status === 'cancelled') return { date: s.date, status: 'cancelled' }
+      const a = attMap[s.id]
+      return {
+        date: s.date,
+        status: a?.status ?? 'absent',
+        late_minutes: a?.late_minutes ?? null,
+        early_leave_minutes: a?.early_leave_minutes ?? null,
+      }
+    })
+
+    return NextResponse.json({ records })
+  }
+
   // ── 학생 포털 성적 ──
   if (action === 'my-grades') {
     const classId   = searchParams.get('classId')
