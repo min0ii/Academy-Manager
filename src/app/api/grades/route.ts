@@ -27,11 +27,22 @@ async function verifyParent(db: ReturnType<typeof admin>, token: string, student
   return !!linked
 }
 
+// 학생 인증: 토큰 → students.user_id 매칭
+async function verifyStudent(db: ReturnType<typeof admin>, token: string, studentId: string) {
+  const { data: { user }, error } = await db.auth.getUser(token)
+  if (error || !user) return false
+  const { data: linked } = await db.from('students').select('id')
+    .eq('id', studentId).eq('user_id', user.id).maybeSingle()
+  return !!linked
+}
+
 // GET ?action=tests&classId=xxx              → 시험 목록 + 통계
 // GET ?action=scores&testId=xxx&classId=xxx  → 특정 시험의 학생별 점수
 // GET ?action=student-chart&classId=xxx&studentId=xxx → 학생 상세 성적 그래프+목록
 // GET ?action=parent-chart&classId=xxx&studentId=xxx  → 학부모 포털 성적
 // GET ?action=parent-clinic&classId=xxx&studentId=xxx → 학부모 포털 클리닉
+// GET ?action=my-grades&classId=xxx&studentId=xxx     → 학생 포털 성적
+// GET ?action=my-clinic&classId=xxx&studentId=xxx     → 학생 포털 클리닉
 export async function GET(req: NextRequest) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -130,6 +141,85 @@ export async function GET(req: NextRequest) {
     if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
     const ok = await verifyParent(db, token, studentId)
+    if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const [{ data: sessions }, { data: myAtt }] = await Promise.all([
+      db.from('clinic_sessions').select('id, name, date, note').eq('class_id', classId).order('date', { ascending: false }),
+      db.from('clinic_attendance').select('clinic_session_id, status').eq('student_id', studentId),
+    ])
+
+    const attMap: Record<string, string> = {}
+    for (const a of (myAtt ?? [])) attMap[a.clinic_session_id] = a.status
+
+    const records = (sessions ?? []).map((s: any) => ({
+      id:          s.id,
+      date:        s.date,
+      clinic_name: s.name ?? null,
+      note:        s.note ?? null,
+      status:      attMap[s.id] ?? null,
+    }))
+
+    return NextResponse.json({ records })
+  }
+
+  // ── 학생 포털 성적 ──
+  if (action === 'my-grades') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    const ok = await verifyStudent(db, token, studentId)
+    if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const { data: tests } = await db.from('tests')
+      .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
+
+    if (!tests?.length) return NextResponse.json({ records: [] })
+
+    const testIds = tests.map(t => t.id)
+    const [{ data: myScores }, { data: allScores }] = await Promise.all([
+      db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
+      db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
+    ])
+
+    const myMap: Record<string, { score: number; absent: boolean }> = {}
+    for (const s of (myScores ?? [])) myMap[s.test_id] = { score: s.score, absent: s.absent }
+
+    const allMap: Record<string, number[]> = {}
+    for (const s of (allScores ?? [])) {
+      if (!allMap[s.test_id]) allMap[s.test_id] = []
+      allMap[s.test_id].push(s.score)
+    }
+
+    const records = tests.map(t => {
+      const my     = myMap[t.id]
+      const myRaw  = (my && !my.absent) ? my.score : null
+      const absent = my?.absent ?? false
+      const arr    = allMap[t.id] ?? []
+      const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+      return {
+        name:      t.name,
+        date:      t.date,
+        maxScore:  t.max_score,
+        myScore:   myRaw,
+        myPct:     myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+        avgScore:  avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+        classHigh: arr.length > 0 ? Math.max(...arr) : null,
+        classLow:  arr.length > 0 ? Math.min(...arr) : null,
+        absent,
+      }
+    })
+
+    return NextResponse.json({ records })
+  }
+
+  // ── 학생 포털 클리닉 ──
+  if (action === 'my-clinic') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const [{ data: sessions }, { data: myAtt }] = await Promise.all([
