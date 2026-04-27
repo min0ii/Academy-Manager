@@ -240,26 +240,16 @@ export default function ParentPage() {
     if (!student || !classInfo) return
     setClinicLoaded(true)
 
-    // clinic_sessions 컬럼: id, name, date, note (scope 없음)
-    // clinic_attendance FK: clinic_session_id
-    const { data: clinicData } = await supabase
-      .from('clinic_sessions')
-      .select('id, name, date, note, clinic_attendance(student_id, status)')
-      .eq('class_id', classInfo.id)
-      .order('date', { ascending: false })
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
 
-    const records: ClinicRecord[] = (clinicData ?? []).map((c: any) => {
-      const my = (c.clinic_attendance ?? []).find((a: any) => a.student_id === student.id)
-      return {
-        id: c.id,
-        name: c.name ?? `${c.date} 클리닉`,
-        date: c.date,
-        note: c.note ?? null,
-        status: my?.status ?? null,
-      }
-    })
-
-    setClinics(records)
+    const res = await fetch(
+      `/api/grades?action=parent-clinic&classId=${classInfo.id}&studentId=${student.id}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    const json = await res.json()
+    setClinics(json.records ?? [])
   }
 
   async function handleChangePw(e: React.FormEvent) {
