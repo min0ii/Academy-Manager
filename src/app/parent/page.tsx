@@ -5,13 +5,20 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, BookOpen, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check,
+  KeyRound, Eye, EyeOff, X, Check, MessageSquare,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 
-type Tab = 'home' | 'attendance' | 'grades' | 'clinic'
+type Tab = 'home' | 'attendance' | 'grades' | 'clinic' | 'comments'
+
+type CommentRecord = {
+  id: string
+  date: string
+  content: string
+  teacher_name: string | null
+}
 
 type StudentInfo = {
   id: string
@@ -105,12 +112,18 @@ export default function ParentPage() {
   const [clinicLoaded, setClinicLoaded] = useState(false)
   const [clinicLoading, setClinicLoading] = useState(false)
 
+  // 코멘트
+  const [commentList, setCommentList]   = useState<CommentRecord[]>([])
+  const [commentsLoaded, setCommentsLoaded] = useState(false)
+  const [commentsLoading, setCommentsLoading] = useState(false)
+
   useEffect(() => { loadBase() }, [])
 
   useEffect(() => {
     if (tab === 'attendance' && !attendLoaded && student && classInfo) loadAttendance()
     if (tab === 'grades' && !gradesLoaded && student && classInfo) loadGrades()
     if (tab === 'clinic' && !clinicLoaded && student && classInfo) loadClinics()
+    if (tab === 'comments' && !commentsLoaded && student) loadComments()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, student, classInfo])
 
@@ -239,6 +252,24 @@ export default function ParentPage() {
     setGradesLoading(false)
   }
 
+  async function loadComments() {
+    if (!student) return
+    setCommentsLoaded(true)
+    setCommentsLoading(true)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setCommentsLoading(false); return }
+
+    const res = await fetch(
+      `/api/grades?action=parent-comments&studentId=${student.id}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    const json = await res.json()
+    setCommentList(json.records ?? [])
+    setCommentsLoading(false)
+  }
+
   async function loadClinics() {
     if (!student || !classInfo) return
     setClinicLoaded(true)
@@ -338,10 +369,11 @@ export default function ParentPage() {
   }
 
   const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
-    { key: 'home',       label: '홈',   Icon: Home },
-    { key: 'attendance', label: '출석', Icon: Calendar },
-    { key: 'grades',     label: '성적', Icon: BarChart2 },
+    { key: 'home',       label: '홈',    Icon: Home },
+    { key: 'attendance', label: '출석',  Icon: Calendar },
+    { key: 'grades',     label: '성적',  Icon: BarChart2 },
     { key: 'clinic',     label: '클리닉', Icon: BookOpen },
+    { key: 'comments',   label: '코멘트', Icon: MessageSquare },
   ]
 
   return (
@@ -437,11 +469,12 @@ export default function ParentPage() {
             )}
 
             {student && classInfo && (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {[
                   { key: 'attendance' as Tab, label: '출석 확인', colorCls: 'bg-emerald-50 text-emerald-700', Icon: Calendar },
                   { key: 'grades'     as Tab, label: '성적 확인', colorCls: 'bg-blue-50 text-blue-700',     Icon: BarChart2 },
                   { key: 'clinic'     as Tab, label: '클리닉',    colorCls: 'bg-amber-50 text-amber-700',   Icon: BookOpen },
+                  { key: 'comments'   as Tab, label: '코멘트',    colorCls: 'bg-violet-50 text-violet-700', Icon: MessageSquare },
                 ].map(({ key, label, colorCls, Icon }) => (
                   <button
                     key={key}
@@ -775,6 +808,48 @@ export default function ParentPage() {
                   )}
                 </div>
               </>
+            )}
+          </>
+        )}
+
+        {/* ── 코멘트 ── */}
+        {tab === 'comments' && (
+          <>
+            {!student ? (
+              <NoClass />
+            ) : commentsLoading ? (
+              <div className="bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
+                불러오는 중...
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                  <MessageSquare size={16} className="text-violet-500" />
+                  <h2 className="font-bold text-slate-800 text-sm">선생님 코멘트</h2>
+                </div>
+                {commentList.length === 0 ? (
+                  <div className="px-5 py-12 text-center">
+                    <MessageSquare size={32} className="mx-auto text-slate-200 mb-3" />
+                    <p className="text-slate-400 text-sm">아직 작성된 코멘트가 없어요</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {commentList.map((c) => (
+                      <div key={c.id} className="px-5 py-4 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-slate-400">{c.date.replace(/-/g, '. ')}</span>
+                          {c.teacher_name && (
+                            <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
+                              {c.teacher_name} 선생님
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}
