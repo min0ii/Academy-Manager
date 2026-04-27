@@ -60,6 +60,7 @@ type DetailType = { kind: 'homework'; item: HomeworkItem } | { kind: 'clinic'; i
 
 export default function HomeworkPage() {
   const [classes, setClasses] = useState<ClassItem[]>([])
+  const [classesLoading, setClassesLoading] = useState(true)
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('homework')
 
@@ -78,8 +79,9 @@ export default function HomeworkPage() {
   // 반 목록 로드
   useEffect(() => {
     if (!ctx) return
+    setClassesLoading(true)
     supabase.from('classes').select('id, name').eq('academy_id', ctx.academyId).order('name')
-      .then(({ data }) => setClasses(data ?? []))
+      .then(({ data }) => { setClasses(data ?? []); setClassesLoading(false) })
   }, [ctx])
 
   // 반 선택 시 숙제·클리닉 로드
@@ -291,7 +293,9 @@ export default function HomeworkPage() {
             <p className="text-xs text-slate-500">반을 선택하면 전체 기록을 볼 수 있어요</p>
           </div>
         </div>
-        {classes.length === 0 ? (
+        {classesLoading ? (
+          <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+        ) : classes.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
             <Users size={32} className="mx-auto mb-3 opacity-40" />
             <p className="text-sm">등록된 반이 없습니다</p>
