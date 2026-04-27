@@ -17,8 +17,6 @@ type CommentRecord = {
   id: string
   date: string
   content: string
-  teacher_name: string | null
-  teacher_title: string | null
 }
 
 type StudentInfo = {
@@ -836,15 +834,8 @@ export default function ParentPage() {
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {commentList.map((c) => (
-                      <div key={c.id} className="px-5 py-4 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-slate-400">{c.date.replace(/-/g, '. ')}</span>
-                          {c.teacher_name && (
-                            <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
-                              {c.teacher_name} {c.teacher_title === '조교' ? '조교님' : '선생님'}
-                            </span>
-                          )}
-                        </div>
+                      <div key={c.id} className="px-5 py-4 space-y-1.5">
+                        <span className="text-xs text-slate-400">{c.date.replace(/-/g, '. ')}</span>
                         <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{c.content}</p>
                       </div>
                     ))}
