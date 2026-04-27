@@ -18,6 +18,7 @@ type CommentRecord = {
   date: string
   content: string
   teacher_name: string | null
+  teacher_title: string | null
 }
 
 type StudentInfo = {
@@ -840,7 +841,7 @@ export default function ParentPage() {
                           <span className="text-xs text-slate-400">{c.date.replace(/-/g, '. ')}</span>
                           {c.teacher_name && (
                             <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
-                              {c.teacher_name} 선생님
+                              {c.teacher_name} {c.teacher_title === '조교' ? '조교님' : '선생님'}
                             </span>
                           )}
                         </div>

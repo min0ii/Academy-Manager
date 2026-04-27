@@ -108,15 +108,16 @@ export async function GET(req: NextRequest) {
 
     const { data } = await db
       .from('comments')
-      .select('id, date, content, profiles(name)')
+      .select('id, date, content, profiles(name, title)')
       .eq('student_id', studentId)
       .order('date', { ascending: false })
 
     const records = (data ?? []).map((c: any) => ({
-      id:           c.id,
-      date:         c.date,
-      content:      c.content,
-      teacher_name: c.profiles?.name ?? null,
+      id:            c.id,
+      date:          c.date,
+      content:       c.content,
+      teacher_name:  c.profiles?.name ?? null,
+      teacher_title: c.profiles?.title ?? null,
     }))
 
     return NextResponse.json({ records })
