@@ -329,10 +329,11 @@ export default function ParentPage() {
 
   // ── 성적 통계 ──
   const scoredTests = tests.filter(t => !t.absent && t.score !== null)
-  const pcts = scoredTests.map(t => Math.round((t.score! / t.max_score) * 100))
+  // 반올림 오차 방지: 개별 퍼센트 먼저 반올림 않고 합산 후 한 번만 반올림
+  const pcts = scoredTests.map(t => (t.score! / t.max_score) * 100)
   const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null
-  const maxPct = pcts.length > 0 ? Math.max(...pcts) : null
-  const minPct = pcts.length > 0 ? Math.min(...pcts) : null
+  const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
+  const minPct = pcts.length > 0 ? Math.round(Math.min(...pcts)) : null
 
   const chartData = scoredTests.map(t => ({
     label: `${t.date.slice(5)} ${t.name}`,
@@ -613,9 +614,9 @@ export default function ParentPage() {
                     <h2 className="font-bold text-slate-800 text-sm">성적 요약</h2>
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { label: '평균', value: avgPct !== null ? `${avgPct}%` : '-', color: 'text-blue-700' },
-                        { label: '최고', value: maxPct !== null ? `${maxPct}%` : '-', color: 'text-emerald-700' },
-                        { label: '최저', value: minPct !== null ? `${minPct}%` : '-', color: 'text-red-600' },
+                        { label: '평균 득점률', value: avgPct !== null ? `${avgPct}%` : '-', color: 'text-blue-700' },
+                        { label: '최고 득점률', value: maxPct !== null ? `${maxPct}%` : '-', color: 'text-emerald-700' },
+                        { label: '최저 득점률', value: minPct !== null ? `${minPct}%` : '-', color: 'text-red-600' },
                       ].map(({ label, value, color }) => (
                         <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
                           <p className={`text-2xl font-black ${color}`}>{value}</p>
@@ -681,7 +682,7 @@ export default function ParentPage() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-semibold text-slate-800 truncate">{t.name}</span>
                               </div>
-                              <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g, '. ')}</p>
+                              <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g, '. ')} · 만점 {t.max_score}점</p>
                             </div>
                             {t.absent ? (
                               <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">결시</span>
@@ -690,12 +691,12 @@ export default function ParentPage() {
                                 <p className={`text-base font-black ${
                                   pct >= 80 ? 'text-emerald-600' : pct >= 60 ? 'text-blue-600' : 'text-red-600'
                                 }`}>
-                                  {pct}%
+                                  {t.score}점
                                 </p>
-                                <p className="text-xs text-slate-400">{t.score}/{t.max_score}</p>
+                                <p className="text-xs text-slate-400">{pct}%</p>
                               </div>
                             ) : (
-                              <span className="text-xs text-slate-400">-</span>
+                              <span className="text-xs text-slate-400">미입력</span>
                             )}
                           </div>
                         )

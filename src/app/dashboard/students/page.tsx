@@ -664,8 +664,8 @@ export default function StudentsPage() {
             >퇴원</button>
           </div>
 
-          {/* 반 필터 */}
-          {classes.length > 0 && (
+          {/* 반 필터 — 재원 탭일 때만 표시 */}
+          {classes.length > 0 && statusFilter === 'active' && (
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => setClassFilter(null)}
                 className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
@@ -692,8 +692,17 @@ export default function StudentsPage() {
             <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
-              <p className="text-lg mb-1">학생이 없어요</p>
-              <p className="text-sm">학생을 추가하거나 CSV 파일로 가져오세요</p>
+              {statusFilter === 'inactive' ? (
+                <>
+                  <p className="text-lg mb-1">퇴원한 학생이 없어요</p>
+                  <p className="text-sm">학생 상세 페이지에서 퇴원 처리를 할 수 있어요</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg mb-1">학생이 없어요</p>
+                  <p className="text-sm">학생을 추가하거나 CSV 파일로 가져오세요</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
