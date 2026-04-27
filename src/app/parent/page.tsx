@@ -49,9 +49,9 @@ type TestRecord = {
 
 type ClinicRecord = {
   id: string
-  name: string
+  clinic_name: string | null
   date: string
-  note: string | null  // clinic_sessions 컬럼명
+  note: string | null
   status: 'done' | 'partial' | 'none' | null
 }
 
@@ -99,10 +99,12 @@ export default function ParentPage() {
   // 성적
   const [tests, setTests] = useState<TestRecord[]>([])
   const [gradesLoaded, setGradesLoaded] = useState(false)
+  const [gradesLoading, setGradesLoading] = useState(false)
 
   // 클리닉
   const [clinics, setClinics] = useState<ClinicRecord[]>([])
   const [clinicLoaded, setClinicLoaded] = useState(false)
+  const [clinicLoading, setClinicLoading] = useState(false)
 
   useEffect(() => { loadBase() }, [])
 
@@ -223,10 +225,11 @@ export default function ParentPage() {
   async function loadGrades() {
     if (!student || !classInfo) return
     setGradesLoaded(true)
+    setGradesLoading(true)
 
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
-    if (!token) return
+    if (!token) { setGradesLoading(false); return }
 
     const res = await fetch(
       `/api/grades?action=parent-chart&classId=${classInfo.id}&studentId=${student.id}`,
@@ -234,15 +237,17 @@ export default function ParentPage() {
     )
     const json = await res.json()
     setTests(json.records ?? [])
+    setGradesLoading(false)
   }
 
   async function loadClinics() {
     if (!student || !classInfo) return
     setClinicLoaded(true)
+    setClinicLoading(true)
 
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
-    if (!token) return
+    if (!token) { setClinicLoading(false); return }
 
     const res = await fetch(
       `/api/grades?action=parent-clinic&classId=${classInfo.id}&studentId=${student.id}`,
@@ -250,6 +255,7 @@ export default function ParentPage() {
     )
     const json = await res.json()
     setClinics(json.records ?? [])
+    setClinicLoading(false)
   }
 
   async function handleChangePw(e: React.FormEvent) {
@@ -647,7 +653,9 @@ export default function ParentPage() {
                   <div className="px-5 py-4 border-b border-slate-100">
                     <h2 className="font-bold text-slate-800 text-sm">전체 성적 기록</h2>
                   </div>
-                  {tests.length === 0 ? (
+                  {gradesLoading ? (
+                    <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
+                  ) : tests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
                     <div className="divide-y divide-slate-100">
@@ -703,13 +711,18 @@ export default function ParentPage() {
           <>
             {!classInfo ? (
               <NoClass />
+            ) : clinicLoading ? (
+              <div className="bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
+                불러오는 중...
+              </div>
             ) : (
               <>
-                {clinicRate !== null && (
+                {/* 현황 요약 — 기록된 항목이 하나라도 있을 때만 */}
+                {clinics.some(c => c.status !== null) && (
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                     <h2 className="font-bold text-slate-800 text-sm">클리닉 현황</h2>
                     <div className="flex items-end gap-2">
-                      <span className="text-4xl font-black text-amber-600">{clinicRate}%</span>
+                      <span className="text-4xl font-black text-amber-600">{clinicRate ?? 0}%</span>
                       <span className="text-slate-400 text-sm pb-1">완료율</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
@@ -735,23 +748,27 @@ export default function ParentPage() {
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">클리닉 기록이 없어요</div>
                   ) : (
                     <div className="divide-y divide-slate-50">
-                      {clinics.map(c => {
+                      {clinics.map((c, i) => {
                         const style = c.status ? CLINIC_STYLE[c.status] : null
                         return (
-                          <div key={c.id} className="flex items-center gap-3 px-5 py-3">
+                          <div key={c.id ?? i} className="flex items-center gap-3 px-5 py-3.5">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
+                              <p className="text-sm font-semibold text-slate-800 truncate">
+                                {c.clinic_name ?? '클리닉'}
+                              </p>
+                              <p className="text-xs text-slate-400 mt-0.5">{c.date.replace(/-/g, '. ')}</p>
                               {c.note && (
                                 <p className="text-xs text-slate-400 mt-0.5 truncate">{c.note}</p>
                               )}
-                              <p className="text-xs text-slate-400">{c.date.replace(/-/g, '. ')}</p>
                             </div>
                             {style ? (
                               <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>
                                 {style.label}
                               </span>
                             ) : (
-                              <span className="text-xs text-slate-300 flex-shrink-0">-</span>
+                              <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">
+                                기록 안됨
+                              </span>
                             )}
                           </div>
                         )
