@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
 
     const { data } = await db
       .from('comments')
-      .select('id, date, content, profiles(name, title)')
+      .select('id, date, content, profiles!teacher_id(name, title)')
       .eq('student_id', studentId)
       .order('date', { ascending: false })
 
