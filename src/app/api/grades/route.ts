@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
       return { name: t.name, 내점수: myPct, 반평균: avgPct }
     })
 
-    // 목록용 (실제 점수 + 날짜)
+    // 목록용 (실제 점수 + 날짜 + 반 최고/최저)
     const records = tests.map(t => {
       const my     = myMap[t.id]
       const myRaw  = (my && !my.absent) ? my.score : null
@@ -124,18 +124,80 @@ export async function GET(req: NextRequest) {
       const arr    = allMap[t.id] ?? []
       const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
       return {
-        name:     t.name,
-        date:     t.date,
-        maxScore: t.max_score,
-        myScore:  myRaw,
-        myPct:    myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
-        avgScore: avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
-        avgPct:   avgRaw !== null ? Math.round(avgRaw / t.max_score * 100) : null,
+        name:       t.name,
+        date:       t.date,
+        maxScore:   t.max_score,
+        myScore:    myRaw,
+        myPct:      myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+        avgScore:   avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+        avgPct:     avgRaw !== null ? Math.round(avgRaw / t.max_score * 100) : null,
+        classHigh:  arr.length > 0 ? Math.max(...arr) : null,
+        classLow:   arr.length > 0 ? Math.min(...arr) : null,
         absent,
       }
     })
 
     return NextResponse.json({ points, records })
+  }
+
+  // ── 학부모 포털 성적 (학부모 인증 + RLS 우회) ──
+  if (action === 'parent-chart') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    // 학부모 본인 확인: 토큰 → profiles.phone → students.parent_phone 일치 여부
+    const { data: { user } } = await db.auth.getUser(token)
+    if (!user) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
+
+    const { data: profile } = await db.from('profiles').select('phone').eq('id', user.id).single()
+    if (!profile) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const { data: linkedStudent } = await db
+      .from('students').select('id')
+      .eq('id', studentId).eq('parent_phone', profile.phone).maybeSingle()
+    if (!linkedStudent) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const { data: tests } = await db.from('tests')
+      .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
+
+    if (!tests?.length) return NextResponse.json({ records: [] })
+
+    const testIds = tests.map(t => t.id)
+    const [{ data: myScores }, { data: allScores }] = await Promise.all([
+      db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
+      db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
+    ])
+
+    const myMap2: Record<string, { score: number; absent: boolean }> = {}
+    for (const s of (myScores ?? [])) myMap2[s.test_id] = { score: s.score, absent: s.absent }
+
+    const allMap2: Record<string, number[]> = {}
+    for (const s of (allScores ?? [])) {
+      if (!allMap2[s.test_id]) allMap2[s.test_id] = []
+      allMap2[s.test_id].push(s.score)
+    }
+
+    const records = tests.map(t => {
+      const my     = myMap2[t.id]
+      const myRaw  = (my && !my.absent) ? my.score : null
+      const absent = my?.absent ?? false
+      const arr    = allMap2[t.id] ?? []
+      const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+      return {
+        name:      t.name,
+        date:      t.date,
+        maxScore:  t.max_score,
+        myScore:   myRaw,
+        myPct:     myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+        avgScore:  avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+        classHigh: arr.length > 0 ? Math.max(...arr) : null,
+        classLow:  arr.length > 0 ? Math.min(...arr) : null,
+        absent,
+      }
+    })
+
+    return NextResponse.json({ records })
   }
 
   return NextResponse.json({ error: '잘못된 action' }, { status: 400 })

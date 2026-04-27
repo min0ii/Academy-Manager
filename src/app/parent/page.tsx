@@ -36,11 +36,14 @@ type AttendanceRecord = {
 }
 
 type TestRecord = {
-  id: string
-  name: string      // tests 테이블 컬럼명
+  name: string
   date: string
-  score: number | null
-  max_score: number
+  maxScore: number
+  myScore: number | null
+  myPct: number | null
+  avgScore: number | null
+  classHigh: number | null
+  classLow: number | null
   absent: boolean
 }
 
@@ -221,30 +224,16 @@ export default function ParentPage() {
     if (!student || !classInfo) return
     setGradesLoaded(true)
 
-    // 시험 목록과 이 학생의 점수만 병렬로 조회 (전체 test_scores embed 제거 → 빠름)
-    const [{ data: testData }, { data: scoreData }] = await Promise.all([
-      supabase.from('tests')
-        .select('id, name, date, max_score')
-        .eq('class_id', classInfo.id)
-        .order('date', { ascending: true }),
-      supabase.from('test_scores')
-        .select('test_id, score, absent')
-        .eq('student_id', student.id),
-    ])
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
 
-    const scoreMap: Record<string, { score: number; absent: boolean }> = {}
-    for (const s of (scoreData ?? [])) scoreMap[s.test_id] = s
-
-    const records: TestRecord[] = (testData ?? []).map(t => ({
-      id: t.id,
-      name: t.name,
-      date: t.date,
-      max_score: t.max_score,
-      score: scoreMap[t.id]?.score ?? null,
-      absent: scoreMap[t.id]?.absent ?? false,
-    }))
-
-    setTests(records)
+    const res = await fetch(
+      `/api/grades?action=parent-chart&classId=${classInfo.id}&studentId=${student.id}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    const json = await res.json()
+    setTests(json.records ?? [])
   }
 
   async function loadClinics() {
@@ -328,16 +317,16 @@ export default function ParentPage() {
     : null
 
   // ── 성적 통계 ──
-  const scoredTests = tests.filter(t => !t.absent && t.score !== null)
+  const scoredTests = tests.filter(t => !t.absent && t.myScore !== null)
   // 반올림 오차 방지: 개별 퍼센트 먼저 반올림 않고 합산 후 한 번만 반올림
-  const pcts = scoredTests.map(t => (t.score! / t.max_score) * 100)
+  const pcts = scoredTests.map(t => (t.myScore! / t.maxScore) * 100)
   const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null
   const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
   const minPct = pcts.length > 0 ? Math.round(Math.min(...pcts)) : null
 
   const chartData = scoredTests.map(t => ({
     label: `${t.date.slice(5)} ${t.name}`,
-    pct: Math.round((t.score! / t.max_score) * 100),
+    pct: Math.round((t.myScore! / t.maxScore) * 100),
   }))
 
   // ── 클리닉 통계 ──
@@ -671,32 +660,42 @@ export default function ParentPage() {
                   {tests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
-                    <div className="divide-y divide-slate-50">
-                      {[...tests].reverse().map(t => {
-                        const pct = !t.absent && t.score !== null
-                          ? Math.round((t.score / t.max_score) * 100)
-                          : null
+                    <div className="divide-y divide-slate-100">
+                      {[...tests].reverse().map((t, i) => {
                         return (
-                          <div key={t.id} className="flex items-center gap-3 px-5 py-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-semibold text-slate-800 truncate">{t.name}</span>
+                          <div key={i} className="px-5 py-4">
+                            {/* 시험명 + 날짜 */}
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g, '. ')} · 만점 {t.maxScore}점</p>
                               </div>
-                              <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g, '. ')} · 만점 {t.max_score}점</p>
+                              {t.absent ? (
+                                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
+                              ) : t.myScore !== null ? (
+                                <div className="text-right flex-shrink-0">
+                                  <p className={`text-base font-black ${
+                                    t.myPct !== null && t.myPct >= 80 ? 'text-emerald-600'
+                                    : t.myPct !== null && t.myPct >= 60 ? 'text-blue-600'
+                                    : 'text-red-600'
+                                  }`}>
+                                    {t.myScore}점
+                                  </p>
+                                  <p className="text-xs text-slate-400">{t.myPct}%</p>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>
+                              )}
                             </div>
-                            {t.absent ? (
-                              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">결시</span>
-                            ) : pct !== null ? (
-                              <div className="text-right flex-shrink-0">
-                                <p className={`text-base font-black ${
-                                  pct >= 80 ? 'text-emerald-600' : pct >= 60 ? 'text-blue-600' : 'text-red-600'
-                                }`}>
-                                  {t.score}점
-                                </p>
-                                <p className="text-xs text-slate-400">{pct}%</p>
+                            {/* 반 통계 */}
+                            {(t.avgScore !== null || t.classHigh !== null) && (
+                              <div className="flex gap-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
+                                <span>반평균 <strong className="text-slate-700">{t.avgScore !== null ? `${t.avgScore}점` : '-'}</strong></span>
+                                <span className="text-slate-300">|</span>
+                                <span>최고 <strong className="text-emerald-600">{t.classHigh !== null ? `${t.classHigh}점` : '-'}</strong></span>
+                                <span className="text-slate-300">|</span>
+                                <span>최저 <strong className="text-red-500">{t.classLow !== null ? `${t.classLow}점` : '-'}</strong></span>
                               </div>
-                            ) : (
-                              <span className="text-xs text-slate-400">미입력</span>
                             )}
                           </div>
                         )
