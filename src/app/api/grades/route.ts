@@ -106,18 +106,32 @@ export async function GET(req: NextRequest) {
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data } = await db
+    // ① 코멘트 목록 조회 (조인 없이)
+    const { data: commentRows, error: commentErr } = await db
       .from('comments')
-      .select('id, date, content, profiles!teacher_id(name, title)')
+      .select('id, date, content, teacher_id')
       .eq('student_id', studentId)
       .order('date', { ascending: false })
 
-    const records = (data ?? []).map((c: any) => ({
+    if (commentErr) return NextResponse.json({ error: commentErr.message }, { status: 400 })
+    if (!commentRows?.length) return NextResponse.json({ records: [] })
+
+    // ② teacher_id 목록으로 profiles 조회
+    const teacherIds = [...new Set(commentRows.map((c: any) => c.teacher_id).filter(Boolean))]
+    const { data: profileRows } = await db
+      .from('profiles')
+      .select('id, name, title')
+      .in('id', teacherIds)
+
+    const profileMap: Record<string, { name: string; title: string | null }> = {}
+    for (const p of (profileRows ?? [])) profileMap[p.id] = { name: p.name, title: p.title }
+
+    const records = commentRows.map((c: any) => ({
       id:            c.id,
       date:          c.date,
       content:       c.content,
-      teacher_name:  c.profiles?.name ?? null,
-      teacher_title: c.profiles?.title ?? null,
+      teacher_name:  profileMap[c.teacher_id]?.name ?? null,
+      teacher_title: profileMap[c.teacher_id]?.title ?? null,
     }))
 
     return NextResponse.json({ records })
