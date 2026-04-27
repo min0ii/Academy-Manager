@@ -52,7 +52,7 @@ type ClinicRecord = {
   clinic_name: string | null
   date: string
   note: string | null
-  status: 'done' | 'partial' | 'none' | null
+  status: 'done' | 'not_done' | null
 }
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
@@ -67,9 +67,8 @@ const ATTEND_STYLE: Record<string, { label: string; color: string; dot: string }
 
 
 const CLINIC_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  done:    { label: '완료',    color: 'text-emerald-700', bg: 'bg-emerald-50' },
-  partial: { label: '일부완료', color: 'text-amber-700',  bg: 'bg-amber-50' },
-  none:    { label: '미완료',  color: 'text-red-700',     bg: 'bg-red-50' },
+  done:     { label: '완료',   color: 'text-emerald-700', bg: 'bg-emerald-50' },
+  not_done: { label: '미완료', color: 'text-red-700',     bg: 'bg-red-50' },
 }
 
 export default function ParentPage() {
@@ -327,7 +326,7 @@ export default function ParentPage() {
 
   // ── 클리닉 통계 ──
   const statusClinics = clinics.filter(c => c.status !== null)
-  const clinicDone = statusClinics.filter(c => c.status === 'done' || c.status === 'partial').length
+  const clinicDone = statusClinics.filter(c => c.status === 'done').length
   const clinicRate = statusClinics.length > 0 ? Math.round(clinicDone / statusClinics.length * 100) : null
 
   if (loading) {
@@ -725,11 +724,10 @@ export default function ParentPage() {
                       <span className="text-4xl font-black text-amber-600">{clinicRate ?? 0}%</span>
                       <span className="text-slate-400 text-sm pb-1">완료율</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {[
-                        { label: '완료',    value: clinics.filter(c => c.status === 'done').length,    color: 'text-emerald-600' },
-                        { label: '일부완료', value: clinics.filter(c => c.status === 'partial').length, color: 'text-amber-600' },
-                        { label: '미완료',  value: clinics.filter(c => c.status === 'none').length,    color: 'text-red-600' },
+                        { label: '완료',   value: clinics.filter(c => c.status === 'done').length,     color: 'text-emerald-600' },
+                        { label: '미완료', value: clinics.filter(c => c.status === 'not_done').length, color: 'text-red-600' },
                       ].map(({ label, value, color }) => (
                         <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
                           <p className={`text-xl font-bold ${color}`}>{value}</p>
