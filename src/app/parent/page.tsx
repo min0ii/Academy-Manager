@@ -3,15 +3,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
-  Home, Calendar, BarChart2, BookOpen, LogOut,
+  Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList,
+  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 
-type Tab = 'home' | 'attendance' | 'grades' | 'homework-clinic' | 'comments'
+type Tab = 'home' | 'attendance' | 'grades' | 'homework-clinic' | 'comments' | 'settings'
 type HwClinicSub = 'homework' | 'clinic'
 
 type StudentInfo = {
@@ -103,6 +103,12 @@ export default function ParentPage() {
   const [commentList, setCommentList]       = useState<CommentRecord[]>([])
   const [commentsLoaded, setCommentsLoaded] = useState(false)
   const [commentsLoading, setCommentsLoading] = useState(false)
+
+  // 설정 — 계정 탈퇴
+  const [showDeleteModal, setShowDeleteModal]     = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting]                   = useState(false)
+  const [deleteError, setDeleteError]             = useState('')
 
   useEffect(() => { loadBase() }, [])
 
@@ -243,6 +249,22 @@ export default function ParentPage() {
     await supabase.auth.signOut(); window.location.href = '/login'
   }
 
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== '탈퇴') return
+    setDeleting(true); setDeleteError('')
+    const token = await getToken()
+    if (!token) { setDeleting(false); return }
+    const res = await fetch('/api/delete-self', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+    const json = await res.json()
+    if (json.success) {
+      await supabase.auth.signOut()
+      window.location.href = '/login'
+    } else {
+      setDeleteError(json.error ?? '오류가 발생했어요.')
+      setDeleting(false)
+    }
+  }
+
   function getCalendarDays() {
     const year = calMonth.getFullYear(); const month = calMonth.getMonth()
     const firstDay = new Date(year, month, 1).getDay()
@@ -295,6 +317,7 @@ export default function ParentPage() {
     { key: 'grades',         label: '성적',     Icon: BarChart2 },
     { key: 'homework-clinic',label: '과제·클리닉', Icon: ClipboardList },
     { key: 'comments',       label: '코멘트',   Icon: MessageSquare },
+    { key: 'settings',       label: '설정',     Icon: Settings },
   ]
 
   if (loading) return (
@@ -733,6 +756,47 @@ export default function ParentPage() {
             )}
           </>
         )}
+        {/* ── 설정 ── */}
+        {tab === 'settings' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h2 className="font-bold text-slate-800 text-sm">계정</h2>
+              </div>
+              <button onClick={() => setShowPwModal(true)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <KeyRound size={17} className="text-slate-500" />
+                  <span className="text-sm text-slate-700">비밀번호 변경</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-400" />
+              </button>
+              <div className="border-t border-slate-100">
+                <button onClick={handleSignOut}
+                  className="w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50 transition-colors">
+                  <LogOut size={17} className="text-slate-500" />
+                  <span className="text-sm text-slate-700">로그아웃</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-red-100 overflow-hidden">
+              <div className="px-5 py-4 border-b border-red-100">
+                <h2 className="font-bold text-red-600 text-sm">위험 구역</h2>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  계정을 탈퇴하면 로그인할 수 없게 돼요.<br />
+                  자녀의 학습 기록은 선생님 계정에 그대로 유지됩니다.
+                </p>
+                <button onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError('') }}
+                  className="w-full py-2.5 bg-red-50 text-red-600 text-sm font-semibold rounded-xl hover:bg-red-100 transition-colors">
+                  계정 탈퇴
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-10 safe-area-bottom">
@@ -743,6 +807,38 @@ export default function ParentPage() {
           </button>
         ))}
       </nav>
+
+      {/* 계정 탈퇴 모달 */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-bold text-slate-800">계정 탈퇴</h2>
+              <button onClick={() => setShowDeleteModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                <p className="text-xs text-red-700 leading-relaxed">
+                  탈퇴 후에는 로그인할 수 없어요.<br />
+                  아래에 <span className="font-bold">탈퇴</span>를 입력하고 버튼을 눌러주세요.
+                </p>
+              </div>
+              <input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="탈퇴"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+              {deleteError && <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{deleteError}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">취소</button>
+                <button onClick={handleDeleteAccount} disabled={deleteConfirmText !== '탈퇴' || deleting}
+                  className="flex-1 py-2.5 bg-red-500 text-white font-semibold rounded-xl text-sm disabled:opacity-40 hover:bg-red-600 transition-colors">
+                  {deleting ? '처리 중...' : '탈퇴하기'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 비밀번호 변경 모달 */}
       {showPwModal && (
