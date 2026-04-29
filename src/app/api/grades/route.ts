@@ -134,6 +134,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ records })
   }
 
+  // ── 학부모 숙제 ──
+  if (action === 'parent-homework') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    const ok = await verifyParent(db, token, studentId)
+    if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const { data: hwList } = await db.from('homework')
+      .select('id, title, assigned_date, due_date, description')
+      .eq('class_id', classId)
+      .order('assigned_date', { ascending: false })
+
+    if (!hwList?.length) return NextResponse.json({ records: [] })
+
+    const hwIds = hwList.map((h: any) => h.id)
+    const { data: statuses } = await db.from('homework_status')
+      .select('homework_id, status')
+      .eq('student_id', studentId)
+      .in('homework_id', hwIds)
+
+    const statusMap: Record<string, string> = {}
+    for (const s of (statuses ?? [])) statusMap[s.homework_id] = s.status
+
+    const records = hwList.map((h: any) => ({
+      id:            h.id,
+      title:         h.title,
+      assigned_date: h.assigned_date,
+      due_date:      h.due_date ?? null,
+      description:   h.description ?? null,
+      status:        statusMap[h.id] ?? null,
+    }))
+
+    return NextResponse.json({ records })
+  }
+
   // ── 학부모 클리닉 ──
   if (action === 'parent-clinic') {
     const classId   = searchParams.get('classId')
@@ -157,6 +194,43 @@ export async function GET(req: NextRequest) {
       clinic_name: s.name ?? null,
       note:        s.note ?? null,
       status:      attMap[s.id] ?? null,
+    }))
+
+    return NextResponse.json({ records })
+  }
+
+  // ── 학생 숙제 ──
+  if (action === 'my-homework') {
+    const classId   = searchParams.get('classId')
+    const studentId = searchParams.get('studentId')
+    if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    const ok = await verifyStudent(db, token, studentId)
+    if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
+    const { data: hwList } = await db.from('homework')
+      .select('id, title, assigned_date, due_date, description')
+      .eq('class_id', classId)
+      .order('assigned_date', { ascending: false })
+
+    if (!hwList?.length) return NextResponse.json({ records: [] })
+
+    const hwIds = hwList.map((h: any) => h.id)
+    const { data: statuses } = await db.from('homework_status')
+      .select('homework_id, status')
+      .eq('student_id', studentId)
+      .in('homework_id', hwIds)
+
+    const statusMap: Record<string, string> = {}
+    for (const s of (statuses ?? [])) statusMap[s.homework_id] = s.status
+
+    const records = hwList.map((h: any) => ({
+      id:            h.id,
+      title:         h.title,
+      assigned_date: h.assigned_date,
+      due_date:      h.due_date ?? null,
+      description:   h.description ?? null,
+      status:        statusMap[h.id] ?? null,
     }))
 
     return NextResponse.json({ records })
