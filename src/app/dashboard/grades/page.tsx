@@ -773,7 +773,8 @@ function GradesContent() {
       setManualEntries(students.map(s => ({
         studentId: s.studentId,
         studentName: s.studentName,
-        status: s.isAbsent ? 'absent' : s.isSubmitted ? 'submitted' : 'not_submitted',
+        // 저장된 기록 없으면(=첫 진입) 기본값 '제출', 있으면 저장된 상태 그대로
+        status: s.submissionId === null ? 'submitted' : s.isAbsent ? 'absent' : s.isSubmitted ? 'submitted' : 'not_submitted',
         score: s.finalScore !== null ? String(s.finalScore) : '',
       })))
       setManualMaxScore(subJson.maxScore !== null && subJson.maxScore !== undefined ? String(subJson.maxScore) : '')
