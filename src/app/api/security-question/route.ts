@@ -68,6 +68,37 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
+// PATCH /api/security-question
+// Body: { phone: string, answer: string }
+// 답변만 검증 (비밀번호 변경 없음) — 2단계에서 정답 확인용
+export async function PATCH(req: NextRequest) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+
+  const db = admin()
+  const body = await req.json()
+  const digits = body.phone?.replace(/\D/g, '')
+  const answer = body.answer?.trim()
+
+  if (!digits || !answer)
+    return NextResponse.json({ error: '입력값이 올바르지 않아요.' }, { status: 400 })
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('security_answer')
+    .eq('phone', digits)
+    .maybeSingle()
+
+  if (!profile?.security_answer)
+    return NextResponse.json({ error: '보안 질문이 설정되지 않았어요.' }, { status: 400 })
+
+  const hashedAnswer = hashAnswer(answer)
+  if (hashedAnswer !== profile.security_answer)
+    return NextResponse.json({ error: '답변이 올바르지 않아요. 다시 확인해주세요.' }, { status: 400 })
+
+  return NextResponse.json({ valid: true })
+}
+
 // PUT /api/security-question
 // Body: { phone: string, answer: string, newPassword: string }
 // 보안 질문 답변 검증 후 비밀번호 재설정 (인증 불필요)

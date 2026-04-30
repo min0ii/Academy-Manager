@@ -42,10 +42,19 @@ export default function ForgotPasswordPage() {
     setStep('question')
   }
 
-  function handleAnswerSubmit(e: React.FormEvent) {
+  async function handleAnswerSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     if (!answer.trim()) { setError('답변을 입력해주세요.'); return }
+    setLoading(true)
+    const res = await fetch('/api/security-question', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, answer }),
+    })
+    const json = await res.json()
+    setLoading(false)
+    if (!res.ok) { setError(json.error ?? '오류가 발생했어요.'); return }
     setStep('password')
   }
 
@@ -175,9 +184,10 @@ export default function ForgotPasswordPage() {
                 )}
                 <button
                   type="submit"
-                  className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+                  disabled={loading}
+                  className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  다음
+                  {loading ? '확인 중...' : '다음'}
                 </button>
                 <button
                   type="button"
