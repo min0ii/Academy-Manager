@@ -127,6 +127,48 @@ function newWizardQ(): WizardQuestion {
   }
 }
 
+// ── Custom DateTime Picker ──────────────────────────────────────────────────
+
+type DateTimeVal = { month: string; day: string; hour: string; minute: string }
+
+function emptyDT(): DateTimeVal { return { month: '', day: '', hour: '', minute: '' } }
+
+function dtValToISO(v: DateTimeVal): string | null {
+  if (!v.month || !v.day || v.hour === '' || v.minute === '') return null
+  const year = new Date().getFullYear()
+  const d = new Date(year, Number(v.month) - 1, Number(v.day), Number(v.hour), Number(v.minute))
+  if (isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
+function DateTimePicker({ label, value, onChange, required }: {
+  label: string
+  value: DateTimeVal
+  onChange: (v: DateTimeVal) => void
+  required?: boolean
+}) {
+  const inp = 'w-14 px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}{required && ' *'}</label>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <input type="number" value={value.month} onChange={e => onChange({ ...value, month: e.target.value })}
+          placeholder="월" min="1" max="12" className={inp} />
+        <span className="text-slate-400 text-sm">월</span>
+        <input type="number" value={value.day} onChange={e => onChange({ ...value, day: e.target.value })}
+          placeholder="일" min="1" max="31" className={inp} />
+        <span className="text-slate-400 text-sm">일</span>
+        <input type="number" value={value.hour} onChange={e => onChange({ ...value, hour: e.target.value })}
+          placeholder="시" min="0" max="23" className={inp} />
+        <span className="text-slate-400 text-sm font-medium">:</span>
+        <input type="number" value={value.minute} onChange={e => onChange({ ...value, minute: e.target.value })}
+          placeholder="분" min="0" max="59" className={inp} />
+      </div>
+      <p className="text-xs text-slate-400 mt-1">24시간 기준 (예: 오후 2시 → 14)</p>
+    </div>
+  )
+}
+
 // ── WizardQuestionCard ──────────────────────────────────────────────────────
 
 function WizardQuestionCard({
@@ -550,8 +592,8 @@ function GradesContent() {
 
   // Auto wizard
   const [autoTitle, setAutoTitle] = useState('')
-  const [autoStartAt, setAutoStartAt] = useState('')
-  const [autoEndAt, setAutoEndAt] = useState('')
+  const [autoStart, setAutoStart] = useState<DateTimeVal>(emptyDT())
+  const [autoEnd, setAutoEnd] = useState<DateTimeVal>(emptyDT())
   const [autoReveal, setAutoReveal] = useState<'immediate' | 'after_close'>('immediate')
   const [wizardQs, setWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
   const [addingAuto, setAddingAuto] = useState(false)
@@ -702,15 +744,15 @@ function GradesContent() {
         classId: selectedClass.id,
         title: autoTitle.trim(),
         examType: 'auto',
-        startAt: autoStartAt || null,
-        endAt: autoEndAt || null,
+        startAt: dtValToISO(autoStart),
+        endAt: dtValToISO(autoEnd),
         answerReveal: autoReveal,
         questions,
       }),
     })
     if (res.ok) {
       setAddModal('none')
-      setAutoTitle(''); setAutoStartAt(''); setAutoEndAt('')
+      setAutoTitle(''); setAutoStart(emptyDT()); setAutoEnd(emptyDT())
       setAutoReveal('immediate'); setWizardQs([newWizardQ()])
       await loadExams(selectedClass.id)
     }
@@ -999,16 +1041,8 @@ function GradesContent() {
                   placeholder="예: 5월 모의고사" autoFocus
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">시작 시간 *</label>
-                <input type="datetime-local" value={autoStartAt} onChange={e => setAutoStartAt(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">종료 시간 *</label>
-                <input type="datetime-local" value={autoEndAt} onChange={e => setAutoEndAt(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
+              <DateTimePicker label="시작 시간" value={autoStart} onChange={setAutoStart} required />
+              <DateTimePicker label="종료 시간" value={autoEnd} onChange={setAutoEnd} required />
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-2">정답 공개 시점</label>
                 <div className="flex rounded-xl border border-slate-200 overflow-hidden">
@@ -1025,8 +1059,8 @@ function GradesContent() {
                 <button onClick={() => setAddModal('none')}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={() => {
-                  if (!autoTitle.trim() || !autoStartAt || !autoEndAt) {
-                    alert('시험 이름과 시작/종료 시간을 입력해주세요.')
+                  if (!autoTitle.trim() || !dtValToISO(autoStart) || !dtValToISO(autoEnd)) {
+                    alert('시험 이름과 시작/종료 시간을 모두 입력해주세요.')
                     return
                   }
                   setAddModal('auto_2')
