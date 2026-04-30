@@ -807,7 +807,7 @@ function GradesContent() {
         classId: selectedClass.id,
         title: manualTitle.trim(),
         examType: 'manual',
-        startAt: manualDate ? `${manualDate}T00:00:00` : null,
+        startAt: manualDate ? new Date(manualDate + 'T00:00:00').toISOString() : null,
         endAt: null,
         answerReveal: 'immediate',
         questions: [],
@@ -1052,7 +1052,7 @@ function GradesContent() {
                   <p className="text-xs text-slate-500">
                     {exam.exam_type === 'auto'
                       ? `${formatDT(exam.start_at)} ~ ${formatDT(exam.end_at)}`
-                      : exam.start_at ? formatDT(exam.start_at) : '날짜 미설정'}
+                      : exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -1272,7 +1272,7 @@ function GradesContent() {
           <p className="text-sm text-slate-500">
             {selectedExam?.exam_type === 'auto'
               ? `${formatDT(selectedExam.start_at)} ~ ${formatDT(selectedExam.end_at)}`
-              : selectedExam?.start_at ? formatDT(selectedExam.start_at) : '날짜 미설정'}
+              : selectedExam?.start_at ? formatDT(selectedExam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
           </p>
         </div>
         {selectedExam?.exam_type === 'auto' && currentStatus !== 'closed' && (
