@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     exam_type: examType ?? 'manual',
     start_at: startAt ?? null,
     end_at: endAt ?? null,
-    status: 'scheduled',
+    status: examType === 'manual' ? 'closed' : 'scheduled',
     answer_reveal: answerReveal ?? 'immediate',
     created_by: teacherId,
     max_score: (examType === 'manual' && maxScore != null) ? Number(maxScore) : null,

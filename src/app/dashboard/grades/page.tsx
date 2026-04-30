@@ -1041,7 +1041,9 @@ function GradesContent() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <p className="font-semibold text-slate-800">{exam.title}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors(st)}`}>{statusLabel(st)}</span>
+                    {exam.exam_type === 'auto' && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors(st)}`}>{statusLabel(st)}</span>
+                    )}
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 flex-shrink-0">
                       {exam.exam_type === 'auto' ? '자동채점' : '수동입력'}
                     </span>
@@ -1260,9 +1262,11 @@ function GradesContent() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
             <h1 className="text-xl font-bold text-slate-800 truncate">{selectedExam?.title}</h1>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors(currentStatus)}`}>
-              {statusLabel(currentStatus)}
-            </span>
+            {selectedExam?.exam_type === 'auto' && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors(currentStatus)}`}>
+                {statusLabel(currentStatus)}
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-500">
             {selectedExam?.exam_type === 'auto'
