@@ -440,8 +440,13 @@ function ManualScoreView({
                     {entry.status === 'submitted' ? (
                       <>
                         <input type="number" value={entry.score}
-                          onChange={e => updateScore(entry.studentId, e.target.value)}
-                          placeholder="-" step="any" min="0"
+                          onChange={e => {
+                            let val = e.target.value
+                            if (maxNum !== null && val !== '' && Number(val) > maxNum) val = String(maxNum)
+                            if (val !== '' && Number(val) < 0) val = '0'
+                            updateScore(entry.studentId, val)
+                          }}
+                          placeholder="-" step="any" min="0" max={maxNum ?? undefined}
                           className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${!entry.score ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
                         />
                         <span className="text-xs text-slate-400">점</span>
