@@ -43,6 +43,7 @@ type StudentSubmission = {
   studentName: string
   submissionId: string | null
   isSubmitted: boolean
+  isAbsent: boolean
   submittedAt: string | null
   autoScore: number | null
   adjustedScore: number | null
@@ -54,6 +55,13 @@ type StudentSubmission = {
     score_earned: number | null
     manually_overridden: boolean
   }[]
+}
+
+type ManualEntry = {
+  studentId: string
+  studentName: string
+  status: 'submitted' | 'not_submitted' | 'absent'
+  score: string
 }
 
 type WizardQuestion = {
@@ -289,70 +297,160 @@ function WizardQuestionCard({
 // ── ManualScoreView ─────────────────────────────────────────────────────────
 
 function ManualScoreView({
-  submissions, editScores, setEditScores, onSave, saving, saved, setSaved,
+  entries, setEntries, maxScore, setMaxScore, onSave, saving, saved, setSaved,
 }: {
-  submissions: StudentSubmission[]
-  editScores: Record<string, string>
-  setEditScores: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  entries: ManualEntry[]
+  setEntries: React.Dispatch<React.SetStateAction<ManualEntry[]>>
+  maxScore: string
+  setMaxScore: (v: string) => void
   onSave: () => void
   saving: boolean
   saved: boolean
   setSaved: React.Dispatch<React.SetStateAction<boolean>>
 }) {
-  const filled = submissions
-    .filter(s => (editScores[s.studentId] ?? '') !== '')
-    .map(s => Number(editScores[s.studentId]))
-  const avg = filled.length > 0 ? filled.reduce((a, b) => a + b, 0) / filled.length : null
-  const missing = submissions.filter(s => (editScores[s.studentId] ?? '') === '').length
+  const [filter, setFilter] = useState<'all' | 'submitted' | 'not_submitted'>('all')
+
+  const maxNum = parseFloat(maxScore) || null
+  const submittedEntries = entries.filter(e => e.status === 'submitted')
+  const scores = submittedEntries.map(e => parseFloat(e.score)).filter(v => !isNaN(v))
+  const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null
+  const hi  = scores.length > 0 ? Math.max(...scores) : null
+  const lo  = scores.length > 0 ? Math.min(...scores) : null
+
+  const counts = {
+    submitted:     entries.filter(e => e.status === 'submitted').length,
+    not_submitted: entries.filter(e => e.status === 'not_submitted').length,
+    absent:        entries.filter(e => e.status === 'absent').length,
+  }
+
+  const filtered = filter === 'submitted'
+    ? entries.filter(e => e.status === 'submitted')
+    : filter === 'not_submitted'
+    ? entries.filter(e => e.status !== 'submitted')
+    : entries
+
+  function updateStatus(studentId: string, status: ManualEntry['status']) {
+    setSaved(false)
+    setEntries(prev => prev.map(e =>
+      e.studentId === studentId ? { ...e, status, score: status !== 'submitted' ? '' : e.score } : e
+    ))
+  }
+  function updateScore(studentId: string, score: string) {
+    setSaved(false)
+    setEntries(prev => prev.map(e => e.studentId === studentId ? { ...e, score } : e))
+  }
+
+  const inp = 'w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
   return (
     <div className="space-y-5">
-      {filled.length > 0 && (
+      {/* 통계 카드 */}
+      {scores.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          {[{ label: '평균', val: avg }, { label: '최고', val: Math.max(...filled) }, { label: '최저', val: Math.min(...filled) }].map(({ label, val }) => (
-            <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4 text-center">
-              <p className="text-xs text-slate-400 mb-1">{label}</p>
-              <p className="text-xl font-bold text-slate-800">{val !== null ? fmt(val) : '-'}<span className="text-sm font-normal text-slate-400">점</span></p>
-            </div>
+          {[{ label: '평균', val: avg }, { label: '최고', val: hi }, { label: '최저', val: lo }].map(({ label, val }) => {
+            const p = (val !== null && maxNum) ? pct(val, maxNum) : null
+            return (
+              <div key={label} className={`rounded-2xl border border-slate-200 p-4 text-center ${label === '평균' ? scoreBg(p) : 'bg-white'}`}>
+                <p className="text-xs text-slate-400 mb-1">{label}</p>
+                <p className={`text-xl font-bold ${label === '평균' ? scoreColor(p) : 'text-slate-800'}`}>
+                  {val !== null ? fmt(val) : '-'}<span className="text-sm font-normal text-slate-400">점</span>
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 만점 설정 */}
+      <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between">
+        <span className="text-sm font-semibold text-slate-700">만점 설정</span>
+        <div className="flex items-center gap-2">
+          <input type="number" value={maxScore}
+            onChange={e => { setSaved(false); setMaxScore(e.target.value) }}
+            placeholder="100" min="0" step="any" className={inp} />
+          <span className="text-sm text-slate-400">점</span>
+        </div>
+      </div>
+
+      {/* 제출 현황 요약 */}
+      <div className="flex items-center gap-3 flex-wrap text-sm bg-white rounded-2xl border border-slate-200 px-4 py-3">
+        <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
+          <CheckCircle2 size={14} /> 제출 {counts.submitted}명
+        </span>
+        <span className="text-slate-300">|</span>
+        <span className="text-slate-500">미제출 {counts.not_submitted}명</span>
+        <span className="text-slate-300">|</span>
+        <span className="text-amber-500">미실시 {counts.absent}명</span>
+      </div>
+
+      {/* 필터 탭 + 저장 버튼 */}
+      <div className="flex items-center gap-3">
+        <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white flex-1">
+          {([['all', '전체'], ['submitted', '제출'], ['not_submitted', '미제출·미실시']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setFilter(key)}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors border-r last:border-r-0 border-slate-200 ${filter === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              {label}
+            </button>
           ))}
         </div>
-      )}
+        <button onClick={onSave} disabled={saving || saved}
+          className={`px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors flex-shrink-0 ${saved ? 'bg-emerald-100 text-emerald-700 cursor-default' : saving ? 'bg-blue-600 text-white opacity-50 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+          {saving ? '저장 중...' : saved ? '저장됨 ✓' : '저장'}
+        </button>
+      </div>
 
-      {missing > 0 && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700">
-          <AlertTriangle size={16} className="flex-shrink-0" />
-          <span><strong>{missing}명</strong>의 점수가 입력되지 않았어요</span>
-        </div>
-      )}
-
+      {/* 학생 목록 */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <p className="text-sm font-semibold text-slate-700">학생별 점수 입력</p>
-          <button onClick={onSave} disabled={saving || saved}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors ${saved ? 'bg-emerald-100 text-emerald-700 cursor-default' : saving ? 'bg-blue-600 text-white opacity-50 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-            {saving ? '저장 중...' : saved ? '저장됨 ✓' : '저장'}
-          </button>
-        </div>
-        {submissions.length === 0 ? (
+        {entries.length === 0 ? (
           <div className="text-center py-10 text-slate-400 text-sm">배정된 학생이 없어요</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10 text-slate-400 text-sm">해당하는 학생이 없어요</div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {submissions.map(s => {
-              const v = editScores[s.studentId] ?? ''
+            {filtered.map(entry => {
+              const scoreNum = parseFloat(entry.score)
+              const p = (entry.status === 'submitted' && !isNaN(scoreNum) && maxNum) ? pct(scoreNum, maxNum) : null
               return (
-                <div key={s.studentId} className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <span className="font-bold text-sm text-slate-500">{s.studentName[0]}</span>
+                <div key={entry.studentId} className="flex items-center gap-3 px-4 py-3 flex-wrap sm:flex-nowrap">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${entry.status === 'submitted' ? scoreBg(p) : entry.status === 'absent' ? 'bg-amber-50' : 'bg-slate-100'}`}>
+                    <span className={`font-bold text-sm ${entry.status === 'submitted' ? scoreColor(p) : entry.status === 'absent' ? 'text-amber-400' : 'text-slate-400'}`}>
+                      {entry.studentName[0]}
+                    </span>
                   </div>
-                  <p className="flex-1 font-medium text-sm text-slate-800">{s.studentName}</p>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number" value={v}
-                      onChange={e => { setSaved(false); setEditScores(p => ({ ...p, [s.studentId]: e.target.value })) }}
-                      placeholder="-" step="any" min="0"
-                      className={`w-20 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${v === '' ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
-                    />
-                    <span className="text-xs text-slate-400">점</span>
+                  <p className="flex-1 font-medium text-sm text-slate-800 min-w-0 truncate">{entry.studentName}</p>
+
+                  {/* 3-상태 토글 */}
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs flex-shrink-0">
+                    {([['submitted', '제출'], ['not_submitted', '미제출'], ['absent', '미실시']] as const).map(([s, label], i) => (
+                      <button key={s} onClick={() => updateStatus(entry.studentId, s)}
+                        className={`px-2.5 py-1.5 font-medium transition-colors ${i > 0 ? 'border-l border-slate-200' : ''} ${
+                          entry.status === s
+                            ? s === 'submitted' ? 'bg-emerald-500 text-white'
+                              : s === 'not_submitted' ? 'bg-slate-500 text-white'
+                              : 'bg-amber-400 text-white'
+                            : 'text-slate-400 hover:bg-slate-50'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 점수 입력 — 제출일 때만 */}
+                  <div className="flex items-center gap-1 flex-shrink-0" style={{ minWidth: '5rem' }}>
+                    {entry.status === 'submitted' ? (
+                      <>
+                        <input type="number" value={entry.score}
+                          onChange={e => updateScore(entry.studentId, e.target.value)}
+                          placeholder="-" step="any" min="0"
+                          className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${!entry.score ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
+                        />
+                        <span className="text-xs text-slate-400">점</span>
+                      </>
+                    ) : (
+                      <span className={`text-xs px-2 py-1 rounded-lg ${entry.status === 'absent' ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-400'}`}>
+                        {entry.status === 'absent' ? '미실시' : '미제출'}
+                      </span>
+                    )}
                   </div>
                 </div>
               )
@@ -569,10 +667,11 @@ function GradesContent() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
-  // Manual score editing
-  const [editScores, setEditScores] = useState<Record<string, string>>({})
-  const [savingScores, setSavingScores] = useState(false)
-  const [scoresSaved, setScoresSaved] = useState(false)
+  // 수동 시험 점수 입력
+  const [manualEntries, setManualEntries] = useState<ManualEntry[]>([])
+  const [manualMaxScore, setManualMaxScore] = useState('')
+  const [savingManual, setSavingManual] = useState(false)
+  const [manualSaved, setManualSaved] = useState(false)
 
   // Auto score adjustment
   const [editAdjusted, setEditAdjusted] = useState<Record<string, string>>({})
@@ -588,6 +687,7 @@ function GradesContent() {
   // Manual form
   const [manualTitle, setManualTitle] = useState('')
   const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10))
+  const [manualFormMaxScore, setManualFormMaxScore] = useState('100')
   const [addingManual, setAddingManual] = useState(false)
 
   // Auto wizard
@@ -641,9 +741,10 @@ function GradesContent() {
     setLoadingDetail(true)
     setExamDetail(null)
     setSubmissions([])
-    setEditScores({})
+    setManualEntries([])
+    setManualMaxScore('')
     setEditAdjusted({})
-    setScoresSaved(false)
+    setManualSaved(false)
     setAdjSaved(false)
 
     const token = await getToken()
@@ -663,9 +764,14 @@ function GradesContent() {
       const subJson = await subRes.json()
       const students: StudentSubmission[] = subJson.students ?? []
       setSubmissions(students)
-      const init: Record<string, string> = {}
-      for (const s of students) init[s.studentId] = s.finalScore !== null ? String(s.finalScore) : ''
-      setEditScores(init)
+      // 3-상태 초기화
+      setManualEntries(students.map(s => ({
+        studentId: s.studentId,
+        studentName: s.studentName,
+        status: s.isAbsent ? 'absent' : s.isSubmitted ? 'submitted' : 'not_submitted',
+        score: s.finalScore !== null ? String(s.finalScore) : '',
+      })))
+      setManualMaxScore(subJson.maxScore !== null && subJson.maxScore !== undefined ? String(subJson.maxScore) : '')
     }
     setLoadingDetail(false)
   }
@@ -699,10 +805,11 @@ function GradesContent() {
         endAt: null,
         answerReveal: 'immediate',
         questions: [],
+        maxScore: manualFormMaxScore !== '' ? Number(manualFormMaxScore) : null,
       }),
     })
     if (res.ok) {
-      setManualTitle(''); setManualDate(new Date().toISOString().slice(0, 10))
+      setManualTitle(''); setManualDate(new Date().toISOString().slice(0, 10)); setManualFormMaxScore('100')
       setAddModal('none')
       await loadExams(selectedClass.id)
     }
@@ -789,20 +896,24 @@ function GradesContent() {
 
   async function saveManualScores() {
     if (!selectedExam) return
-    setSavingScores(true)
+    setSavingManual(true)
     const token = await getToken()
-    if (!token) { setSavingScores(false); return }
-    const scores = submissions.map(s => ({
-      studentId: s.studentId,
-      score: (editScores[s.studentId] ?? '') !== '' ? Number(editScores[s.studentId]) : null,
+    if (!token) { setSavingManual(false); return }
+    const scores = manualEntries.map(e => ({
+      studentId: e.studentId,
+      status: e.status,
+      score: e.status === 'submitted' && e.score !== '' ? Number(e.score) : null,
     }))
     const res = await fetch(`/api/exams/${selectedExam.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ scores }),
+      body: JSON.stringify({
+        scores,
+        maxScore: manualMaxScore !== '' ? Number(manualMaxScore) : null,
+      }),
     })
-    setSavingScores(false)
-    if (res.ok) setScoresSaved(true)
+    setSavingManual(false)
+    if (res.ok) setManualSaved(true)
   }
 
   async function saveAdjustments() {
@@ -1003,6 +1114,15 @@ function GradesContent() {
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">만점 *</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" value={manualFormMaxScore} onChange={e => setManualFormMaxScore(e.target.value)}
+                    placeholder="100" min="0" step="any" required
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <span className="text-sm text-slate-400 flex-shrink-0">점</span>
+                </div>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">날짜 (선택)</label>
                 <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
@@ -1156,13 +1276,14 @@ function GradesContent() {
         <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
       ) : selectedExam?.exam_type === 'manual' ? (
         <ManualScoreView
-          submissions={submissions}
-          editScores={editScores}
-          setEditScores={setEditScores}
+          entries={manualEntries}
+          setEntries={setManualEntries}
+          maxScore={manualMaxScore}
+          setMaxScore={setManualMaxScore}
           onSave={saveManualScores}
-          saving={savingScores}
-          saved={scoresSaved}
-          setSaved={setScoresSaved}
+          saving={savingManual}
+          saved={manualSaved}
+          setSaved={setManualSaved}
         />
       ) : (
         <AutoMonitorView

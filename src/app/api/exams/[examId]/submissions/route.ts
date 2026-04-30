@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   const { examId } = await params
 
   // 시험 정보
-  const { data: exam } = await db.from('exams').select('class_id, exam_type, status').eq('id', examId).single()
+  const { data: exam } = await db.from('exams').select('class_id, exam_type, status, max_score').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
 
   // 반 학생 전체
@@ -72,12 +72,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
 
   const result = students.map(student => {
     const sub = subMap.get(student.id)
-    const finalScore = sub?.adjusted_score ?? sub?.auto_score ?? null
+    const finalScore = sub ? (sub.adjusted_score ?? sub.auto_score ?? null) : null
+    // 수동 시험 3-상태 판별: is_submitted=true + adjusted_score=null → 미실시
+    const isAbsent = exam.exam_type === 'manual'
+      ? (sub?.is_submitted === true && sub?.adjusted_score === null && sub?.auto_score === null)
+      : false
     return {
       studentId: student.id,
       studentName: student.name,
       submissionId: sub?.id ?? null,
       isSubmitted: sub?.is_submitted ?? false,
+      isAbsent,
       submittedAt: sub?.submitted_at ?? null,
       autoScore: sub?.auto_score ?? null,
       adjustedScore: sub?.adjusted_score ?? null,
@@ -86,7 +91,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
     }
   })
 
-  return NextResponse.json({ students: result })
+  return NextResponse.json({ maxScore: (exam as any).max_score ?? null, students: result })
 }
 
 // POST /api/exams/[examId]/submissions
@@ -104,21 +109,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
   const { examId } = await params
   const body = await req.json()
-  // scores: [{ studentId, score }]  OR  adjustments: [{ submissionId, adjustedScore }]
-  const { scores, adjustments } = body
+  // scores: [{ studentId, status: 'submitted'|'not_submitted'|'absent', score: number|null }]
+  // adjustments: [{ submissionId, adjustedScore }]
+  // maxScore: number|null (수동 시험 만점 업데이트)
+  const { scores, adjustments, maxScore } = body
 
-  // 수동 시험: 학생별 점수 저장
+  // 수동 시험: 학생별 점수 + 상태 저장
   if (scores) {
-    for (const { studentId, score } of scores) {
-      await db.from('exam_submissions').upsert({
-        exam_id: examId,
-        student_id: studentId,
-        is_submitted: score !== null,
-        submitted_at: score !== null ? new Date().toISOString() : null,
-        auto_score: null,
-        adjusted_score: score,
-      }, { onConflict: 'exam_id,student_id' })
+    // 만점 업데이트
+    if (maxScore !== undefined) {
+      await db.from('exams').update({ max_score: maxScore !== null ? Number(maxScore) : null }).eq('id', examId)
     }
+
+    const now = new Date().toISOString()
+    await Promise.all((scores as { studentId: string; status: string; score: number | null }[]).map(async ({ studentId, status, score }) => {
+      if (status === 'not_submitted') {
+        // 미제출: 기존 레코드 있으면 is_submitted=false로 초기화
+        await db.from('exam_submissions')
+          .upsert({
+            exam_id: examId,
+            student_id: studentId,
+            is_submitted: false,
+            auto_score: null,
+            adjusted_score: null,
+          }, { onConflict: 'exam_id,student_id' })
+      } else if (status === 'absent') {
+        // 미실시: is_submitted=true, adjusted_score=null (구별 용도)
+        await db.from('exam_submissions')
+          .upsert({
+            exam_id: examId,
+            student_id: studentId,
+            is_submitted: true,
+            submitted_at: null,
+            auto_score: null,
+            adjusted_score: null,
+          }, { onConflict: 'exam_id,student_id' })
+      } else {
+        // 제출: 점수 저장
+        await db.from('exam_submissions')
+          .upsert({
+            exam_id: examId,
+            student_id: studentId,
+            is_submitted: true,
+            submitted_at: now,
+            auto_score: null,
+            adjusted_score: score !== null && score !== undefined ? Number(score) : null,
+          }, { onConflict: 'exam_id,student_id' })
+      }
+    }))
+
     return NextResponse.json({ success: true })
   }
 
