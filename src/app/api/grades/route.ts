@@ -67,45 +67,77 @@ export async function GET(req: NextRequest) {
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const records: Record<string, unknown>[] = []
+
+    // 구시스템
     const { data: tests } = await db.from('tests')
       .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
-
-    if (!tests?.length) return NextResponse.json({ records: [] })
-
-    const testIds = tests.map(t => t.id)
-    const [{ data: myScores }, { data: allScores }] = await Promise.all([
-      db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
-      db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
-    ])
-
-    const myMap: Record<string, { score: number; absent: boolean }> = {}
-    for (const s of (myScores ?? [])) myMap[s.test_id] = { score: s.score, absent: s.absent }
-
-    const allMap: Record<string, number[]> = {}
-    for (const s of (allScores ?? [])) {
-      if (!allMap[s.test_id]) allMap[s.test_id] = []
-      allMap[s.test_id].push(s.score)
+    if (tests?.length) {
+      const testIds = tests.map(t => t.id)
+      const [{ data: myScores }, { data: allScores }] = await Promise.all([
+        db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
+        db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
+      ])
+      const myMap: Record<string, { score: number; absent: boolean }> = {}
+      for (const s of (myScores ?? [])) myMap[s.test_id] = { score: s.score, absent: s.absent }
+      const allMap: Record<string, number[]> = {}
+      for (const s of (allScores ?? [])) {
+        if (!allMap[s.test_id]) allMap[s.test_id] = []
+        allMap[s.test_id].push(s.score)
+      }
+      for (const t of tests) {
+        const my = myMap[t.id]; const arr = allMap[t.id] ?? []
+        const myRaw = (my && !my.absent) ? my.score : null
+        const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+        records.push({
+          name: t.name, date: t.date, maxScore: t.max_score,
+          myScore: myRaw, myPct: myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+          avgScore: avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+          classHigh: arr.length > 0 ? Math.max(...arr) : null,
+          classLow: arr.length > 0 ? Math.min(...arr) : null,
+          absent: my?.absent ?? false,
+        })
+      }
     }
 
-    const records = tests.map(t => {
-      const my     = myMap[t.id]
-      const myRaw  = (my && !my.absent) ? my.score : null
-      const absent = my?.absent ?? false
-      const arr    = allMap[t.id] ?? []
-      const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
-      return {
-        name:      t.name,
-        date:      t.date,
-        maxScore:  t.max_score,
-        myScore:   myRaw,
-        myPct:     myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
-        avgScore:  avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
-        classHigh: arr.length > 0 ? Math.max(...arr) : null,
-        classLow:  arr.length > 0 ? Math.min(...arr) : null,
-        absent,
+    // 신시스템 (마감된 시험)
+    const { data: exams } = await db.from('exams')
+      .select('id, title, status, start_at, created_at, max_score, exam_type').eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true })
+    if (exams?.length) {
+      const examIds = exams.map(e => e.id)
+      const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted').eq('student_id', studentId).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score').eq('is_submitted', true).in('exam_id', examIds),
+        db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
+      ])
+      const maxScoreByExam: Record<string, number> = {}
+      for (const q of (examQuestions ?? [])) maxScoreByExam[q.exam_id] = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)
+      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean }> = {}
+      for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
+      const allScoresByExam: Record<string, number[]> = {}
+      for (const s of (allSubmissions ?? [])) {
+        const score = s.adjusted_score ?? s.auto_score
+        if (score !== null) { if (!allScoresByExam[s.exam_id]) allScoresByExam[s.exam_id] = []; allScoresByExam[s.exam_id].push(score) }
       }
-    })
+      for (const exam of exams) {
+        const mySub = mySubMap[exam.id]
+        const myScore = mySub?.is_submitted ? (mySub.adjusted_score ?? mySub.auto_score) : null
+        const maxScore = (exam as any).max_score ?? maxScoreByExam[exam.id] ?? null
+        const arr = allScoresByExam[exam.id] ?? []
+        const avgRaw = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
+        const dateStr = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
+        records.push({
+          name: exam.title, date: dateStr, maxScore,
+          myScore, myPct: myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
+          avgScore: avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+          classHigh: arr.length > 0 ? Math.max(...arr) : null,
+          classLow: arr.length > 0 ? Math.min(...arr) : null,
+          absent: false,
+        })
+      }
+    }
 
+    records.sort((a, b) => ((a.date as string) ?? '').localeCompare((b.date as string) ?? ''))
     return NextResponse.json({ records })
   }
 
@@ -483,56 +515,92 @@ export async function GET(req: NextRequest) {
     const studentId = searchParams.get('studentId')
     if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
+    const points: { name: string; 내점수: number | null; 반평균: number | null }[] = []
+    const records: Record<string, unknown>[] = []
+
+    // 구시스템
     const { data: tests } = await db.from('tests')
       .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
-
-    if (!tests?.length) return NextResponse.json({ points: [], records: [] })
-
-    const testIds = tests.map(t => t.id)
-    const [{ data: myScores }, { data: allScores }] = await Promise.all([
-      db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
-      db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
-    ])
-
-    const myMap: Record<string, { score: number; absent: boolean }> = {}
-    for (const s of (myScores ?? [])) myMap[s.test_id] = { score: s.score, absent: s.absent }
-
-    const allMap: Record<string, number[]> = {}
-    for (const s of (allScores ?? [])) {
-      if (!allMap[s.test_id]) allMap[s.test_id] = []
-      allMap[s.test_id].push(s.score)
+    if (tests?.length) {
+      const testIds = tests.map(t => t.id)
+      const [{ data: myScores }, { data: allScores }] = await Promise.all([
+        db.from('test_scores').select('test_id, score, absent').eq('student_id', studentId).in('test_id', testIds),
+        db.from('test_scores').select('test_id, score').eq('absent', false).in('test_id', testIds),
+      ])
+      const myMap: Record<string, { score: number; absent: boolean }> = {}
+      for (const s of (myScores ?? [])) myMap[s.test_id] = { score: s.score, absent: s.absent }
+      const allMap: Record<string, number[]> = {}
+      for (const s of (allScores ?? [])) {
+        if (!allMap[s.test_id]) allMap[s.test_id] = []
+        allMap[s.test_id].push(s.score)
+      }
+      for (const t of tests) {
+        const my = myMap[t.id]; const arr = allMap[t.id] ?? []
+        const myRaw = (my && !my.absent) ? my.score : null
+        const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+        points.push({
+          name: `${t.date?.slice(5)} ${t.name}`,
+          내점수: myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+          반평균: avgRaw !== null ? Math.round(avgRaw / t.max_score * 100) : null,
+        })
+        records.push({
+          name: t.name, date: t.date, maxScore: t.max_score,
+          myScore: myRaw, myPct: myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
+          avgScore: avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+          avgPct: avgRaw !== null ? Math.round(avgRaw / t.max_score * 100) : null,
+          classHigh: arr.length > 0 ? Math.max(...arr) : null,
+          classLow: arr.length > 0 ? Math.min(...arr) : null,
+          absent: my?.absent ?? false,
+        })
+      }
     }
 
-    // 그래프용 (퍼센트)
-    const points = tests.map(t => {
-      const my     = myMap[t.id]
-      const myRaw  = (my && !my.absent) ? my.score : null
-      const myPct  = myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null
-      const arr    = allMap[t.id] ?? []
-      const avgPct = arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length / t.max_score * 100) : null
-      return { name: t.name, 내점수: myPct, 반평균: avgPct }
-    })
-
-    // 목록용 (실제 점수 + 날짜 + 반 최고/최저)
-    const records = tests.map(t => {
-      const my     = myMap[t.id]
-      const myRaw  = (my && !my.absent) ? my.score : null
-      const absent = my?.absent ?? false
-      const arr    = allMap[t.id] ?? []
-      const avgRaw = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
-      return {
-        name:      t.name,
-        date:      t.date,
-        maxScore:  t.max_score,
-        myScore:   myRaw,
-        myPct:     myRaw !== null ? Math.round((myRaw / t.max_score) * 100) : null,
-        avgScore:  avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
-        avgPct:    avgRaw !== null ? Math.round(avgRaw / t.max_score * 100) : null,
-        classHigh: arr.length > 0 ? Math.max(...arr) : null,
-        classLow:  arr.length > 0 ? Math.min(...arr) : null,
-        absent,
+    // 신시스템 (마감된 시험)
+    const { data: exams } = await db.from('exams')
+      .select('id, title, status, start_at, created_at, max_score, exam_type').eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true })
+    if (exams?.length) {
+      const examIds = exams.map(e => e.id)
+      const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted').eq('student_id', studentId).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score').eq('is_submitted', true).in('exam_id', examIds),
+        db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
+      ])
+      const maxScoreByExam: Record<string, number> = {}
+      for (const q of (examQuestions ?? [])) maxScoreByExam[q.exam_id] = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)
+      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean }> = {}
+      for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
+      const allScoresByExam: Record<string, number[]> = {}
+      for (const s of (allSubmissions ?? [])) {
+        const score = s.adjusted_score ?? s.auto_score
+        if (score !== null) { if (!allScoresByExam[s.exam_id]) allScoresByExam[s.exam_id] = []; allScoresByExam[s.exam_id].push(score) }
       }
-    })
+      for (const exam of exams) {
+        const mySub = mySubMap[exam.id]
+        const myScore = mySub?.is_submitted ? (mySub.adjusted_score ?? mySub.auto_score) : null
+        const maxScore = (exam as any).max_score ?? maxScoreByExam[exam.id] ?? null
+        const arr = allScoresByExam[exam.id] ?? []
+        const avgRaw = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
+        const dateStr = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
+        points.push({
+          name: `${dateStr?.slice(5)} ${exam.title}`,
+          내점수: myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
+          반평균: avgRaw !== null && maxScore ? Math.round((avgRaw / maxScore) * 100) : null,
+        })
+        records.push({
+          name: exam.title, date: dateStr, maxScore,
+          myScore, myPct: myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
+          avgScore: avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+          avgPct: avgRaw !== null && maxScore ? Math.round((avgRaw / maxScore) * 100) : null,
+          classHigh: arr.length > 0 ? Math.max(...arr) : null,
+          classLow: arr.length > 0 ? Math.min(...arr) : null,
+          absent: false,
+        })
+      }
+    }
+
+    // 날짜순 정렬
+    records.sort((a, b) => ((a.date as string) ?? '').localeCompare((b.date as string) ?? ''))
+    points.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
 
     return NextResponse.json({ points, records })
   }

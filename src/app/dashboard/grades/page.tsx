@@ -889,6 +889,7 @@ function GradesContent() {
     })
     if (res.ok) {
       setSelectedExam(prev => prev ? { ...prev, status: 'closed' } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, status: 'closed' } : e))
       await refreshSubmissions()
     }
     setClosing(false)

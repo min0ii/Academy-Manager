@@ -27,7 +27,7 @@ type AttendanceRecord = {
   late_minutes?: number; early_leave_minutes?: number
 }
 type TestRecord = {
-  name: string; date: string; maxScore: number
+  name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
   avgScore: number | null; classHigh: number | null; classLow: number | null; absent: boolean
 }
@@ -343,13 +343,13 @@ export default function ParentPage() {
   const attendRate = attendStats.total > 0
     ? Math.round((attendStats.present + attendStats.late + attendStats.earlyLeave) / attendStats.total * 100) : null
 
-  const scoredTests = tests.filter(t => !t.absent && t.myScore !== null)
-  const pcts = scoredTests.map(t => (t.myScore! / t.maxScore) * 100)
+  const scoredTests = tests.filter(t => !t.absent && t.myScore !== null && t.maxScore !== null)
+  const pcts = scoredTests.map(t => (t.myScore! / t.maxScore!) * 100)
   const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a,b) => a+b, 0) / pcts.length) : null
   const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
   const minPct = pcts.length > 0 ? Math.round(Math.min(...pcts)) : null
   const chartData = scoredTests.map(t => ({
-    label: `${t.date.slice(5)} ${t.name}`, pct: Math.round((t.myScore! / t.maxScore) * 100),
+    label: `${t.date.slice(5)} ${t.name}`, pct: Math.round((t.myScore! / t.maxScore!) * 100),
   }))
 
   const hwStats = {
@@ -616,14 +616,14 @@ export default function ParentPage() {
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
-                              <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g,'. ')} · 만점 {t.maxScore}점</p>
+                              <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g,'. ')}{t.maxScore !== null ? ` · 만점 ${t.maxScore}점` : ''}</p>
                             </div>
                             {t.absent ? (
                               <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
                             ) : t.myScore !== null ? (
                               <div className="text-right flex-shrink-0">
-                                <p className={`text-base font-black ${t.myPct!>=80?'text-emerald-600':t.myPct!>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
-                                <p className="text-xs text-slate-400">{t.myPct}%</p>
+                                <p className={`text-base font-black ${(t.myPct??0)>=80?'text-emerald-600':(t.myPct??0)>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
+                                {t.myPct !== null && <p className="text-xs text-slate-400">{t.myPct}%</p>}
                               </div>
                             ) : <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>}
                           </div>

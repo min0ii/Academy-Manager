@@ -25,7 +25,7 @@ type AttendanceRow = {
 }
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
 type GradeRecord = {
-  name: string; date: string; maxScore: number
+  name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
   avgScore: number | null; avgPct: number | null
   absent: boolean
@@ -475,14 +475,14 @@ function StudentReportContent() {
                               <div className="text-right hidden sm:block">
                                 <p className="text-xs text-slate-400">반평균</p>
                                 <p className="text-sm font-medium text-slate-500">
-                                  {r.avgScore ?? '-'}<span className="text-xs text-slate-300">/{r.maxScore}</span>
+                                  {r.avgScore ?? '-'}{r.maxScore !== null && <span className="text-xs text-slate-300">/{r.maxScore}</span>}
                                 </p>
                               </div>
                               {/* 내 점수 */}
                               <div className="text-right">
                                 <p className="text-xs text-slate-400">내 점수</p>
                                 <p className={`text-base font-bold ${myColor}`}>
-                                  {r.myScore}<span className="text-xs font-normal text-slate-300">/{r.maxScore}</span>
+                                  {r.myScore}{r.maxScore !== null && <span className="text-xs font-normal text-slate-300">/{r.maxScore}</span>}
                                 </p>
                               </div>
                               {/* 반평균 대비 */}
