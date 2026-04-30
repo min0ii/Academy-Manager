@@ -8,6 +8,7 @@ import {
   GraduationCap, User, ChevronLeft, ChevronRight,
   KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion,
 } from 'lucide-react'
+import ExamTab from './ExamTab'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
@@ -750,29 +751,10 @@ export default function StudentPage() {
 
         {/* ── 답안 제출 ── */}
         {tab === 'exam' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center mx-auto">
-                <FileText size={28} className="text-violet-500" />
-              </div>
-              <div>
-                <p className="font-bold text-slate-800">답안 제출</p>
-                <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">선생님이 시험을 출제하면<br />이곳에서 답안을 제출할 수 있어요.</p>
-              </div>
-              <div className="inline-flex items-center gap-1.5 bg-violet-50 text-violet-600 text-xs font-semibold px-3 py-1.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />준비 중
-              </div>
-            </div>
-            <div className="bg-slate-100 rounded-2xl p-4 space-y-2">
-              <p className="text-xs font-semibold text-slate-500">예정 기능 안내</p>
-              {['선생님이 시험을 출제하면 알림이 와요','주관식·객관식 답안 입력 가능','제출 즉시 자동 채점','성적 탭에 자동 반영'].map((item, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className="text-violet-400 mt-0.5 flex-shrink-0">•</span>
-                  <p className="text-xs text-slate-500">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ExamTab
+            classId={classInfo?.id ?? null}
+            studentId={student?.id ?? null}
+          />
         )}
 
         {/* ── 설정 ── */}
