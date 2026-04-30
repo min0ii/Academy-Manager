@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { GraduationCap, BookOpen, Users } from 'lucide-react'
+import { GraduationCap, BookOpen, Users, ShieldQuestion } from 'lucide-react'
 import { signUp, formatPhone } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -12,6 +13,8 @@ export default function SignupPage() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [securityQuestion, setSecurityQuestion] = useState('')
+  const [securityAnswer, setSecurityAnswer] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -27,6 +30,14 @@ export default function SignupPage() {
       setError('비밀번호는 6자 이상이어야 해요.')
       return
     }
+    if (!securityQuestion.trim()) {
+      setError('비밀번호 찾기 질문을 입력해주세요.')
+      return
+    }
+    if (!securityAnswer.trim()) {
+      setError('비밀번호 찾기 답변을 입력해주세요.')
+      return
+    }
 
     setLoading(true)
     const { error: authError } = await signUp(phone, password, name, 'teacher')
@@ -38,6 +49,22 @@ export default function SignupPage() {
       }
       setLoading(false)
       return
+    }
+
+    // 가입 직후 세션 토큰으로 보안 질문 저장
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      await fetch('/api/security-question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          question: securityQuestion.trim(),
+          answer: securityAnswer.trim(),
+        }),
+      })
     }
 
     router.push('/onboarding')
@@ -59,6 +86,7 @@ export default function SignupPage() {
         {/* 가입 폼 */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <form onSubmit={handleSignup} className="space-y-4">
+            {/* 이름 */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">이름</label>
               <input
@@ -70,6 +98,8 @@ export default function SignupPage() {
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* 전화번호 */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">전화번호</label>
               <input
@@ -81,6 +111,8 @@ export default function SignupPage() {
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* 비밀번호 */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">비밀번호</label>
               <input
@@ -102,6 +134,46 @@ export default function SignupPage() {
                 required
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            {/* 구분선 + 보안 질문 섹션 */}
+            <div className="pt-1">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldQuestion size={15} className="text-blue-500 flex-shrink-0" />
+                <span className="text-sm font-semibold text-slate-700">비밀번호 찾기 질문</span>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-3">
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  ⚠️ 이 질문과 답변을 잊으면 <span className="font-bold">비밀번호를 초기화할 수 없어요.</span><br />
+                  가장 잘 기억할 수 있는 것으로 설정해주세요.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">질문</label>
+                  <input
+                    type="text"
+                    value={securityQuestion}
+                    onChange={e => setSecurityQuestion(e.target.value)}
+                    placeholder="예: 내 첫 번째 반려동물 이름은?"
+                    required
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">답변</label>
+                  <input
+                    type="text"
+                    value={securityAnswer}
+                    onChange={e => setSecurityAnswer(e.target.value)}
+                    placeholder="가장 잘 기억할 수 있는 답변을 쓰세요"
+                    required
+                    autoComplete="off"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-slate-400 mt-1.5">대·소문자 구분 없이 입력해도 돼요</p>
+                </div>
+              </div>
             </div>
 
             {error && (

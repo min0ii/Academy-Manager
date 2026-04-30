@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings,
+  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings, ShieldQuestion,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -72,13 +72,13 @@ export default function ParentPage() {
   // 비밀번호 변경
   const [mustChangePw, setMustChangePw] = useState(false)
   const [showPwModal, setShowPwModal]   = useState(false)
+  const [pwStep, setPwStep]             = useState<'pw' | 'sq' | 'done'>('pw')
   const [newPw, setNewPw]               = useState('')
   const [confirmPw, setConfirmPw]       = useState('')
   const [showNewPw, setShowNewPw]       = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
   const [pwError, setPwError]   = useState('')
   const [pwSaving, setPwSaving] = useState(false)
-  const [pwDone, setPwDone]     = useState(false)
 
   // 출석
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
@@ -110,6 +110,16 @@ export default function ParentPage() {
   const [deleting, setDeleting]                   = useState(false)
   const [deleteError, setDeleteError]             = useState('')
 
+  // 설정 — 보안 질문
+  const [currentSQ, setCurrentSQ]     = useState<string | null>(null)
+  const [sqLoaded, setSqLoaded]       = useState(false)
+  const [showSqModal, setShowSqModal] = useState(false)
+  const [sqQuestion, setSqQuestion]   = useState('')
+  const [sqAnswer, setSqAnswer]       = useState('')
+  const [sqSaving, setSqSaving]       = useState(false)
+  const [sqSaved, setSqSaved]         = useState(false)
+  const [sqError, setSqError]         = useState('')
+
   useEffect(() => { loadBase() }, [])
 
   useEffect(() => {
@@ -135,11 +145,13 @@ export default function ParentPage() {
     if (!user) { setLoading(false); return }
 
     const { data: profile } = await supabase
-      .from('profiles').select('name, phone, must_change_password').eq('id', user.id).single()
+      .from('profiles').select('name, phone, must_change_password, security_question').eq('id', user.id).single()
 
     if (profile) {
       setParentName(profile.name)
       if (profile.must_change_password) { setMustChangePw(true); setShowPwModal(true) }
+      setCurrentSQ(profile.security_question ?? null)
+      setSqLoaded(true)
     }
 
     const parentPhone = profile?.phone ?? ''
@@ -241,12 +253,52 @@ export default function ParentPage() {
     if (error) { setPwError(error.message); setPwSaving(false); return }
     const { data: { user } } = await supabase.auth.getUser()
     if (user) await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
-    setPwSaving(false); setPwDone(true); setMustChangePw(false)
-    setTimeout(() => { setShowPwModal(false); setPwDone(false); setNewPw(''); setConfirmPw('') }, 1800)
+    setMustChangePw(false)
+    setPwSaving(false)
+    if (mustChangePw && !currentSQ) {
+      setPwStep('sq')
+      setSqQuestion(''); setSqAnswer(''); setSqError('')
+    } else {
+      setPwStep('done')
+      setTimeout(() => { setShowPwModal(false); setPwStep('pw'); setNewPw(''); setConfirmPw('') }, 1800)
+    }
   }
 
   async function handleSignOut() {
     await supabase.auth.signOut(); window.location.href = '/login'
+  }
+
+  async function handleSaveSQ(e: React.FormEvent, fromPwModal = false) {
+    e.preventDefault()
+    setSqError('')
+    if (!sqQuestion.trim()) { setSqError('질문을 입력해주세요.'); return }
+    if (!sqAnswer.trim()) { setSqError('답변을 입력해주세요.'); return }
+    setSqSaving(true)
+    const token = await getToken()
+    if (!token) { setSqSaving(false); return }
+    const res = await fetch('/api/security-question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ question: sqQuestion.trim(), answer: sqAnswer.trim() }),
+    })
+    const json = await res.json()
+    setSqSaving(false)
+    if (!res.ok) { setSqError(json.error ?? '오류가 발생했어요.'); return }
+    setCurrentSQ(sqQuestion.trim())
+    setSqSaved(true)
+    if (fromPwModal) {
+      setPwStep('done')
+      setTimeout(() => {
+        setShowPwModal(false); setPwStep('pw')
+        setNewPw(''); setConfirmPw('')
+        setSqSaved(false); setSqQuestion(''); setSqAnswer('')
+      }, 1800)
+    } else {
+      setTimeout(() => {
+        setShowSqModal(false); setSqSaved(false)
+        setSqQuestion(''); setSqAnswer('')
+      }, 1500)
+    }
   }
 
   async function handleDeleteAccount() {
@@ -780,6 +832,40 @@ export default function ParentPage() {
               </div>
             </div>
 
+            {/* 비밀번호 찾기 질문 */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-bold text-slate-800 text-sm">비밀번호 찾기 질문</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">비밀번호를 잊었을 때 사용해요</p>
+                </div>
+                {sqLoaded && (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${currentSQ ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                    {currentSQ ? '설정됨' : '미설정'}
+                  </span>
+                )}
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                {currentSQ && (
+                  <div className="bg-slate-50 rounded-xl px-4 py-3">
+                    <p className="text-xs text-slate-500 mb-1">현재 질문</p>
+                    <p className="text-sm text-slate-700 font-medium">{currentSQ}</p>
+                  </div>
+                )}
+                {!currentSQ && (
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    질문과 답변을 설정해두면 비밀번호를 잊었을 때<br />스스로 재설정할 수 있어요.
+                  </p>
+                )}
+                <button
+                  onClick={() => { setSqQuestion(currentSQ ?? ''); setSqAnswer(''); setSqError(''); setSqSaved(false); setShowSqModal(true) }}
+                  className="w-full py-2.5 bg-violet-50 text-violet-600 text-sm font-semibold rounded-xl hover:bg-violet-100 transition-colors flex items-center justify-center gap-1.5">
+                  <ShieldQuestion size={15} />
+                  {currentSQ ? '질문 변경하기' : '질문 설정하기'}
+                </button>
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl border border-red-100 overflow-hidden">
               <div className="px-5 py-4 border-b border-red-100">
                 <h2 className="font-bold text-red-600 text-sm">위험 구역</h2>
@@ -807,6 +893,69 @@ export default function ParentPage() {
           </button>
         ))}
       </nav>
+
+      {/* 보안 질문 설정 모달 */}
+      {showSqModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldQuestion size={18} className="text-violet-500" />
+                <h2 className="font-bold text-slate-800">비밀번호 찾기 질문</h2>
+              </div>
+              <button onClick={() => setShowSqModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            {sqSaved ? (
+              <div className="p-8 flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center"><Check size={28} className="text-emerald-600" /></div>
+                <p className="font-bold text-slate-800">저장됐어요!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveSQ} className="p-5 space-y-4">
+                <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-violet-700 leading-relaxed">
+                    본인만 알 수 있는 <span className="font-semibold">질문과 답변</span>을 만들어주세요.<br />
+                    가장 잘 기억할 수 있는 것으로 설정하는 게 좋아요.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">질문</label>
+                  <input
+                    type="text"
+                    value={sqQuestion}
+                    onChange={e => setSqQuestion(e.target.value)}
+                    placeholder="예: 내 첫 번째 반려동물 이름은?"
+                    required
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">답변</label>
+                  <input
+                    type="text"
+                    value={sqAnswer}
+                    onChange={e => setSqAnswer(e.target.value)}
+                    placeholder="가장 잘 기억할 수 있는 답변을 쓰세요"
+                    required
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                  <p className="text-xs text-slate-400 mt-1.5">대·소문자 구분 없이 입력해도 돼요</p>
+                </div>
+                {sqError && <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{sqError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setShowSqModal(false)}
+                    className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">취소</button>
+                  <button type="submit" disabled={sqSaving}
+                    className="flex-1 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm disabled:opacity-50">
+                    {sqSaving ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 계정 탈퇴 모달 */}
       {showDeleteModal && (
@@ -840,28 +989,48 @@ export default function ParentPage() {
         </div>
       )}
 
-      {/* 비밀번호 변경 모달 */}
+      {/* 비밀번호 변경 모달 (초기: 2단계 / 일반: 1단계) */}
       {showPwModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <KeyRound size={18} className="text-amber-500" />
-                <h2 className="font-bold text-slate-800">비밀번호 변경</h2>
+                {pwStep === 'sq'
+                  ? <ShieldQuestion size={18} className="text-violet-500" />
+                  : <KeyRound size={18} className="text-amber-500" />}
+                <h2 className="font-bold text-slate-800">
+                  {pwStep === 'sq' ? '비밀번호 찾기 질문 설정' : '비밀번호 변경'}
+                </h2>
               </div>
-              {!mustChangePw && <button onClick={() => setShowPwModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>}
+              {pwStep === 'pw' && !mustChangePw && (
+                <button onClick={() => { setShowPwModal(false); setPwStep('pw') }} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+              )}
             </div>
-            {pwDone ? (
+
+            {/* 완료 */}
+            {pwStep === 'done' && (
               <div className="p-8 flex flex-col items-center gap-3">
                 <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center"><Check size={28} className="text-emerald-600" /></div>
-                <p className="font-bold text-slate-800">변경 완료!</p>
-                <p className="text-xs text-slate-400">새 비밀번호로 로그인할 수 있어요.</p>
+                <p className="font-bold text-slate-800">모두 완료됐어요!</p>
+                <p className="text-xs text-slate-400 text-center">새 비밀번호와 비밀번호 찾기 질문이<br />저장됐어요.</p>
               </div>
-            ) : (
+            )}
+
+            {/* STEP 1: 비밀번호 변경 */}
+            {pwStep === 'pw' && (
               <form onSubmit={handleChangePw} className="p-5 space-y-4">
                 <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                  <p className="text-xs text-amber-700 leading-relaxed">현재 <span className="font-semibold">초기 비밀번호</span>(전화번호 뒤 8자리)를 사용 중이에요.<br />보안을 위해 새 비밀번호로 변경해주세요.</p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    현재 <span className="font-semibold">초기 비밀번호</span>(전화번호 뒤 8자리)를 사용 중이에요.<br />
+                    보안을 위해 새 비밀번호로 변경해주세요.
+                  </p>
                 </div>
+                {mustChangePw && !currentSQ && (
+                  <div className="flex items-center gap-1.5 text-xs text-violet-600 bg-violet-50 px-3 py-2 rounded-lg">
+                    <ShieldQuestion size={13} />
+                    <span>변경 후 비밀번호 찾기 질문도 설정해요 (필수)</span>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">새 비밀번호</label>
                   <div className="relative">
@@ -885,15 +1054,46 @@ export default function ParentPage() {
                 {pwError && <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{pwError}</p>}
                 <div className="flex gap-2 pt-1">
                   {!mustChangePw && (
-                    <button type="button" onClick={()=>setShowPwModal(false)}
-                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">나중에</button>
+                    <button type="button" onClick={() => { setShowPwModal(false); setPwStep('pw') }}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">취소</button>
                   )}
                   <button type="submit" disabled={pwSaving}
                     className="flex-1 py-2.5 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 transition-colors text-sm disabled:opacity-50">
-                    {pwSaving?'변경 중...':'변경하기'}
+                    {pwSaving ? '변경 중...' : mustChangePw && !currentSQ ? '다음 →' : '변경하기'}
                   </button>
                 </div>
                 {mustChangePw && <p className="text-xs text-slate-400 text-center">비밀번호를 변경해야 이용할 수 있어요</p>}
+              </form>
+            )}
+
+            {/* STEP 2: 보안 질문 설정 */}
+            {pwStep === 'sq' && (
+              <form onSubmit={e => handleSaveSQ(e, true)} className="p-5 space-y-4">
+                <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-violet-700 leading-relaxed">
+                    비밀번호를 잊었을 때 본인 확인에 사용돼요.<br />
+                    <span className="font-semibold">가장 잘 기억할 수 있는 질문과 답변</span>을 작성해주세요.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">질문</label>
+                  <input type="text" value={sqQuestion} onChange={e=>setSqQuestion(e.target.value)}
+                    placeholder="예: 내 첫 번째 반려동물 이름은?" required
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">답변</label>
+                  <input type="text" value={sqAnswer} onChange={e=>setSqAnswer(e.target.value)}
+                    placeholder="가장 잘 기억할 수 있는 답변을 쓰세요" required autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                  <p className="text-xs text-slate-400 mt-1.5">대·소문자 구분 없이 입력해도 돼요</p>
+                </div>
+                {sqError && <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{sqError}</p>}
+                <button type="submit" disabled={sqSaving}
+                  className="w-full py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm disabled:opacity-50">
+                  {sqSaving ? '저장 중...' : '저장하고 완료'}
+                </button>
+                <p className="text-xs text-slate-400 text-center">이 단계는 건너뛸 수 없어요</p>
               </form>
             )}
           </div>

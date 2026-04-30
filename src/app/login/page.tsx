@@ -89,8 +89,15 @@ export default function LoginPage() {
           </form>
         </div>
 
+        {/* 비밀번호 찾기 */}
+        <p className="text-center text-sm mt-3">
+          <Link href="/forgot-password" className="text-slate-400 hover:text-blue-600 transition-colors">
+            비밀번호를 잊으셨나요?
+          </Link>
+        </p>
+
         {/* 회원가입 링크 */}
-        <p className="text-center text-sm text-slate-500 mt-4">
+        <p className="text-center text-sm text-slate-500 mt-2">
           계정이 없으신가요?{' '}
           <Link href="/signup" className="text-blue-600 font-medium hover:underline">
             회원가입

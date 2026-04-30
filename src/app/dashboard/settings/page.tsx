@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
-  Eye, EyeOff, Loader2, Camera,
+  Eye, EyeOff, Loader2, Camera, ShieldQuestion,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile'
@@ -44,6 +44,16 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState('')
   const [pwSaved, setPwSaved] = useState(false)
 
+  // 보안 질문
+  const [currentSQ, setCurrentSQ]     = useState<string | null>(null)
+  const [sqLoaded, setSqLoaded]       = useState(false)
+  const [showSqModal, setShowSqModal] = useState(false)
+  const [sqQuestion, setSqQuestion]   = useState('')
+  const [sqAnswer, setSqAnswer]       = useState('')
+  const [sqSaving, setSqSaving]       = useState(false)
+  const [sqSaved, setSqSaved]         = useState(false)
+  const [sqError, setSqError]         = useState('')
+
   const ctx = useAcademy()
   useEffect(() => {
     if (!ctx) return
@@ -55,7 +65,41 @@ export default function SettingsPage() {
     setAcademyName(ctx.academyName)
     setAcademyLogoUrl(ctx.academyLogoUrl)
     setLoading(false)
+    // 보안 질문 로드
+    loadSecurityQuestion(ctx.userId)
   }, [ctx])
+
+  async function loadSecurityQuestion(userId: string) {
+    const { data } = await supabase
+      .from('profiles').select('security_question').eq('id', userId).single()
+    setCurrentSQ(data?.security_question ?? null)
+    setSqLoaded(true)
+  }
+
+  async function handleSaveSQ(e: React.FormEvent) {
+    e.preventDefault()
+    setSqError('')
+    if (!sqQuestion.trim()) { setSqError('질문을 입력해주세요.'); return }
+    if (!sqAnswer.trim()) { setSqError('답변을 입력해주세요.'); return }
+    setSqSaving(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setSqSaving(false); return }
+    const res = await fetch('/api/security-question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ question: sqQuestion.trim(), answer: sqAnswer.trim() }),
+    })
+    const json = await res.json()
+    setSqSaving(false)
+    if (!res.ok) { setSqError(json.error ?? '오류가 발생했어요.'); return }
+    setCurrentSQ(sqQuestion.trim())
+    setSqSaved(true)
+    setTimeout(() => {
+      setShowSqModal(false); setSqSaved(false)
+      setSqQuestion(''); setSqAnswer('')
+    }, 1500)
+  }
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -249,6 +293,69 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* 보안 질문 모달 */}
+      {showSqModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldQuestion size={18} className="text-blue-500" />
+                <h2 className="font-bold text-slate-800">비밀번호 찾기 질문</h2>
+              </div>
+              <button onClick={() => setShowSqModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            {sqSaved ? (
+              <div className="p-8 flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center"><Check size={28} className="text-emerald-600" /></div>
+                <p className="font-bold text-slate-800">저장됐어요!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveSQ} className="p-5 space-y-4">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    본인만 알 수 있는 <span className="font-semibold">질문과 답변</span>을 만들어주세요.<br />
+                    가장 잘 기억할 수 있는 것으로 설정하는 게 좋아요.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">질문</label>
+                  <input
+                    type="text"
+                    value={sqQuestion}
+                    onChange={e => setSqQuestion(e.target.value)}
+                    placeholder="예: 내 첫 번째 반려동물 이름은?"
+                    required
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">답변</label>
+                  <input
+                    type="text"
+                    value={sqAnswer}
+                    onChange={e => setSqAnswer(e.target.value)}
+                    placeholder="가장 잘 기억할 수 있는 답변을 쓰세요"
+                    required
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  <p className="text-xs text-slate-400 mt-1.5">대·소문자 구분 없이 입력해도 돼요</p>
+                </div>
+                {sqError && <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{sqError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setShowSqModal(false)}
+                    className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">취소</button>
+                  <button type="submit" disabled={sqSaving}
+                    className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
+                    {sqSaving ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── 내 정보 탭 ── */}
       {tab === 'profile' && (
         <div className="space-y-4">
@@ -276,6 +383,36 @@ export default function SettingsPage() {
                   : '저장'}
               </button>
             </div>
+          </div>
+
+          {/* 비밀번호 찾기 질문 */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-slate-800">비밀번호 찾기 질문</h2>
+              {sqLoaded && (
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${currentSQ ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                  {currentSQ ? '설정됨' : '미설정'}
+                </span>
+              )}
+            </div>
+            {currentSQ && (
+              <div className="bg-slate-50 rounded-xl px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">현재 질문</p>
+                <p className="text-sm text-slate-700 font-medium">{currentSQ}</p>
+              </div>
+            )}
+            {!currentSQ && (
+              <p className="text-sm text-slate-500">
+                질문을 설정해두면 비밀번호를 잊었을 때 스스로 재설정할 수 있어요.
+              </p>
+            )}
+            <button
+              onClick={() => { setSqQuestion(currentSQ ?? ''); setSqAnswer(''); setSqError(''); setSqSaved(false); setShowSqModal(true) }}
+              className="w-full py-2.5 bg-blue-50 text-blue-600 text-sm font-semibold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <ShieldQuestion size={15} />
+              {currentSQ ? '질문 변경하기' : '질문 설정하기'}
+            </button>
           </div>
 
           {/* 비밀번호 변경 */}
