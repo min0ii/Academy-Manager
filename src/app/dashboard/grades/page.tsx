@@ -1062,7 +1062,7 @@ function GradesContent() {
                   </div>
                   <p className="text-xs text-slate-500">
                     {exam.exam_type === 'auto'
-                      ? `${formatDT(exam.start_at)} ~ ${formatDT(exam.end_at)}`
+                      ? (exam.end_at ? `${formatDT(exam.end_at)} 까지` : '')
                       : exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
                   </p>
                 </div>
@@ -1279,11 +1279,19 @@ function GradesContent() {
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-500">
-            {selectedExam?.exam_type === 'auto'
-              ? `${formatDT(selectedExam.start_at)} ~ ${formatDT(selectedExam.end_at)}`
-              : selectedExam?.start_at ? formatDT(selectedExam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
-          </p>
+          {selectedExam?.exam_type === 'auto' ? (
+            selectedExam.end_at ? (
+              <p className="text-sm text-slate-500">
+                {new Date(selectedExam.end_at) > new Date()
+                  ? `${formatDT(selectedExam.end_at)} 까지`
+                  : `${formatDT(selectedExam.end_at)} 마감`}
+              </p>
+            ) : null
+          ) : (
+            <p className="text-sm text-slate-500">
+              {selectedExam?.start_at ? formatDT(selectedExam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
+            </p>
+          )}
         </div>
         {selectedExam?.exam_type === 'auto' && currentStatus === 'scheduled' && (
           <button onClick={startExam}
