@@ -8,7 +8,7 @@ import {
   KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings, ShieldQuestion,
 } from 'lucide-react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
 
 type Tab = 'home' | 'attendance' | 'grades' | 'homework-clinic' | 'comments' | 'settings'
@@ -29,7 +29,7 @@ type AttendanceRecord = {
 type TestRecord = {
   name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
-  avgScore: number | null; classHigh: number | null; classLow: number | null; absent: boolean
+  avgScore: number | null; avgPct: number | null; classHigh: number | null; classLow: number | null; absent: boolean
 }
 type ClinicRecord = {
   id: string; clinic_name: string | null; date: string
@@ -349,7 +349,9 @@ export default function ParentPage() {
   const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
   const minPct = pcts.length > 0 ? Math.round(Math.min(...pcts)) : null
   const chartData = scoredTests.map(t => ({
-    label: `${t.date.slice(5)} ${t.name}`, pct: Math.round((t.myScore! / t.maxScore!) * 100),
+    label: `${t.date.slice(5).replace('-','/')} ${t.name.slice(0,6)}`,
+    내점수: Math.round((t.myScore! / t.maxScore!) * 100),
+    반평균: t.avgScore !== null && t.maxScore ? Math.round((t.avgScore / t.maxScore) * 100) : null,
   }))
 
   const hwStats = {
@@ -589,18 +591,22 @@ export default function ParentPage() {
                 )}
                 {chartData.length >= 2 && (
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-                    <h2 className="font-bold text-slate-800 text-sm">성적 추이</h2>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <LineChart data={chartData} margin={{ top:5, right:5, bottom:5, left:-10 }}>
+                    <h2 className="font-bold text-slate-800 text-sm">성적 추이 (반 평균 비교)</h2>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={chartData} margin={{ top:5, right:5, bottom:20, left:-10 }} barCategoryGap="30%">
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis dataKey="label" tick={{ fontSize:10, fill:'#94a3b8' }} tickFormatter={v => v.slice(0,5)} />
+                        <XAxis dataKey="label" tick={{ fontSize:9, fill:'#94a3b8' }} angle={-30} textAnchor="end" interval={0} />
                         <YAxis domain={[0,100]} tick={{ fontSize:10, fill:'#94a3b8' }} unit="%" />
-                        <Tooltip formatter={(v) => [`${v ?? 0}%`, '점수']} contentStyle={{ fontSize:12, borderRadius:8 }} />
-                        {avgPct !== null && <ReferenceLine y={avgPct} stroke="#3b82f6" strokeDasharray="4 4" />}
-                        <Line type="monotone" dataKey="pct" stroke="#7c3aed" strokeWidth={2} dot={{ r:4, fill:'#7c3aed' }} activeDot={{ r:6 }} />
-                      </LineChart>
+                        <Tooltip formatter={(v, name) => [`${v}%`, name]} contentStyle={{ fontSize:12, borderRadius:8 }} />
+                        <Legend iconType="circle" wrapperStyle={{ fontSize:11, paddingTop:8 }} />
+                        <Bar dataKey="내점수" fill="#7c3aed" radius={[4,4,0,0]}>
+                          {chartData.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.내점수 >= 80 ? '#10b981' : entry.내점수 >= 60 ? '#7c3aed' : '#ef4444'} />
+                          ))}
+                        </Bar>
+                        <Bar dataKey="반평균" fill="#94a3b8" radius={[4,4,0,0]} />
+                      </BarChart>
                     </ResponsiveContainer>
-                    {avgPct !== null && <p className="text-xs text-slate-400 text-center">점선은 평균({avgPct}%)</p>}
                   </div>
                 )}
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -622,7 +628,7 @@ export default function ParentPage() {
                               <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
                             ) : t.myScore !== null ? (
                               <div className="text-right flex-shrink-0">
-                                <p className={`text-base font-black ${(t.myPct??0)>=80?'text-emerald-600':(t.myPct??0)>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
+                                <p className={`text-base font-black ${t.myPct===null?'text-slate-700':t.myPct>=80?'text-emerald-600':t.myPct>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
                                 {t.myPct !== null && <p className="text-xs text-slate-400">{t.myPct}%</p>}
                               </div>
                             ) : <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>}
