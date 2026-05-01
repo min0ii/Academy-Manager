@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "학원 관리 시스템",
-  description: "수학학원 관리 웹앱",
+  title: "Linkademy",
+  description: "학원과 학생을 잇다.",
 };
 
 export default function RootLayout({
