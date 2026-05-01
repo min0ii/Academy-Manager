@@ -137,12 +137,47 @@ type DateTimeVal = { month: string; day: string; hour: string; minute: string }
 
 function emptyDT(): DateTimeVal { return { month: '', day: '', hour: '', minute: '' } }
 
+function isDTValPartial(v: DateTimeVal): boolean {
+  return !!(v.month || v.day || v.hour !== '' || v.minute !== '')
+}
+
+function dtValErrors(v: DateTimeVal): { month?: string; day?: string; hour?: string; minute?: string } {
+  const errs: { month?: string; day?: string; hour?: string; minute?: string } = {}
+  if (v.month !== '') {
+    const m = Number(v.month)
+    if (!Number.isInteger(m) || m < 1 || m > 12) errs.month = '1~12'
+  }
+  if (v.day !== '') {
+    const d = Number(v.day)
+    if (!Number.isInteger(d) || d < 1 || d > 31) errs.day = '1~31'
+    else if (v.month !== '') {
+      const m = Number(v.month)
+      const year = new Date().getFullYear()
+      const maxDay = new Date(year, m, 0).getDate() // 해당 월의 마지막 날
+      if (d > maxDay) errs.day = `1~${maxDay}`
+    }
+  }
+  if (v.hour !== '') {
+    const h = Number(v.hour)
+    if (!Number.isInteger(h) || h < 0 || h > 23) errs.hour = '0~23'
+  }
+  if (v.minute !== '') {
+    const min = Number(v.minute)
+    if (!Number.isInteger(min) || min < 0 || min > 59) errs.minute = '0~59'
+  }
+  return errs
+}
+
 function dtValToISO(v: DateTimeVal): string | null {
   if (!v.month || !v.day || v.hour === '' || v.minute === '') return null
+  const errs = dtValErrors(v)
+  if (Object.keys(errs).length > 0) return null
+  const m = Number(v.month), d = Number(v.day), h = Number(v.hour), min = Number(v.minute)
   const year = new Date().getFullYear()
-  const d = new Date(year, Number(v.month) - 1, Number(v.day), Number(v.hour), Number(v.minute))
-  if (isNaN(d.getTime())) return null
-  return d.toISOString()
+  const date = new Date(year, m - 1, d, h, min)
+  // 날짜 overflow 최종 확인 (예: 2월 30일)
+  if (date.getMonth() !== m - 1 || date.getDate() !== d) return null
+  return date.toISOString()
 }
 
 function DateTimePicker({ label, value, onChange, required }: {
@@ -151,24 +186,37 @@ function DateTimePicker({ label, value, onChange, required }: {
   onChange: (v: DateTimeVal) => void
   required?: boolean
 }) {
-  const inp = 'w-14 px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  const errs = dtValErrors(value)
+  const base = 'w-14 px-2 py-2.5 rounded-xl border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent transition-colors'
+  const normal = `${base} border-slate-200 focus:ring-blue-500`
+  const error  = `${base} border-red-400 bg-red-50 focus:ring-red-400 text-red-700`
+  const hasAnyError = Object.keys(errs).length > 0
   return (
     <div>
       <label className="block text-xs font-medium text-slate-600 mb-1">{label}{required && ' *'}</label>
       <div className="flex items-center gap-1.5 flex-wrap">
         <input type="number" value={value.month} onChange={e => onChange({ ...value, month: e.target.value })}
-          placeholder="월" min="1" max="12" className={inp} />
+          placeholder="월" min="1" max="12" className={errs.month ? error : normal} />
         <span className="text-slate-400 text-sm">월</span>
         <input type="number" value={value.day} onChange={e => onChange({ ...value, day: e.target.value })}
-          placeholder="일" min="1" max="31" className={inp} />
+          placeholder="일" min="1" max="31" className={errs.day ? error : normal} />
         <span className="text-slate-400 text-sm">일</span>
         <input type="number" value={value.hour} onChange={e => onChange({ ...value, hour: e.target.value })}
-          placeholder="시" min="0" max="23" className={inp} />
+          placeholder="시" min="0" max="23" className={errs.hour ? error : normal} />
         <span className="text-slate-400 text-sm font-medium">:</span>
         <input type="number" value={value.minute} onChange={e => onChange({ ...value, minute: e.target.value })}
-          placeholder="분" min="0" max="59" className={inp} />
+          placeholder="분" min="0" max="59" className={errs.minute ? error : normal} />
       </div>
-      <p className="text-xs text-slate-400 mt-1">24시간 기준 (예: 오후 2시 → 14)</p>
+      {hasAnyError ? (
+        <p className="text-xs text-red-500 mt-1">
+          {errs.month && `월은 ${errs.month} 사이여야 해요. `}
+          {errs.day   && `일은 ${errs.day} 사이여야 해요. `}
+          {errs.hour  && `시는 ${errs.hour} 사이여야 해요. `}
+          {errs.minute && `분은 ${errs.minute} 사이여야 해요.`}
+        </p>
+      ) : (
+        <p className="text-xs text-slate-400 mt-1">24시간 기준 (예: 오후 2시 → 14)</p>
+      )}
     </div>
   )
 }
@@ -820,11 +868,27 @@ function GradesContent() {
   async function addAutoExam() {
     if (!selectedClass) return
 
-    // 마감 시간이 설정된 경우 현재 시각보다 이후인지 확인
+    // 마감 시간 유효성 검사
     const endIso = dtValToISO(autoEnd)
-    if (endIso && new Date(endIso) <= new Date()) {
-      alert('마감 시간은 현재 시각 이후로 설정해 주세요.')
-      return
+    const endPartial = isDTValPartial(autoEnd)
+    if (endPartial) {
+      const endErrs = dtValErrors(autoEnd)
+      if (Object.keys(endErrs).length > 0) {
+        alert('마감 시간에 올바르지 않은 값이 있어요.\n' +
+          (endErrs.month  ? `• 월: ${endErrs.month} 사이여야 해요\n` : '') +
+          (endErrs.day    ? `• 일: ${endErrs.day} 사이여야 해요\n` : '') +
+          (endErrs.hour   ? `• 시: ${endErrs.hour} 사이여야 해요\n` : '') +
+          (endErrs.minute ? `• 분: ${endErrs.minute} 사이여야 해요` : ''))
+        return
+      }
+      if (!endIso) {
+        alert('마감 시간의 월·일·시·분을 모두 입력해주세요.')
+        return
+      }
+      if (new Date(endIso) <= new Date()) {
+        alert('마감 시간은 현재 시각 이후로 설정해 주세요.')
+        return
+      }
     }
 
     setAddingAuto(true)
