@@ -103,10 +103,29 @@ function StudentReportContent() {
   // ── 퇴원 처리 ──
   async function withdrawStudent() {
     if (!student) return
-    if (!confirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 출석·수업에서 제외돼요.\n성적·숙제·출결 등 모든 기록은 그대로 보존돼요.`)) return
+    if (!confirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 학생·학부모 계정이 모두 삭제돼요.\n성적·숙제·출결 등 모든 기록은 그대로 보존돼요.`)) return
     setActionLoading(true)
-    await supabase.from('students').update({ status: 'inactive', withdrawn_at: new Date().toISOString() }).eq('id', studentId)
-    await supabase.from('class_students').delete().eq('student_id', studentId)
+
+    // 1. 반 배정 해제 + 퇴원 상태 변경
+    await Promise.all([
+      supabase.from('students').update({ status: 'inactive', withdrawn_at: new Date().toISOString() }).eq('id', studentId),
+      supabase.from('class_students').delete().eq('student_id', studentId),
+    ])
+
+    // 2. 학생·학부모 Auth 계정 삭제
+    const token = await getToken()
+    if (token) {
+      const res = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ student_id: studentId, target: 'both' }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        console.warn('계정 삭제 오류:', err.error)
+      }
+    }
+
     await loadStudent(ctx!.academyId)
     setActionLoading(false)
   }
