@@ -225,5 +225,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
     return NextResponse.json({ success: true })
   }
 
+  // ── 정답 공개 ──
+  if (action === 'reveal_answers') {
+    const { data: exam } = await db.from('exams').select('status, answer_reveal').eq('id', examId).single()
+    if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
+    if (exam.status !== 'closed') return NextResponse.json({ error: '마감된 시험만 정답을 공개할 수 있어요.' }, { status: 400 })
+    await db.from('exams').update({ answer_reveal: 'revealed' }).eq('id', examId)
+    return NextResponse.json({ success: true })
+  }
+
   return NextResponse.json({ error: '알 수 없는 action이에요.' }, { status: 400 })
 }

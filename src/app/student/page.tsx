@@ -32,6 +32,23 @@ type TestRecord = {
   name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
   avgScore: number | null; classHigh: number | null; classLow: number | null; absent: boolean
+  examId?: string; examType?: string; answerReveal?: string
+}
+
+type ExamResultQuestion = {
+  id: string; order_num: number; question_text: string | null
+  question_type: 'multiple_choice' | 'short_answer'; score: number
+}
+type ExamResultChoice = { question_id: string; choice_num: number; choice_text: string | null }
+type ExamResultAnswer = { question_id: string; student_answer: string | null; is_correct: boolean | null; score_earned: number | null }
+type ExamResultCorrect = { question_id: string; answer_text: string; order_num: number }
+type ExamResult = {
+  examType: string; title: string; maxScore: number | null; myScore: number | null
+  isAbsent: boolean; answerReveal: string; canReveal: boolean
+  questions: ExamResultQuestion[]
+  choices: ExamResultChoice[]
+  myAnswers: ExamResultAnswer[]
+  correctAnswers: ExamResultCorrect[]
 }
 type ClinicRecord = {
   id: string; clinic_name: string | null; date: string
@@ -91,6 +108,10 @@ export default function StudentPage() {
   const [tests, setTests]             = useState<TestRecord[]>([])
   const [gradesLoaded, setGradesLoaded]   = useState(false)
   const [gradesLoading, setGradesLoading] = useState(false)
+
+  // 시험 결과 상세 모달
+  const [examResultModal, setExamResultModal] = useState<ExamResult | null>(null)
+  const [loadingExamResult, setLoadingExamResult] = useState(false)
 
   // 설정 — 계정 탈퇴
   const [showDeleteModal, setShowDeleteModal]     = useState(false)
@@ -190,6 +211,19 @@ export default function StudentPage() {
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setTests(json.records ?? []); setGradesLoading(false)
+  }
+
+  async function openExamResult(examId: string) {
+    if (!student) return
+    setLoadingExamResult(true)
+    const token = await getToken(); if (!token) { setLoadingExamResult(false); return }
+    const res = await fetch(`/api/exams/${examId}/student-result?studentId=${student.id}`,
+      { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const data = await res.json()
+      setExamResultModal(data)
+    }
+    setLoadingExamResult(false)
   }
 
   async function loadHomework() {
@@ -582,39 +616,219 @@ export default function StudentPage() {
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
                     <div className="divide-y divide-slate-100">
-                      {[...tests].reverse().map((t, i) => (
-                        <div key={i} className="px-5 py-4">
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
-                              <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g,'. ')}{t.maxScore !== null ? ` · 만점 ${t.maxScore}점` : ''}</p>
-                            </div>
-                            {t.absent ? (
-                              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
-                            ) : t.myScore !== null ? (
-                              <div className="text-right flex-shrink-0">
-                                <p className={`text-base font-black ${(t.myPct??0)>=80?'text-emerald-600':(t.myPct??0)>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
-                                {t.myPct !== null && <p className="text-xs text-slate-400">{t.myPct}%</p>}
+                      {[...tests].reverse().map((t, i) => {
+                        const isClickable = t.examType === 'auto' && t.examId
+                        return (
+                          <div key={i}
+                            className={`px-5 py-4 ${isClickable ? 'cursor-pointer hover:bg-slate-50 transition-colors active:bg-slate-100' : ''}`}
+                            onClick={() => { if (isClickable && t.examId) openExamResult(t.examId) }}>
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
+                                  {isClickable && <ChevronRight size={14} className="text-slate-300 flex-shrink-0" />}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g,'. ')}{t.maxScore !== null ? ` · 만점 ${t.maxScore}점` : ''}</p>
                               </div>
-                            ) : <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>}
-                          </div>
-                          {(t.avgScore !== null || t.classHigh !== null) && (
-                            <div className="flex gap-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
-                              <span>반평균 <strong className="text-slate-700">{t.avgScore !== null ? `${t.avgScore}점` : '-'}</strong></span>
-                              <span className="text-slate-300">|</span>
-                              <span>최고 <strong className="text-emerald-600">{t.classHigh !== null ? `${t.classHigh}점` : '-'}</strong></span>
-                              <span className="text-slate-300">|</span>
-                              <span>최저 <strong className="text-red-500">{t.classLow !== null ? `${t.classLow}점` : '-'}</strong></span>
+                              {t.absent ? (
+                                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
+                              ) : t.myScore !== null ? (
+                                <div className="text-right flex-shrink-0">
+                                  <p className={`text-base font-black ${(t.myPct??0)>=80?'text-emerald-600':(t.myPct??0)>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
+                                  {t.myPct !== null && <p className="text-xs text-slate-400">{t.myPct}%</p>}
+                                </div>
+                              ) : <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {(t.avgScore !== null || t.classHigh !== null) && (
+                              <div className="flex gap-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
+                                <span>반평균 <strong className="text-slate-700">{t.avgScore !== null ? `${t.avgScore}점` : '-'}</strong></span>
+                                <span className="text-slate-300">|</span>
+                                <span>최고 <strong className="text-emerald-600">{t.classHigh !== null ? `${t.classHigh}점` : '-'}</strong></span>
+                                <span className="text-slate-300">|</span>
+                                <span>최저 <strong className="text-red-500">{t.classLow !== null ? `${t.classLow}점` : '-'}</strong></span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
               </>
             )}
           </>
+        )}
+
+        {/* ── 시험 결과 로딩 오버레이 ── */}
+        {loadingExamResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl px-8 py-6 text-center">
+              <p className="text-slate-600 text-sm font-medium">불러오는 중...</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── 시험 결과 상세 모달 ── */}
+        {examResultModal && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-white overflow-y-auto sm:items-center sm:justify-center sm:bg-black/40 sm:px-4">
+            <div className="bg-white sm:rounded-2xl w-full sm:max-w-lg sm:max-h-[90vh] sm:overflow-y-auto">
+              {/* 헤더 */}
+              <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3 z-10">
+                <button onClick={() => setExamResultModal(null)} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20} /></button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 truncate">{examResultModal.title}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {examResultModal.isAbsent ? '결시' : examResultModal.myScore !== null ? `${examResultModal.myScore}점${examResultModal.maxScore ? ` / ${examResultModal.maxScore}점` : ''}` : '점수 없음'}
+                  </p>
+                </div>
+                <button onClick={() => setExamResultModal(null)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* 수동 시험 */}
+                {examResultModal.examType === 'manual' && (
+                  <div className="bg-slate-50 rounded-2xl p-5 text-center space-y-2">
+                    <p className="text-slate-500 text-sm">수동 입력 시험은 상세 결과가 없어요.</p>
+                    {examResultModal.myScore !== null && (
+                      <p className="text-2xl font-black text-blue-600">{examResultModal.myScore}점</p>
+                    )}
+                  </div>
+                )}
+
+                {/* 자동 채점 시험 — 정답 확인 불가 (never) */}
+                {examResultModal.examType === 'auto' && !examResultModal.canReveal && (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-2">
+                      <span className="text-amber-500 mt-0.5">🔒</span>
+                      <p className="text-xs text-amber-700">선생님이 정답 확인을 막아뒀어요. 맞힌 문제 수와 내 답만 확인할 수 있어요.</p>
+                    </div>
+                    {/* 요약 */}
+                    {(() => {
+                      const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
+                      const total = examResultModal.questions.length
+                      const wrong = examResultModal.myAnswers.filter(a => a.is_correct === false).length
+                      return (
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                            <p className="text-xl font-black text-emerald-600">{correct}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
+                          </div>
+                          <div className="bg-red-50 rounded-xl p-3 text-center">
+                            <p className="text-xl font-black text-red-500">{wrong}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-3 text-center">
+                            <p className="text-xl font-black text-slate-600">{total}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {/* 문제별 내 답 (정답 숨김) */}
+                    <div className="space-y-2">
+                      {examResultModal.questions.map((q) => {
+                        const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
+                        const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
+                        const isCorrect = myAns?.is_correct
+                        return (
+                          <div key={q.id} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xs font-bold ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
+                                {q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
+                              </span>
+                              <span className="text-xs text-slate-400 ml-auto">{q.score}점</span>
+                            </div>
+                            {q.question_text && <p className="text-xs text-slate-600 mb-2">{q.question_text}</p>}
+                            <p className="text-xs text-slate-500">
+                              내 답: <span className="font-semibold text-slate-700">
+                                {myAns?.student_answer
+                                  ? (q.question_type === 'multiple_choice'
+                                    ? `${myAns.student_answer}번 — ${choices[Number(myAns.student_answer) - 1]?.choice_text ?? ''}`
+                                    : myAns.student_answer)
+                                  : '미제출'}
+                              </span>
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* 자동 채점 시험 — 정답 공개 (after_close 또는 revealed) */}
+                {examResultModal.examType === 'auto' && examResultModal.canReveal && (
+                  <>
+                    {/* 요약 */}
+                    {(() => {
+                      const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
+                      const wrong = examResultModal.myAnswers.filter(a => a.is_correct === false).length
+                      const total = examResultModal.questions.length
+                      return (
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                            <p className="text-xl font-black text-emerald-600">{correct}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
+                          </div>
+                          <div className="bg-red-50 rounded-xl p-3 text-center">
+                            <p className="text-xl font-black text-red-500">{wrong}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-3 text-center">
+                            <p className="text-xl font-black text-slate-600">{total}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {/* 문제별 정오 + 정답 */}
+                    <div className="space-y-3">
+                      {examResultModal.questions.map((q) => {
+                        const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
+                        const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
+                        const correctList = examResultModal.correctAnswers.filter(c => c.question_id === q.id).sort((a, b) => a.order_num - b.order_num)
+                        const isCorrect = myAns?.is_correct
+                        return (
+                          <div key={q.id} className={`rounded-xl border p-4 space-y-2 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
+                                {q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
+                              </span>
+                              <span className="text-xs text-slate-400 ml-auto">{myAns?.score_earned ?? 0} / {q.score}점</span>
+                            </div>
+                            {q.question_text && <p className="text-sm text-slate-700">{q.question_text}</p>}
+                            {/* 객관식 선택지 */}
+                            {q.question_type === 'multiple_choice' && choices.length > 0 && (
+                              <div className="space-y-1 mt-1">
+                                {choices.map((c) => {
+                                  const isMyChoice = myAns?.student_answer === String(c.choice_num)
+                                  const isCorrectChoice = correctList.some(cr => cr.answer_text === String(c.choice_num))
+                                  return (
+                                    <div key={c.choice_num} className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isCorrectChoice ? 'bg-emerald-100 text-emerald-800 font-semibold' : isMyChoice ? 'bg-red-100 text-red-700' : 'text-slate-600'}`}>
+                                      <span className="w-4 text-center font-medium">{c.choice_num}.</span>
+                                      <span className="flex-1">{c.choice_text}</span>
+                                      {isCorrectChoice && <span className="text-emerald-600">✓ 정답</span>}
+                                      {isMyChoice && !isCorrectChoice && <span className="text-red-500">내 답</span>}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            {/* 주관식 */}
+                            {q.question_type === 'short_answer' && (
+                              <div className="space-y-1 text-xs">
+                                <p className="text-slate-500">내 답: <span className="font-semibold text-slate-700">{myAns?.student_answer ?? '미제출'}</span></p>
+                                <p className="text-emerald-700">정답: <span className="font-semibold">{correctList.map(c => c.answer_text).join(' / ')}</span></p>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ── 과제·클리닉 ── */}

@@ -19,7 +19,7 @@ type ExamItem = {
   start_at: string | null
   end_at: string | null
   status: 'scheduled' | 'active' | 'closed'
-  answer_reveal: 'immediate' | 'after_close'
+  answer_reveal: 'after_close' | 'never' | 'revealed'
   created_at: string
 }
 
@@ -125,7 +125,7 @@ function newWizardQ(): WizardQuestion {
     questionType: 'multiple_choice',
     questionText: '',
     score: '10',
-    choices: ['', '', '', ''],
+    choices: ['', '', '', '', ''],
     correctChoiceIdx: 0,
     saAnswers: [''],
   }
@@ -694,7 +694,7 @@ function GradesContent() {
   // Auto wizard
   const [autoTitle, setAutoTitle] = useState('')
   const [autoEnd, setAutoEnd] = useState<DateTimeVal>(emptyDT())
-  const [autoReveal, setAutoReveal] = useState<'immediate' | 'after_close'>('immediate')
+  const [autoReveal, setAutoReveal] = useState<'after_close' | 'never'>('after_close')
   const [wizardQs, setWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
   const [addingAuto, setAddingAuto] = useState(false)
 
@@ -868,7 +868,7 @@ function GradesContent() {
     if (res.ok) {
       setAddModal('none')
       setAutoTitle(''); setAutoEnd(emptyDT())
-      setAutoReveal('immediate'); setWizardQs([newWizardQ()])
+      setAutoReveal('after_close'); setWizardQs([newWizardQ()])
       await loadExams(selectedClass.id)
     }
     setAddingAuto(false)
@@ -918,6 +918,22 @@ function GradesContent() {
       await refreshSubmissions()
     }
     setClosing(false)
+  }
+
+  async function revealAnswers() {
+    if (!selectedExam) return
+    if (!confirm('정답을 공개할까요? 학생들이 성적 탭에서 정답을 확인할 수 있게 돼요.')) return
+    const token = await getToken()
+    if (!token) return
+    const res = await fetch(`/api/exams/${selectedExam.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'reveal_answers' }),
+    })
+    if (res.ok) {
+      setSelectedExam(prev => prev ? { ...prev, answer_reveal: 'revealed' } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, answer_reveal: 'revealed' } : e))
+    }
   }
 
   async function saveManualScores() {
@@ -1191,16 +1207,20 @@ function GradesContent() {
               </div>
               <DateTimePicker label="마감 시간 (선택)" value={autoEnd} onChange={setAutoEnd} />
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-2">정답 공개 시점</label>
+                <label className="block text-xs font-medium text-slate-600 mb-2">정답 공개 설정</label>
                 <div className="flex rounded-xl border border-slate-200 overflow-hidden">
-                  {([{ val: 'immediate', label: '즉시 공개' }, { val: 'after_close', label: '마감 이후' }] as const).map(({ val, label }) => (
+                  {([{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const).map(({ val, label }) => (
                     <button key={val} onClick={() => setAutoReveal(val)}
                       className={`flex-1 py-2.5 text-sm font-medium transition-colors ${autoReveal === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
                       {label}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-slate-400 mt-1.5">점수와 틀린 문항은 항상 공개돼요. 정답 내용 공개 시점을 설정해요.</p>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {autoReveal === 'after_close'
+                    ? '시험 마감 후 학생이 성적 탭에서 정답·오답을 확인할 수 있어요.'
+                    : '선생님이 직접 "정답 공개" 버튼을 누르기 전까지 학생은 정답을 볼 수 없어요.'}
+                </p>
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setAddModal('none')}
@@ -1312,6 +1332,15 @@ function GradesContent() {
             className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex-shrink-0">
             {closing ? '마감 중...' : selectedExam?.end_at ? '조기 마감' : '마감'}
           </button>
+        )}
+        {selectedExam?.exam_type === 'auto' && currentStatus === 'closed' && selectedExam.answer_reveal === 'never' && (
+          <button onClick={revealAnswers}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0">
+            정답 공개
+          </button>
+        )}
+        {selectedExam?.exam_type === 'auto' && currentStatus === 'closed' && selectedExam.answer_reveal === 'revealed' && (
+          <span className="px-3 py-1.5 bg-violet-50 text-violet-600 text-xs font-semibold rounded-xl flex-shrink-0">정답 공개됨</span>
         )}
       </div>
 

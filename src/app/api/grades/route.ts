@@ -324,7 +324,7 @@ export async function GET(req: NextRequest) {
     // 구시스템(tests) + 신시스템(exams) 병렬 조회
     const [{ data: tests }, { data: exams }] = await Promise.all([
       db.from('tests').select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true }),
-      db.from('exams').select('id, title, status, start_at, created_at').eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
+      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at').eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
     ])
 
     const records: Record<string, unknown>[] = []
@@ -409,15 +409,18 @@ export async function GET(req: NextRequest) {
         const dateStr = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
 
         records.push({
-          name:      exam.title,
-          date:      dateStr,
+          name:         exam.title,
+          date:         dateStr,
           maxScore,
           myScore,
-          myPct:     myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
-          avgScore:  avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
-          classHigh: arr.length > 0 ? Math.max(...arr) : null,
-          classLow:  arr.length > 0 ? Math.min(...arr) : null,
-          absent:    false,
+          myPct:        myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
+          avgScore:     avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+          classHigh:    arr.length > 0 ? Math.max(...arr) : null,
+          classLow:     arr.length > 0 ? Math.min(...arr) : null,
+          absent:       false,
+          examId:       exam.id,
+          examType:     exam.exam_type,
+          answerReveal: exam.answer_reveal,
         })
       }
     }
