@@ -819,6 +819,14 @@ function GradesContent() {
 
   async function addAutoExam() {
     if (!selectedClass) return
+
+    // 마감 시간이 설정된 경우 현재 시각보다 이후인지 확인
+    const endIso = dtValToISO(autoEnd)
+    if (endIso && new Date(endIso) <= new Date()) {
+      alert('마감 시간은 현재 시각 이후로 설정해 주세요.')
+      return
+    }
+
     setAddingAuto(true)
     const token = await getToken()
     if (!token) { setAddingAuto(false); return }

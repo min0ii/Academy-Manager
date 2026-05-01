@@ -62,6 +62,10 @@ export async function POST(req: NextRequest) {
   if (!classId || !title?.trim())
     return NextResponse.json({ error: '반과 시험 제목은 필수예요.' }, { status: 400 })
 
+  // 마감 시간이 현재보다 이전이면 거부
+  if (endAt && new Date(endAt) <= new Date())
+    return NextResponse.json({ error: '마감 시간은 현재 시각 이후로 설정해 주세요.' }, { status: 400 })
+
   // 시험 생성
   const { data: exam, error: examError } = await db.from('exams').insert({
     class_id: classId,
