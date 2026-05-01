@@ -934,6 +934,9 @@ function GradesContent() {
       setAutoTitle(''); setAutoEnd(emptyDT())
       setAutoReveal('after_close'); setWizardQs([newWizardQ()])
       await loadExams(selectedClass.id)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert('시험 생성 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
     setAddingAuto(false)
   }
