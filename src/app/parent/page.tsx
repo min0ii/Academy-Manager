@@ -592,21 +592,26 @@ export default function ParentPage() {
                 {chartData.length >= 2 && (
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                     <h2 className="font-bold text-slate-800 text-sm">성적 추이 (반 평균 비교)</h2>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={chartData} margin={{ top:5, right:5, bottom:20, left:-10 }} barCategoryGap="30%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis dataKey="label" tick={{ fontSize:9, fill:'#94a3b8' }} angle={-30} textAnchor="end" interval={0} />
-                        <YAxis domain={[0,100]} tick={{ fontSize:10, fill:'#94a3b8' }} unit="%" />
-                        <Tooltip formatter={(v, name) => [`${v}%`, name]} contentStyle={{ fontSize:12, borderRadius:8 }} />
-                        <Legend iconType="circle" wrapperStyle={{ fontSize:11, paddingTop:8 }} />
-                        <Bar dataKey="내점수" fill="#7c3aed" radius={[4,4,0,0]}>
-                          {chartData.map((entry, idx) => (
-                            <Cell key={idx} fill={entry.내점수 >= 80 ? '#10b981' : entry.내점수 >= 60 ? '#7c3aed' : '#ef4444'} />
-                          ))}
-                        </Bar>
-                        <Bar dataKey="반평균" fill="#94a3b8" radius={[4,4,0,0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <div className="overflow-x-auto -mx-1 px-1">
+                      <div style={{ width: Math.max(300, chartData.length * 72) }}>
+                        <BarChart width={Math.max(300, chartData.length * 72)} height={210} data={chartData} margin={{ top:5, right:8, bottom:28, left:-10 }} barCategoryGap="30%">
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="label" tick={{ fontSize:9, fill:'#94a3b8' }} angle={-35} textAnchor="end" interval={0} />
+                          <YAxis domain={[0,100]} tick={{ fontSize:10, fill:'#94a3b8' }} unit="%" />
+                          <Tooltip formatter={(v, name) => [`${v}%`, name]} contentStyle={{ fontSize:12, borderRadius:8 }} />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize:11, paddingTop:4 }} />
+                          <Bar dataKey="내점수" fill="#7c3aed" radius={[4,4,0,0]}>
+                            {chartData.map((entry, idx) => (
+                              <Cell key={idx} fill={entry.내점수 >= 80 ? '#10b981' : entry.내점수 >= 60 ? '#7c3aed' : '#ef4444'} />
+                            ))}
+                          </Bar>
+                          <Bar dataKey="반평균" fill="#94a3b8" radius={[4,4,0,0]} />
+                        </BarChart>
+                      </div>
+                    </div>
+                    {chartData.length > 5 && (
+                      <p className="text-xs text-slate-400 text-center">← 스크롤해서 전체 보기</p>
+                    )}
                   </div>
                 )}
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
