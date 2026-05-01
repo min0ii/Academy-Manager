@@ -32,21 +32,17 @@ export async function GET(req: NextRequest) {
   const classId = req.nextUrl.searchParams.get('classId')
   if (!classId) return NextResponse.json({ error: 'classId가 필요해요.' }, { status: 400 })
 
-  const now = new Date().toISOString()
-
-  // 자동채점 시험 중 시작됐고 아직 안 마감된 것 (status가 closed가 아니고, start_at <= now, end_at >= now)
+  // scheduled 또는 active 상태인 자동채점 시험 모두 반환 (시간 필터 없음)
   const { data: exams } = await db.from('exams')
     .select('id, title, exam_type, start_at, end_at, status, answer_reveal')
     .eq('class_id', classId)
     .eq('exam_type', 'auto')
-    .neq('status', 'closed')
-    .lte('start_at', now)
-    .gte('end_at', now)
-    .order('start_at')
+    .in('status', ['scheduled', 'active'])
+    .order('created_at')
 
   if (!exams?.length) return NextResponse.json({ exams: [] })
 
-  // 이미 제출한 시험 ID 조회
+  // 제출 여부 조회 (제출한 것도 목록에 포함, isSubmitted 플래그만 세움)
   const examIds = exams.map(e => e.id)
   const { data: submissions } = await db.from('exam_submissions')
     .select('exam_id, is_submitted')
@@ -59,6 +55,7 @@ export async function GET(req: NextRequest) {
   const result = exams.map(e => ({
     id: e.id,
     title: e.title,
+    status: e.status,
     start_at: e.start_at,
     end_at: e.end_at,
     answer_reveal: e.answer_reveal,

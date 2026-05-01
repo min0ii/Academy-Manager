@@ -91,6 +91,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
   const body = await req.json()
   const { action } = body
 
+  // ── 시험 시작 ──
+  if (action === 'start') {
+    const { data: exam } = await db.from('exams').select('status').eq('id', examId).single()
+    if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
+    if (exam.status !== 'scheduled') return NextResponse.json({ error: '이미 시작됐거나 마감된 시험이에요.' }, { status: 400 })
+    await db.from('exams').update({ status: 'active', start_at: new Date().toISOString() }).eq('id', examId)
+    return NextResponse.json({ success: true })
+  }
+
   // ── 조기 마감 (배치 최적화) ──
   if (action === 'close') {
     const { data: exam } = await db.from('exams').select('class_id, status').eq('id', examId).single()

@@ -97,11 +97,7 @@ function fmt(v: number | null): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1)
 }
 function examStatus(exam: ExamItem): 'scheduled' | 'active' | 'closed' {
-  if (exam.status === 'closed') return 'closed'
-  const now = new Date()
-  if (exam.start_at && new Date(exam.start_at) > now) return 'scheduled'
-  if (exam.end_at && new Date(exam.end_at) < now) return 'closed'
-  return 'active'
+  return exam.status
 }
 function statusLabel(s: 'scheduled' | 'active' | 'closed') {
   if (s === 'scheduled') return '예정'
@@ -697,7 +693,6 @@ function GradesContent() {
 
   // Auto wizard
   const [autoTitle, setAutoTitle] = useState('')
-  const [autoStart, setAutoStart] = useState<DateTimeVal>(emptyDT())
   const [autoEnd, setAutoEnd] = useState<DateTimeVal>(emptyDT())
   const [autoReveal, setAutoReveal] = useState<'immediate' | 'after_close'>('immediate')
   const [wizardQs, setWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
@@ -857,7 +852,6 @@ function GradesContent() {
         classId: selectedClass.id,
         title: autoTitle.trim(),
         examType: 'auto',
-        startAt: dtValToISO(autoStart),
         endAt: dtValToISO(autoEnd),
         answerReveal: autoReveal,
         questions,
@@ -865,7 +859,7 @@ function GradesContent() {
     })
     if (res.ok) {
       setAddModal('none')
-      setAutoTitle(''); setAutoStart(emptyDT()); setAutoEnd(emptyDT())
+      setAutoTitle(''); setAutoEnd(emptyDT())
       setAutoReveal('immediate'); setWizardQs([newWizardQ()])
       await loadExams(selectedClass.id)
     }
@@ -880,6 +874,23 @@ function GradesContent() {
     await fetch(`/api/exams/${examId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
     if (selectedExam?.id === examId) { setSelectedExam(null); setView('exams') }
     if (selectedClass) await loadExams(selectedClass.id)
+  }
+
+  async function startExam() {
+    if (!selectedExam) return
+    if (!confirm('시험을 시작할까요? 학생들이 바로 응시할 수 있게 돼요.')) return
+    const token = await getToken()
+    if (!token) return
+    const res = await fetch(`/api/exams/${selectedExam.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'start' }),
+    })
+    if (res.ok) {
+      const now = new Date().toISOString()
+      setSelectedExam(prev => prev ? { ...prev, status: 'active', start_at: now } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, status: 'active' } : e))
+    }
   }
 
   async function closeExam() {
@@ -1170,8 +1181,7 @@ function GradesContent() {
                   placeholder="예: 5월 모의고사" autoFocus
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
-              <DateTimePicker label="시작 시간" value={autoStart} onChange={setAutoStart} required />
-              <DateTimePicker label="종료 시간" value={autoEnd} onChange={setAutoEnd} required />
+              <DateTimePicker label="마감 시간 (선택)" value={autoEnd} onChange={setAutoEnd} />
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-2">정답 공개 시점</label>
                 <div className="flex rounded-xl border border-slate-200 overflow-hidden">
@@ -1188,8 +1198,8 @@ function GradesContent() {
                 <button onClick={() => setAddModal('none')}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={() => {
-                  if (!autoTitle.trim() || !dtValToISO(autoStart) || !dtValToISO(autoEnd)) {
-                    alert('시험 이름과 시작/종료 시간을 모두 입력해주세요.')
+                  if (!autoTitle.trim()) {
+                    alert('시험 이름을 입력해주세요.')
                     return
                   }
                   setAddModal('auto_2')
@@ -1275,10 +1285,16 @@ function GradesContent() {
               : selectedExam?.start_at ? formatDT(selectedExam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
           </p>
         </div>
-        {selectedExam?.exam_type === 'auto' && currentStatus !== 'closed' && (
+        {selectedExam?.exam_type === 'auto' && currentStatus === 'scheduled' && (
+          <button onClick={startExam}
+            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0">
+            시험 시작
+          </button>
+        )}
+        {selectedExam?.exam_type === 'auto' && currentStatus === 'active' && (
           <button onClick={closeExam} disabled={closing}
             className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex-shrink-0">
-            {closing ? '마감 중...' : '조기 마감'}
+            {closing ? '마감 중...' : selectedExam?.end_at ? '조기 마감' : '마감'}
           </button>
         )}
       </div>

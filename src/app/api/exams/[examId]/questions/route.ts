@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
 
   const now = new Date()
-  if (exam.start_at && new Date(exam.start_at) > now)
+  if (exam.status !== 'active' && exam.status !== 'closed')
     return NextResponse.json({ error: '아직 시작 전인 시험이에요.' }, { status: 403 })
 
   const { data: questions } = await db.from('exam_questions')

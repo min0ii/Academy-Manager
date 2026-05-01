@@ -35,8 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   const { data: exam } = await db.from('exams').select('start_at, end_at, status').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
 
-  const now = new Date()
-  if (exam.start_at && new Date(exam.start_at) > now)
+  if (exam.status === 'scheduled')
     return NextResponse.json({ error: '아직 시작 전인 시험이에요.' }, { status: 403 })
 
   // 제출 여부 확인
@@ -79,9 +78,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   // 마감 확인
   const { data: exam } = await db.from('exams').select('end_at, status').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
-  if (exam.status === 'closed') return NextResponse.json({ error: '마감된 시험이에요.' }, { status: 403 })
-  if (exam.end_at && new Date(exam.end_at) < new Date())
-    return NextResponse.json({ error: '마감 시간이 지났어요.' }, { status: 403 })
+  if (exam.status !== 'active')
+    return NextResponse.json({ error: '시험이 시작되지 않았거나 마감됐어요.' }, { status: 403 })
 
   // 이미 제출 확인
   const { data: existing } = await db.from('exam_submissions')

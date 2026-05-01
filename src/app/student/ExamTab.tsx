@@ -10,6 +10,7 @@ import {
 type AvailableExam = {
   id: string
   title: string
+  status: string   // 'scheduled' | 'active'
   start_at: string | null
   end_at: string | null
   answer_reveal: 'immediate' | 'after_close'
@@ -134,6 +135,7 @@ export default function ExamTab({
   const isExpired = secsLeft !== null && secsLeft <= 0
 
   async function openExam(exam: AvailableExam) {
+    if (exam.status === 'scheduled') return   // 준비중이면 아무것도 안 함
     setLoadingSolve(true)
     setView('solving')
     setStepIdx(0)
@@ -550,7 +552,7 @@ export default function ExamTab({
             <ClipboardList size={24} className="text-slate-400" />
           </div>
           <div>
-            <p className="font-semibold text-slate-700">현재 진행 중인 시험이 없어요</p>
+            <p className="font-semibold text-slate-700">출제된 시험이 없어요</p>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">선생님이 시험을 출제하면<br />이곳에 표시돼요</p>
           </div>
         </div>
@@ -558,27 +560,50 @@ export default function ExamTab({
         <div className="space-y-2">
           {examList.map(exam => {
             const endSecs = exam.end_at ? Math.max(0, Math.floor((new Date(exam.end_at).getTime() - Date.now()) / 1000)) : null
+            const isScheduled = exam.status === 'scheduled'
+            const isActive = exam.status === 'active'
+
+            let cardClass = 'bg-white rounded-2xl border border-slate-200 p-4 transition-all '
+            if (exam.isSubmitted) cardClass += 'opacity-60 cursor-default'
+            else if (isScheduled) cardClass += 'opacity-70 cursor-default'
+            else cardClass += 'hover:border-blue-300 hover:shadow-sm cursor-pointer'
+
+            let iconBg = 'bg-blue-100'
+            if (exam.isSubmitted) iconBg = 'bg-emerald-100'
+            else if (isScheduled) iconBg = 'bg-slate-100'
+
+            let iconEl = <ClipboardList size={18} className="text-blue-600" />
+            if (exam.isSubmitted) iconEl = <CheckCircle2 size={18} className="text-emerald-600" />
+            else if (isScheduled) iconEl = <ClipboardList size={18} className="text-slate-400" />
+
+            let dateText = ''
+            if (isScheduled) dateText = '시작 전'
+            else if (isActive && exam.end_at) dateText = `마감: ${fmtDT(exam.end_at)}`
+            else if (isActive) dateText = '진행중'
+
             return (
               <div key={exam.id}
-                onClick={() => !exam.isSubmitted && openExam(exam)}
-                className={`bg-white rounded-2xl border border-slate-200 p-4 transition-all ${exam.isSubmitted ? 'opacity-60 cursor-default' : 'hover:border-blue-300 hover:shadow-sm cursor-pointer'}`}>
+                onClick={() => !exam.isSubmitted && !isScheduled && openExam(exam)}
+                className={cardClass}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${exam.isSubmitted ? 'bg-emerald-100' : 'bg-blue-100'}`}>
-                    {exam.isSubmitted
-                      ? <CheckCircle2 size={18} className="text-emerald-600" />
-                      : <ClipboardList size={18} className="text-blue-600" />}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                    {iconEl}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 text-sm">{exam.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">마감: {fmtDT(exam.end_at)}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{dateText}</p>
                   </div>
                   {exam.isSubmitted ? (
                     <span className="text-xs bg-emerald-50 text-emerald-600 font-semibold px-2.5 py-1 rounded-full flex-shrink-0">제출완료</span>
+                  ) : isScheduled ? (
+                    <span className="text-xs bg-slate-100 text-slate-500 font-semibold px-2.5 py-1 rounded-full flex-shrink-0">준비중</span>
                   ) : endSecs !== null && endSecs <= 300 ? (
                     <span className="text-xs bg-red-50 text-red-500 font-semibold px-2.5 py-1 rounded-full flex-shrink-0 animate-pulse">{fmtCountdown(endSecs)}</span>
                   ) : endSecs !== null ? (
                     <span className="text-xs bg-blue-50 text-blue-600 font-mono font-bold px-2.5 py-1 rounded-full flex-shrink-0">{fmtCountdown(endSecs)}</span>
-                  ) : null}
+                  ) : (
+                    <span className="text-xs bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded-full flex-shrink-0">진행중</span>
+                  )}
                 </div>
               </div>
             )

@@ -62,15 +62,12 @@ export async function POST(req: NextRequest) {
   if (!classId || !title?.trim())
     return NextResponse.json({ error: '반과 시험 제목은 필수예요.' }, { status: 400 })
 
-  if (examType === 'auto' && (!startAt || !endAt))
-    return NextResponse.json({ error: '자동 채점 시험은 출제일과 마감일이 필요해요.' }, { status: 400 })
-
   // 시험 생성
   const { data: exam, error: examError } = await db.from('exams').insert({
     class_id: classId,
     title: title.trim(),
     exam_type: examType ?? 'manual',
-    start_at: startAt ?? null,
+    start_at: examType === 'auto' ? null : (startAt ?? null),
     end_at: endAt ?? null,
     status: examType === 'manual' ? 'closed' : 'scheduled',
     answer_reveal: answerReveal ?? 'immediate',
