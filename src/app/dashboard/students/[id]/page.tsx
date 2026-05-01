@@ -557,7 +557,7 @@ function StudentReportContent() {
                       </div>
                       <div className="py-3 text-center">
                         <p className="text-xl font-bold text-red-500">{hwNone}</p>
-                        <p className="text-xs text-slate-400">미제출</p>
+                        <p className="text-xs text-slate-400">미완료</p>
                       </div>
                     </div>
                     <div className="divide-y divide-slate-50">
@@ -572,7 +572,7 @@ function StudentReportContent() {
                           </div>
                           {h.status === 'partial' && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-600 ring-1 ring-teal-200 flex-shrink-0">오답(완벽) 완료</span>}
                           {h.status === 'done'    && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-100 text-green-700 flex-shrink-0">완료</span>}
-                          {h.status === 'none'    && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-100 text-red-600 flex-shrink-0">미제출</span>}
+                          {h.status === 'none'    && <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-100 text-red-600 flex-shrink-0">미완료</span>}
                           {!h.status && <span className="text-xs text-slate-300 flex-shrink-0">기록 없음</span>}
                         </div>
                       ))}
