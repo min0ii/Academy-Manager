@@ -427,20 +427,25 @@ function StudentReportContent() {
                   <p className="text-center py-8 text-slate-400 text-sm">시험 기록이 없어요</p>
                 ) : (
                   <div className="p-4">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={grades} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
-                        <Tooltip
-                          formatter={(value, name) => [`${value}%`, name]}
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                        />
-                        <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                        <Line type="monotone" dataKey="내점수" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
-                        <Line type="monotone" dataKey="반평균" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <div className="overflow-x-auto">
+                      <div style={{ width: Math.max(320, grades.length * 64) }}>
+                        <LineChart width={Math.max(320, grades.length * 64)} height={200} data={grades} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
+                          <Tooltip
+                            formatter={(value, name) => [`${value}%`, name]}
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                          />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                          <Line type="monotone" dataKey="내점수" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                          <Line type="monotone" dataKey="반평균" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls />
+                        </LineChart>
+                      </div>
+                    </div>
+                    {grades.length > 6 && (
+                      <p className="text-xs text-slate-400 text-center mt-2">← 스크롤해서 전체 보기</p>
+                    )}
                   </div>
                 )}
               </div>
