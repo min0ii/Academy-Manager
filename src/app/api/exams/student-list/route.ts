@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   // scheduled 또는 active 상태인 자동채점 시험 모두 반환 (시간 필터 없음)
   const { data: exams } = await db.from('exams')
-    .select('id, title, exam_type, start_at, end_at, status, answer_reveal')
+    .select('id, title, exam_type, start_at, end_at, status, answer_reveal, no_deadline')
     .eq('class_id', classId)
     .eq('exam_type', 'auto')
     .in('status', ['scheduled', 'active'])
@@ -42,25 +42,34 @@ export async function GET(req: NextRequest) {
 
   if (!exams?.length) return NextResponse.json({ exams: [] })
 
-  // 제출 여부 조회 (제출한 것도 목록에 포함, isSubmitted 플래그만 세움)
+  // 제출/포기 여부 조회
   const examIds = exams.map(e => e.id)
   const { data: submissions } = await db.from('exam_submissions')
-    .select('exam_id, is_submitted')
+    .select('exam_id, is_submitted, is_forfeited')
     .eq('student_id', info.studentId)
     .in('exam_id', examIds)
-    .eq('is_submitted', true)
 
-  const submittedSet = new Set((submissions ?? []).map(s => s.exam_id))
+  const submittedSet = new Set((submissions ?? []).filter(s => s.is_submitted && !s.is_forfeited).map(s => s.exam_id))
+  const forfeitedSet = new Set((submissions ?? []).filter(s => s.is_forfeited).map(s => s.exam_id))
 
-  const result = exams.map(e => ({
-    id: e.id,
-    title: e.title,
-    status: e.status,
-    start_at: e.start_at,
-    end_at: e.end_at,
-    answer_reveal: e.answer_reveal,
-    isSubmitted: submittedSet.has(e.id),
-  }))
+  const result = exams
+    .filter(e => {
+      // 마감없는 시험에서 이미 제출하거나 포기한 경우 목록에서 제외 (성적 탭에서 확인)
+      if (e.no_deadline && submittedSet.has(e.id)) return false
+      // 포기한 시험은 모든 시험 유형에서 제외
+      if (forfeitedSet.has(e.id)) return false
+      return true
+    })
+    .map(e => ({
+      id: e.id,
+      title: e.title,
+      status: e.status,
+      start_at: e.start_at,
+      end_at: e.end_at,
+      answer_reveal: e.answer_reveal,
+      no_deadline: e.no_deadline ?? false,
+      isSubmitted: submittedSet.has(e.id),
+    }))
 
   return NextResponse.json({ exams: result })
 }

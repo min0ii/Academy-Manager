@@ -14,6 +14,7 @@ type AvailableExam = {
   start_at: string | null
   end_at: string | null
   answer_reveal: 'immediate' | 'after_close'
+  no_deadline: boolean
   isSubmitted: boolean
 }
 
@@ -34,9 +35,18 @@ type ExamDetail = {
   answers: CorrectAnswer[]
 }
 
+type ClassStats = {
+  classCount: number
+  classAvg: number | null
+  classHigh: number | null
+  classLow: number | null
+}
+
 type SubmitResult = {
   totalScore: number
   maxScore: number
+  noDeadline?: boolean
+  classStats?: ClassStats | null
   answers: { questionId: string; studentAnswer: string | null; isCorrect: boolean; scoreEarned: number }[]
 }
 
@@ -92,7 +102,9 @@ export default function ExamTab({
 
   // Submit
   const [showSubmitModal, setShowSubmitModal] = useState(false)
+  const [showForfeitModal, setShowForfeitModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [forfeiting, setForfeiting] = useState(false)
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null)
 
   async function getToken() {
@@ -221,6 +233,23 @@ export default function ExamTab({
     setShowSubmitModal(false)
   }
 
+  async function forfeitExam() {
+    if (!examDetail) return
+    setForfeiting(true)
+    const token = await getToken()
+    if (!token) { setForfeiting(false); return }
+    await fetch(`/api/exams/${examDetail.exam.id}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'forfeit' }),
+    })
+    setForfeiting(false)
+    setShowForfeitModal(false)
+    setView('list')
+    if (timerRef.current) clearInterval(timerRef.current)
+    await loadExamList()
+  }
+
   // ── No class ──────────────────────────────────────────────────────────────
   if (!classId || !studentId) {
     return (
@@ -236,6 +265,7 @@ export default function ExamTab({
     const pct = submitResult.maxScore > 0
       ? Math.round((submitResult.totalScore / submitResult.maxScore) * 100) : 0
     const color = pct >= 80 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-red-500'
+    const cs = submitResult.classStats
 
     return (
       <div className="space-y-4">
@@ -250,6 +280,25 @@ export default function ExamTab({
             <p className="text-slate-400 text-sm mt-1">/ {submitResult.maxScore}점 ({pct}%)</p>
           </div>
         </div>
+
+        {/* 마감없는 시험: 실시간 반 통계 */}
+        {submitResult.noDeadline && cs && cs.classCount > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 mb-3">현재 반 통계 ({cs.classCount}명 제출)</p>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { label: '평균', val: cs.classAvg !== null ? cs.classAvg.toFixed(1) : '-' },
+                { label: '최고', val: cs.classHigh !== null ? String(cs.classHigh) : '-' },
+                { label: '최저', val: cs.classLow !== null ? String(cs.classLow) : '-' },
+              ].map(({ label, val }) => (
+                <div key={label}>
+                  <p className="text-xs text-slate-400">{label}</p>
+                  <p className="text-lg font-bold text-slate-800 mt-0.5">{val}<span className="text-xs font-normal text-slate-400">점</span></p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Per-question results */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -492,13 +541,48 @@ export default function ExamTab({
           </div>
         )}
 
-        {/* Submit button */}
+        {/* Submit / Forfeit buttons */}
         {!isExpired && (
-          <button onClick={() => setShowSubmitModal(true)}
-            className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-base">
-            <Send size={18} />
-            최종 제출하기
-          </button>
+          <div className="space-y-2">
+            <button onClick={() => setShowSubmitModal(true)}
+              className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-base">
+              <Send size={18} />
+              최종 제출하기
+            </button>
+            <button onClick={() => setShowForfeitModal(true)}
+              className="w-full py-2.5 text-slate-400 text-sm hover:text-orange-500 transition-colors">
+              시험 포기
+            </button>
+          </div>
+        )}
+
+        {/* Forfeit confirm modal */}
+        {showForfeitModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm">
+              <div className="flex items-center justify-between p-5 border-b border-slate-100">
+                <h2 className="font-bold text-slate-800">시험 포기</h2>
+                <button onClick={() => setShowForfeitModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="flex items-start gap-3 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
+                  <AlertTriangle size={18} className="text-orange-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-orange-700 leading-relaxed">
+                    포기하면 <strong>다시 응시할 수 없어요.</strong><br />
+                    선생님과 학부모 앱에 <strong>시험 포기</strong>로 표시돼요.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowForfeitModal(false)}
+                    className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50">취소</button>
+                  <button onClick={forfeitExam} disabled={forfeiting}
+                    className="flex-1 py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-50">
+                    {forfeiting ? '처리 중...' : '시험 포기'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Submit confirm modal */}

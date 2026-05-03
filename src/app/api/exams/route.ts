@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (!teacherId) return NextResponse.json({ error: '선생님 계정만 접근할 수 있어요.' }, { status: 403 })
 
   const body = await req.json()
-  const { classId, title, examType, startAt, endAt, answerReveal, questions, maxScore } = body
+  const { classId, title, examType, startAt, endAt, answerReveal, questions, maxScore, noDeadline } = body
 
   if (!classId || !title?.trim())
     return NextResponse.json({ error: '반과 시험 제목은 필수예요.' }, { status: 400 })
@@ -74,9 +74,10 @@ export async function POST(req: NextRequest) {
     start_at: examType === 'auto' ? null : (startAt ?? null),
     end_at: endAt ?? null,
     status: examType === 'manual' ? 'closed' : 'scheduled',
-    answer_reveal: answerReveal ?? 'immediate',
+    answer_reveal: answerReveal ?? 'after_close',
     created_by: teacherId,
     max_score: (examType === 'manual' && maxScore != null) ? Number(maxScore) : null,
+    no_deadline: examType === 'auto' ? (noDeadline ?? false) : false,
   }).select('id').single()
 
   if (examError || !exam)

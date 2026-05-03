@@ -30,6 +30,7 @@ type TestRecord = {
   name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
   avgScore: number | null; avgPct: number | null; classHigh: number | null; classLow: number | null; absent: boolean
+  isForfeited?: boolean; noDeadline?: boolean
 }
 type ClinicRecord = {
   id: string; clinic_name: string | null; date: string
@@ -626,10 +627,15 @@ export default function ParentPage() {
                         <div key={i} className="px-5 py-4">
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
+                                {t.noDeadline && <span className="text-xs bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-full flex-shrink-0">자유응시</span>}
+                              </div>
                               <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g,'. ')}{t.maxScore !== null ? ` · 만점 ${t.maxScore}점` : ''}</p>
                             </div>
-                            {t.absent ? (
+                            {t.isForfeited ? (
+                              <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded-lg flex-shrink-0 font-semibold">시험 포기</span>
+                            ) : t.absent ? (
                               <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
                             ) : t.myScore !== null ? (
                               <div className="text-right flex-shrink-0">

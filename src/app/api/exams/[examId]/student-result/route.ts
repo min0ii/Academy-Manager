@@ -49,12 +49,12 @@ export async function GET(
 
   // 시험 정보
   const { data: exam } = await db.from('exams')
-    .select('id, title, status, answer_reveal, exam_type, start_at, created_at, max_score')
+    .select('id, title, status, answer_reveal, exam_type, start_at, created_at, max_score, no_deadline')
     .eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
 
-  // 마감된 시험만 결과 조회 가능
-  if (exam.status !== 'closed')
+  // 마감없는 시험은 제출 완료 학생만 결과 조회 가능 / 일반 시험은 마감 후만 조회 가능
+  if (!exam.no_deadline && exam.status !== 'closed')
     return NextResponse.json({ error: '마감 후 결과를 확인할 수 있어요.' }, { status: 400 })
 
   // 수동 시험
@@ -121,14 +121,35 @@ export async function GET(
     ? (submission.adjusted_score ?? submission.auto_score)
     : null
 
+  // 마감없는 시험: 실시간 반 통계 포함
+  let classStats: { classAvg: number | null; classHigh: number | null; classLow: number | null; classCount: number } | null = null
+  if (exam.no_deadline) {
+    const { data: allSubs } = await db.from('exam_submissions')
+      .select('auto_score, adjusted_score')
+      .eq('exam_id', examId)
+      .eq('is_submitted', true)
+      .eq('is_forfeited', false)
+    const scores = (allSubs ?? [])
+      .map((s: any) => s.adjusted_score ?? s.auto_score)
+      .filter((s: any): s is number => s !== null)
+    classStats = {
+      classCount: scores.length,
+      classAvg: scores.length ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length * 10) / 10 : null,
+      classHigh: scores.length ? Math.max(...scores) : null,
+      classLow: scores.length ? Math.min(...scores) : null,
+    }
+  }
+
   return NextResponse.json({
     examType: 'auto',
+    noDeadline: exam.no_deadline ?? false,
     title: exam.title,
     maxScore,
     myScore,
     isAbsent: false,
     answerReveal: exam.answer_reveal,
     canReveal,
+    classStats,
     questions: questions ?? [],
     choices: choices ?? [],
     myAnswers: myAnswers ?? [],

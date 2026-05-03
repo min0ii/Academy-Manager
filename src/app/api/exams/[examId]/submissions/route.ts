@@ -46,10 +46,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   // 제출 현황
   const { data: submissions } = await db
     .from('exam_submissions')
-    .select('id, student_id, is_submitted, submitted_at, auto_score, adjusted_score')
+    .select('id, student_id, is_submitted, is_forfeited, submitted_at, auto_score, adjusted_score')
     .eq('exam_id', examId)
 
-  const subMap = new Map((submissions ?? []).map(s => [s.student_id, s]))
+  const subMap = new Map((submissions ?? []).map(s => [s.student_id, s as typeof s & { is_forfeited: boolean }]))
 
   // 문제별 답안 (자동 채점 시험)
   let questionAnswers: any[] = []
@@ -82,6 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
       studentName: student.name,
       submissionId: sub?.id ?? null,
       isSubmitted: sub?.is_submitted ?? false,
+      isForfeited: sub?.is_forfeited ?? false,
       isAbsent,
       submittedAt: sub?.submitted_at ?? null,
       autoScore: sub?.auto_score ?? null,

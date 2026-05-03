@@ -36,18 +36,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   if (!studentId) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
 
   const { examId } = await params
+  const body = await req.json().catch(() => ({}))
+  const action = body?.action  // 'forfeit' or undefined (= normal submit)
 
   // 시험 확인
-  const { data: exam } = await db.from('exams').select('end_at, status, exam_type').eq('id', examId).single()
+  const { data: exam } = await db.from('exams').select('end_at, status, exam_type, no_deadline').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
   if (exam.status === 'closed') return NextResponse.json({ error: '마감된 시험이에요.' }, { status: 403 })
   if (exam.end_at && new Date(exam.end_at) < new Date())
     return NextResponse.json({ error: '마감 시간이 지났어요.' }, { status: 403 })
 
-  // 이미 제출 확인
+  // 이미 제출/포기 확인
   const { data: existingSub } = await db.from('exam_submissions')
-    .select('id, is_submitted').eq('exam_id', examId).eq('student_id', studentId).maybeSingle()
+    .select('id, is_submitted, is_forfeited').eq('exam_id', examId).eq('student_id', studentId).maybeSingle()
   if (existingSub?.is_submitted) return NextResponse.json({ error: '이미 제출한 시험이에요.' }, { status: 403 })
+
+  // ── 시험 포기 처리 ──────────────────────────────────────────────────────────
+  if (action === 'forfeit') {
+    await db.from('exam_submissions').upsert({
+      exam_id: examId, student_id: studentId,
+      is_submitted: true, is_forfeited: true,
+      submitted_at: new Date().toISOString(),
+      auto_score: null, adjusted_score: null,
+    }, { onConflict: 'exam_id,student_id' })
+    return NextResponse.json({ success: true, forfeited: true })
+  }
 
   let submissionId = existingSub?.id
   if (!submissionId) {
@@ -107,11 +120,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     auto_score: totalScore,
   }).eq('id', submissionId)
 
-  // 결과 반환 (문제별 정오 + 득점)
+  const calcMaxScore = (questions ?? []).reduce((acc, q) => acc + Number(q.score), 0)
+
+  // 마감 없는 시험이면 실시간 반 통계 포함
+  let classStats: { classAvg: number | null; classHigh: number | null; classLow: number | null; classCount: number } | null = null
+  if (exam.no_deadline) {
+    const { data: allSubs } = await db.from('exam_submissions')
+      .select('auto_score, adjusted_score')
+      .eq('exam_id', examId)
+      .eq('is_submitted', true)
+      .eq('is_forfeited', false)
+    const scores = (allSubs ?? [])
+      .map(s => s.adjusted_score ?? s.auto_score)
+      .filter((s): s is number => s !== null)
+    classStats = {
+      classCount: scores.length,
+      classAvg: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : null,
+      classHigh: scores.length ? Math.max(...scores) : null,
+      classLow: scores.length ? Math.min(...scores) : null,
+    }
+  }
+
   return NextResponse.json({
     success: true,
+    noDeadline: exam.no_deadline ?? false,
     totalScore,
-    maxScore: (questions ?? []).reduce((acc, q) => acc + Number(q.score), 0),
+    maxScore: calcMaxScore,
+    classStats,
     answers: gradedAnswers.map(a => ({
       questionId: a.question_id,
       studentAnswer: a.student_answer,

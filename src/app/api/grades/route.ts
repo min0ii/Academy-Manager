@@ -323,10 +323,20 @@ export async function GET(req: NextRequest) {
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     // 구시스템(tests) + 신시스템(exams) 병렬 조회
-    const [{ data: tests }, { data: exams }] = await Promise.all([
+    // exams: 마감된 시험 OR 마감없는 시험(active 상태, 학생이 제출했을 경우 표시)
+    const [{ data: tests }, { data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
       db.from('tests').select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true }),
-      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score').eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
+      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline')
+        .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
+      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline')
+        .eq('class_id', classId).eq('no_deadline', true).eq('status', 'active').order('start_at', { ascending: true }),
     ])
+    // 중복 제거: 마감없는 시험이 closed 됐을 경우 closedExams에도 포함될 수 있으니 합쳐서 dedup
+    const closedIds = new Set((closedExams ?? []).map((e: any) => e.id))
+    const exams = [
+      ...(closedExams ?? []),
+      ...(noDeadlineExams ?? []).filter((e: any) => !closedIds.has(e.id)),
+    ] as any[]
 
     const records: Record<string, unknown>[] = []
 
@@ -372,10 +382,10 @@ export async function GET(req: NextRequest) {
       const examIds = exams.map(e => e.id)
 
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted')
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited')
           .eq('student_id', studentId).in('exam_id', examIds),
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score')
-          .eq('is_submitted', true).in('exam_id', examIds),
+          .eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
 
@@ -386,9 +396,9 @@ export async function GET(req: NextRequest) {
       }
 
       // 내 제출 맵
-      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean }> = {}
+      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean }> = {}
       for (const s of (mySubmissions ?? [])) {
-        mySubMap[s.exam_id] = { auto_score: s.auto_score, adjusted_score: s.adjusted_score, is_submitted: s.is_submitted }
+        mySubMap[s.exam_id] = { auto_score: s.auto_score, adjusted_score: s.adjusted_score, is_submitted: s.is_submitted, is_forfeited: s.is_forfeited ?? false }
       }
 
       // 시험별 전체 점수 목록 (평균·최고·최저용)
@@ -403,7 +413,11 @@ export async function GET(req: NextRequest) {
 
       for (const exam of exams) {
         const mySub   = mySubMap[exam.id]
-        const myScore = mySub?.is_submitted ? (mySub.adjusted_score ?? mySub.auto_score) : null
+        // 포기한 시험은 성적 표시 안 하고 별도 표시
+        const isForfeited = mySub?.is_forfeited ?? false
+        // 마감없는 시험은 제출한 경우만 표시 (미제출이면 exam tab에서 볼 수 있음)
+        if (exam.no_deadline && !mySub?.is_submitted) continue
+        const myScore = (mySub?.is_submitted && !isForfeited) ? (mySub.adjusted_score ?? mySub.auto_score) : null
         const maxScore = exam.max_score ?? maxScoreByExam[exam.id] ?? null
         const arr     = allScoresByExam[exam.id] ?? []
         const avgRaw  = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
@@ -420,6 +434,8 @@ export async function GET(req: NextRequest) {
           classHigh:    arr.length > 0 ? Math.max(...arr) : null,
           classLow:     arr.length > 0 ? Math.min(...arr) : null,
           absent:       false,
+          isForfeited,
+          noDeadline:   exam.no_deadline ?? false,
           examId:       exam.id,
           examType:     exam.exam_type,
           answerReveal: exam.answer_reveal,

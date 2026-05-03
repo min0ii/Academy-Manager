@@ -21,6 +21,7 @@ type ExamItem = {
   status: 'scheduled' | 'active' | 'closed'
   answer_reveal: 'after_close' | 'never' | 'revealed'
   created_at: string
+  no_deadline?: boolean
 }
 
 type ExamQuestion = {
@@ -43,6 +44,7 @@ type StudentSubmission = {
   studentName: string
   submissionId: string | null
   isSubmitted: boolean
+  isForfeited: boolean
   isAbsent: boolean
   submittedAt: string | null
   autoScore: number | null
@@ -602,7 +604,12 @@ function AutoMonitorView({
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {s.isSubmitted ? (
+                    {s.isForfeited ? (
+                      <div className="flex items-center gap-1.5 text-orange-400">
+                        <X size={16} />
+                        <span className="text-xs font-semibold">시험 포기</span>
+                      </div>
+                    ) : s.isSubmitted ? (
                       <>
                         <div className="text-right">
                           <p className="text-base font-bold text-slate-800">{fmt(s.finalScore)}</p>
@@ -782,8 +789,9 @@ function GradesContent() {
   // Close exam
   const [closing, setClosing] = useState(false)
 
-  // Add exam modal: 'none' | 'type_select' | 'manual' | 'auto_1' | 'auto_2'
-  const [addModal, setAddModal] = useState<'none' | 'type_select' | 'manual' | 'auto_1' | 'auto_2'>('none')
+  // Add exam modal: 'none' | 'type_select' | 'manual' | 'auto_deadline' | 'auto_1' | 'auto_2'
+  const [addModal, setAddModal] = useState<'none' | 'type_select' | 'manual' | 'auto_deadline' | 'auto_1' | 'auto_2'>('none')
+  const [autoNoDeadline, setAutoNoDeadline] = useState(false)
 
   // Manual form
   const [manualTitle, setManualTitle] = useState('')
@@ -976,15 +984,16 @@ function GradesContent() {
         classId: selectedClass.id,
         title: autoTitle.trim(),
         examType: 'auto',
-        endAt: dtValToISO(autoEnd),
+        endAt: autoNoDeadline ? null : dtValToISO(autoEnd),
         answerReveal: autoReveal,
+        noDeadline: autoNoDeadline,
         questions,
       }),
     })
     if (res.ok) {
       setAddModal('none')
       setAutoTitle(''); setAutoEnd(emptyDT())
-      setAutoReveal('after_close'); setWizardQs([newWizardQ()])
+      setAutoReveal('after_close'); setWizardQs([newWizardQ()]); setAutoNoDeadline(false)
       await loadExams(selectedClass.id)
     } else {
       const err = await res.json().catch(() => ({}))
@@ -1202,10 +1211,14 @@ function GradesContent() {
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 flex-shrink-0">
                       {exam.exam_type === 'auto' ? '자동채점' : '수동입력'}
                     </span>
+                    {exam.no_deadline && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium flex-shrink-0">마감없음</span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500">
                     {exam.exam_type === 'auto'
-                      ? (exam.end_at ? `${formatDT(exam.end_at)} 까지` : '')
+                      ? exam.no_deadline ? '자유 응시 · 마감 없음'
+                        : (exam.end_at ? `${formatDT(exam.end_at)} 까지` : '')
                       : exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
                   </p>
                 </div>
@@ -1241,7 +1254,7 @@ function GradesContent() {
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">종이 시험 등 선생님이 직접 점수를 입력하는 방식이에요</p>
                 </div>
               </button>
-              <button onClick={() => setAddModal('auto_1')}
+              <button onClick={() => setAddModal('auto_deadline')}
                 className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-blue-400 rounded-2xl transition-colors text-left">
                 <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <ClipboardList size={18} className="text-blue-600" />
@@ -1249,6 +1262,63 @@ function GradesContent() {
                 <div>
                   <p className="font-semibold text-slate-800">자동 채점</p>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">학생이 앱에서 직접 답을 입력하고 자동으로 채점되는 방식이에요</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Auto exam wizard: 마감 방식 선택 (1단계) ── */}
+      {addModal === 'auto_deadline' && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setAddModal('type_select')} className="text-slate-400 hover:text-slate-600">
+                  <ChevronLeft size={18} />
+                </button>
+                <div>
+                  <h2 className="font-bold text-slate-800">자동 채점 시험</h2>
+                  <p className="text-xs text-slate-400">1단계: 마감 방식 선택</p>
+                </div>
+              </div>
+              <button onClick={() => setAddModal('none')} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* 마감 있는 시험 */}
+              <button
+                onClick={() => { setAutoNoDeadline(false); setAddModal('auto_1') }}
+                className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-blue-400 rounded-2xl transition-colors text-left group">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
+                  <span className="text-lg">⏱️</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-800">마감 있는 시험</p>
+                  <ul className="mt-2 space-y-1">
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>마감 시간을 정하거나 선생님이 직접 마감 버튼을 눌러야 종료돼요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>마감 전까지 학생은 결과를 볼 수 없어요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>마감 후 모든 학생의 성적·정답을 한꺼번에 공개해요</li>
+                    <li className="text-xs text-slate-400 flex items-start gap-1.5 pt-1 border-t border-slate-100 mt-1"><span className="flex-shrink-0">📌</span>정해진 시간 안에 함께 보는 시험에 적합해요</li>
+                  </ul>
+                </div>
+              </button>
+
+              {/* 마감 없는 시험 */}
+              <button
+                onClick={() => { setAutoNoDeadline(true); setAddModal('auto_1') }}
+                className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-emerald-400 rounded-2xl transition-colors text-left group">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
+                  <span className="text-lg">🔓</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-800">마감 없는 시험</p>
+                  <ul className="mt-2 space-y-1">
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-emerald-500 mt-0.5 flex-shrink-0">•</span>제출하는 순간 바로 자신의 성적·오답을 확인할 수 있어요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-emerald-500 mt-0.5 flex-shrink-0">•</span>아직 안 본 학생은 언제든지 응시할 수 있어요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-emerald-500 mt-0.5 flex-shrink-0">•</span>제출한 학생들의 평균·최고·최저 점수가 실시간으로 보여요</li>
+                    <li className="text-xs text-slate-400 flex items-start gap-1.5 pt-1 border-t border-slate-100 mt-1"><span className="flex-shrink-0">📌</span>숙제 퀴즈, 자유롭게 응시하는 시험에 적합해요</li>
+                  </ul>
                 </div>
               </button>
             </div>
@@ -1309,10 +1379,10 @@ function GradesContent() {
           <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl">
               <div className="flex items-center gap-2">
-                <button onClick={() => setAddModal('type_select')} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={18} /></button>
+                <button onClick={() => setAddModal('auto_deadline')} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={18} /></button>
                 <div>
                   <h2 className="font-bold text-slate-800">자동 채점 시험</h2>
-                  <p className="text-xs text-slate-400">1단계: 기본 정보</p>
+                  <p className="text-xs text-slate-400">2단계: 기본 정보</p>
                 </div>
               </div>
               <button onClick={() => setAddModal('none')} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -1324,11 +1394,18 @@ function GradesContent() {
                   placeholder="예: 5월 모의고사" autoFocus
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
-              <DateTimePicker label="마감 시간 (선택)" value={autoEnd} onChange={setAutoEnd} />
+              {!autoNoDeadline && (
+                <DateTimePicker label="마감 시간 (선택)" value={autoEnd} onChange={setAutoEnd} />
+              )}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-2">정답 공개 설정</label>
+                <label className="block text-xs font-medium text-slate-600 mb-2">
+                  정답 공개 설정
+                </label>
                 <div className="flex rounded-xl border border-slate-200 overflow-hidden">
-                  {([{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const).map(({ val, label }) => (
+                  {(autoNoDeadline
+                    ? [{ val: 'after_close', label: '제출 즉시 공개' }, { val: 'never', label: '볼 수 없게' }] as const
+                    : [{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const
+                  ).map(({ val, label }) => (
                     <button key={val} onClick={() => setAutoReveal(val)}
                       className={`flex-1 py-2.5 text-sm font-medium transition-colors ${autoReveal === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
                       {label}
@@ -1336,7 +1413,11 @@ function GradesContent() {
                   ))}
                 </div>
                 <p className="text-xs text-slate-400 mt-1.5">
-                  {autoReveal === 'after_close'
+                  {autoNoDeadline
+                    ? autoReveal === 'after_close'
+                      ? '학생이 제출하면 즉시 성적 탭에서 정답·오답을 확인할 수 있어요.'
+                      : '학생은 점수만 볼 수 있고, 정답은 선생님이 직접 공개해야 해요.'
+                    : autoReveal === 'after_close'
                     ? '시험 마감 후 학생이 성적 탭에서 정답·오답을 확인할 수 있어요.'
                     : '선생님이 직접 "정답 공개" 버튼을 누르기 전까지 학생은 정답을 볼 수 없어요.'}
                 </p>
@@ -1369,7 +1450,7 @@ function GradesContent() {
                 <button onClick={() => setAddModal('auto_1')} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={18} /></button>
                 <div>
                   <h2 className="font-bold text-slate-800 text-sm truncate max-w-[200px]">{autoTitle}</h2>
-                  <p className="text-xs text-slate-400">2단계: 문제 설정</p>
+                  <p className="text-xs text-slate-400">3단계: 문제 설정</p>
                 </div>
               </div>
               <button onClick={() => setAddModal('none')} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
