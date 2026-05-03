@@ -442,8 +442,12 @@ export default function ClassDetailPage() {
       setClinicAttList(students.map(s => ({
         id: cAttMap[s.id]?.id ?? null, student_id: s.id, status: cAttMap[s.id]?.status ?? null,
       })))
-    } else {
+    } else if (clinicSchedules.some(s => s.day_of_week === dow)) {
+      // 정규 클리닉 요일: 세션 없어도 학생 목록 준비
       setClinicAttList(students.map(s => ({ id: null, student_id: s.id, status: null })))
+    } else {
+      // 정규 클리닉 아닌 날: 비워서 "클리닉 추가" 버튼 표시
+      setClinicAttList([])
     }
 
     setLoadingAtt(false)
@@ -615,7 +619,10 @@ export default function ClassDetailPage() {
     await supabase.from('clinic_attendance').delete().eq('clinic_session_id', selectedClinicSession.id)
     await supabase.from('clinic_sessions').delete().eq('id', selectedClinicSession.id)
     setSelectedClinicSession(null)
-    setClinicAttList(students.map(s => ({ id: null, student_id: s.id, status: null })))
+    const _dow = new Date(selectedDate! + 'T00:00:00').getDay()
+    setClinicAttList(clinicSchedules.some(s => s.day_of_week === _dow)
+      ? students.map(s => ({ id: null, student_id: s.id, status: null }))
+      : [])
     await loadMonthSessions()
   }
 
@@ -1579,54 +1586,63 @@ export default function ClassDetailPage() {
                         <div className="py-10 text-center text-slate-400 text-sm">클리닉 일에 열려요</div>
                       ) : (
                         <>
-                          {/* 클리닉 이름 표시 */}
-                          {(() => {
-                            const dow = new Date(selectedDate + 'T00:00:00').getDay()
-                            const cs  = clinicSchedules.find(s => s.day_of_week === dow)
-                            const title = selectedClinicSession?.name || cs?.name || `${DAYS[dow]}요일 클리닉`
-                            return (
-                              <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
-                                  <Activity size={13} className="text-violet-600" />
-                                </div>
-                                <p className="font-semibold text-slate-800 text-sm">{title}</p>
-                              </div>
-                            )
-                          })()}
                           {clinicAttList.length === 0 ? (
-                            <p className="text-center py-8 text-slate-400 text-sm">배정된 학생이 없어요</p>
+                            <div className="py-10 text-center space-y-3">
+                              <p className="text-slate-400 text-sm">정규 클리닉 일정이 아닌 날이에요</p>
+                              <button
+                                onClick={() => { setExtraClinicDate(selectedDate!); setExtraClinicForm({ name: '', start_time: '16:00', end_time: '18:00' }); setShowAddExtraClinic(true) }}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors mx-auto">
+                                <Plus size={14} /> 클리닉 추가
+                              </button>
+                            </div>
                           ) : (
-                        <div className="divide-y divide-slate-50">
-                          {clinicAttList.map(att => {
-                            const student = students.find(s => s.id === att.student_id)
-                            if (!student) return null
-                            return (
-                              <div key={att.student_id} className="flex items-center gap-3 px-4 py-3">
-                                <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                                  att.status === 'done' ? 'bg-green-100' : att.status === 'not_done' ? 'bg-red-100' : 'bg-slate-100'
-                                }`}>
-                                  <span className={`font-bold text-sm ${
-                                    att.status === 'done' ? 'text-green-600' : att.status === 'not_done' ? 'text-red-500' : 'text-slate-500'
-                                  }`}>{student.name[0]}</span>
+                          <>
+                            {/* 클리닉 이름 표시 */}
+                            {(() => {
+                              const dow = new Date(selectedDate + 'T00:00:00').getDay()
+                              const cs  = clinicSchedules.find(s => s.day_of_week === dow)
+                              const title = selectedClinicSession?.name || cs?.name || `${DAYS[dow]}요일 클리닉`
+                              return (
+                                <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+                                    <Activity size={13} className="text-violet-600" />
+                                  </div>
+                                  <p className="font-semibold text-slate-800 text-sm">{title}</p>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-slate-800 text-sm truncate">{student.name}</p>
-                                  <p className="text-xs text-slate-400">{student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}</p>
-                                </div>
-                                <div className="flex gap-1.5 flex-shrink-0">
-                                  <button onClick={() => markClinicAttendance(att.student_id, 'done')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                      att.status === 'done' ? 'bg-green-500 text-white border-green-500' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                                    }`}>완료</button>
-                                  <button onClick={() => markClinicAttendance(att.student_id, 'not_done')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                      att.status === 'not_done' ? 'bg-red-500 text-white border-red-500' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                                    }`}>미완료</button>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
+                              )
+                            })()}
+                            <div className="divide-y divide-slate-50">
+                              {clinicAttList.map(att => {
+                                const student = students.find(s => s.id === att.student_id)
+                                if (!student) return null
+                                return (
+                                  <div key={att.student_id} className="flex items-center gap-3 px-4 py-3">
+                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                                      att.status === 'done' ? 'bg-green-100' : att.status === 'not_done' ? 'bg-red-100' : 'bg-slate-100'
+                                    }`}>
+                                      <span className={`font-bold text-sm ${
+                                        att.status === 'done' ? 'text-green-600' : att.status === 'not_done' ? 'text-red-500' : 'text-slate-500'
+                                      }`}>{student.name[0]}</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium text-slate-800 text-sm truncate">{student.name}</p>
+                                      <p className="text-xs text-slate-400">{student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}</p>
+                                    </div>
+                                    <div className="flex gap-1.5 flex-shrink-0">
+                                      <button onClick={() => markClinicAttendance(att.student_id, 'done')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                          att.status === 'done' ? 'bg-green-500 text-white border-green-500' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}>완료</button>
+                                      <button onClick={() => markClinicAttendance(att.student_id, 'not_done')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                          att.status === 'not_done' ? 'bg-red-500 text-white border-red-500' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}>미완료</button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
                           )}
                         </>
                       )
