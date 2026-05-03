@@ -165,11 +165,13 @@ comments (id, student_id, teacher_id, date, content)
 parent_students (parent_id, student_id) — 학부모-학생 연결
 academy_teachers (academy_id, teacher_id) — 팀 선생님
 exams (id, class_id, title, exam_type 'auto'|'manual', status 'scheduled'|'active'|'closed',
-       answer_reveal 'after_close'|'never'|'revealed', start_at, end_at, max_score, created_at)
+       answer_reveal 'after_close'|'never'|'revealed', start_at, end_at, max_score, created_at,
+       no_deadline boolean DEFAULT false)
 exam_questions (id, exam_id, order_num, question_text, question_type 'multiple_choice'|'short_answer', score)
 exam_choices (id, question_id, choice_num, choice_text)
 exam_correct_answers (id, question_id, answer_text, order_num)
-exam_submissions (id, exam_id, student_id, is_submitted, submitted_at, auto_score, adjusted_score)
+exam_submissions (id, exam_id, student_id, is_submitted, submitted_at, auto_score, adjusted_score,
+                  is_forfeited boolean DEFAULT false)
 exam_student_answers (id, submission_id, question_id, student_answer, is_correct, score_earned, manually_overridden)
 ```
 
@@ -183,6 +185,19 @@ exam_student_answers (id, submission_id, question_id, student_answer, is_correct
 - 자동채점: `exam_questions.score` 합계 = 만점
 - 수동채점: `exams.max_score` = 만점
 - 통합 패턴: `exam.max_score ?? maxScoreByExam[exam.id] ?? null`
+
+### 마감 방식 (no_deadline)
+- `no_deadline=false` (기본): 마감 있는 시험 — status='closed' 이후 학생 결과 열람 가능
+- `no_deadline=true`: 마감 없는 시험 — 제출 즉시 결과+반 통계 열람, 미제출 학생은 계속 응시 가능
+  - 학생 앱: 제출 후 exam tab에서 사라지고 grades tab에서 결과 확인
+  - submit API 응답에 `classStats: { classAvg, classHigh, classLow, classCount }` 포함
+  - wizard: type_select → auto_deadline → auto_1 → auto_2
+
+### 시험 포기 (is_forfeited)
+- `exam_submissions.is_forfeited=true`: 시험 포기 상태
+- POST `/api/exams/[examId]/submit` with `{ action: 'forfeit' }` → 포기 처리
+- 선생님/학생/학부모 앱 모두 "시험 포기" 뱃지로 표시
+- 포기한 시험은 exam tab 목록에서 제외
 
 ### 클리닉 탭 동작
 - 정규 클리닉 요일 (clinic_schedules 매칭): 세션 없어도 학생 목록 자동 준비
