@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, Trash2, AlertTriangle,
   CheckCircle2, Circle, RefreshCw, ClipboardList, FileText,
@@ -755,6 +756,8 @@ function AutoMonitorView({
 
 function GradesContent() {
   const ctx = useAcademy()
+  const searchParams = useSearchParams()
+  const autoOpenDone = useRef(false)
 
   const [view, setView] = useState<'classes' | 'exams' | 'exam_detail'>('classes')
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null)
@@ -812,6 +815,25 @@ function GradesContent() {
   }
 
   useEffect(() => { if (ctx) loadClasses() }, [ctx])
+
+  // URL 파라미터로 직접 시험 상세 오픈 (캘린더에서 리다이렉트)
+  useEffect(() => {
+    const examId  = searchParams.get('examId')
+    const classId = searchParams.get('classId')
+    if (!examId || !classId || !ctx || autoOpenDone.current) return
+    autoOpenDone.current = true
+    ;(async () => {
+      const token = await getToken()
+      if (!token) return
+      const { data: cls } = await supabase.from('classes').select('id, name').eq('id', classId).single()
+      if (!cls) return
+      const res = await fetch(`/api/exams/${examId}`, { headers: { Authorization: `Bearer ${token}` } })
+      const json = await res.json()
+      if (!json.exam) return
+      setSelectedClass({ id: cls.id, name: cls.name, examCount: 0 })
+      await selectExam(json.exam as ExamItem)
+    })()
+  }, [searchParams, ctx])
 
   async function loadClasses() {
     if (!ctx) return

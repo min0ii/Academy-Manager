@@ -139,6 +139,7 @@ export default function ClassDetailPage() {
 
   // ── 시험
   const [dateTests, setDateTests] = useState<{ id: string; name: string; max_score: number }[]>([])
+  const [dayExams, setDayExams]   = useState<{ id: string; title: string; status: string; exam_type: string }[]>([])
 
   // ── 숙제
   const [dateHomeworks, setDateHomeworks]       = useState<Homework[]>([])
@@ -413,11 +414,21 @@ export default function ClassDetailPage() {
     else if (isClinicDay) setPanelTab('clinic')
     else setPanelTab('attendance')
 
-    const [{ data: testsOnDate }, { data: hwData }] = await Promise.all([
+    const nextDay = new Date(dateStr + 'T00:00:00')
+    nextDay.setDate(nextDay.getDate() + 1)
+    const nextDayStr = nextDay.toISOString().slice(0, 10)
+
+    const [{ data: testsOnDate }, { data: hwData }, { data: examsOnDate }] = await Promise.all([
       supabase.from('tests').select('id, name, max_score').eq('class_id', classId).eq('date', dateStr),
       supabase.from('homework').select('*').eq('class_id', classId).eq('assigned_date', dateStr).order('created_at'),
+      supabase.from('exams').select('id, title, status, exam_type')
+        .eq('class_id', classId)
+        .in('status', ['active', 'closed'])
+        .gte('start_at', dateStr + 'T00:00:00')
+        .lt('start_at', nextDayStr + 'T00:00:00'),
     ])
     setDateTests(testsOnDate ?? [])
+    setDayExams(examsOnDate ?? [])
     setDateHomeworks(hwData ?? [])
     setHomeworkStatuses({})
 
@@ -1389,12 +1400,12 @@ export default function ClassDetailPage() {
                             </div>
                           )}
 
-                          {dateTests.length > 0 && (
+                          {(dateTests.length > 0 || dayExams.length > 0) && (
                             <div className="px-4 py-3 border-b border-slate-100 space-y-1.5">
                               <p className="text-xs font-semibold text-slate-500 mb-2">이날 시험</p>
                               {dateTests.map(t => (
                                 <button key={t.id}
-                                  onClick={() => router.push(`/dashboard/grades?classId=${classId}&testId=${t.id}&from=${encodeURIComponent(`/dashboard/classes/${classId}?tab=calendar&date=${selectedDate}`)}`)}
+                                  onClick={() => router.push(`/dashboard/grades?classId=${classId}&testId=${t.id}`)}
                                   className="w-full flex items-center gap-3 p-2.5 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-colors text-left">
                                   <BarChart2 size={15} className="text-emerald-600 flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
@@ -1402,6 +1413,18 @@ export default function ClassDetailPage() {
                                     <p className="text-xs text-emerald-600">만점 {t.max_score}점</p>
                                   </div>
                                   <span className="text-xs text-emerald-600 flex-shrink-0">성적 보기 →</span>
+                                </button>
+                              ))}
+                              {dayExams.map(e => (
+                                <button key={e.id}
+                                  onClick={() => router.push(`/dashboard/grades?classId=${classId}&examId=${e.id}`)}
+                                  className="w-full flex items-center gap-3 p-2.5 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors text-left">
+                                  <BarChart2 size={15} className="text-blue-600 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-blue-800 truncate">{e.title}</p>
+                                    <p className="text-xs text-blue-500">{e.exam_type === 'auto' ? '자동채점' : '수동입력'} · {e.status === 'closed' ? '마감' : '진행중'}</p>
+                                  </div>
+                                  <span className="text-xs text-blue-600 flex-shrink-0">성적 보기 →</span>
                                 </button>
                               ))}
                             </div>
