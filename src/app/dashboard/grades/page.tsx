@@ -580,7 +580,7 @@ function AutoMonitorView({
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-700">제출 현황</p>
-          {status === 'closed' && Object.keys(editAdjusted).length > 0 && (
+          {(status === 'closed' || status === 'active') && Object.keys(editAdjusted).length > 0 && (
             <button onClick={onSaveAdj} disabled={savingAdj || adjSaved}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${adjSaved ? 'bg-emerald-100 text-emerald-700 cursor-default' : savingAdj ? 'bg-blue-600 text-white opacity-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
               {savingAdj ? '저장 중...' : adjSaved ? '저장됨 ✓' : '조정 점수 저장'}
@@ -615,7 +615,7 @@ function AutoMonitorView({
                           <p className="text-base font-bold text-slate-800">{fmt(s.finalScore)}</p>
                           <p className="text-xs text-slate-400">/ {maxScore}점</p>
                         </div>
-                        {status === 'closed' && s.submissionId && (
+                        {(status === 'closed' || status === 'active') && s.submissionId && s.isSubmitted && (
                           <div className="flex items-center gap-1">
                             <input type="number" value={adjVal}
                               onChange={e => { setAdjSaved(false); setEditAdjusted(prev => ({ ...prev, [s.studentId]: e.target.value })) }}
