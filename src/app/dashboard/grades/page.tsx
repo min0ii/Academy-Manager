@@ -126,7 +126,7 @@ function newWizardQ(): WizardQuestion {
     clientId: Math.random().toString(36).slice(2),
     questionType: 'multiple_choice',
     questionText: '',
-    score: '10',
+    score: '1',
     choices: ['', '', '', '', ''],
     correctChoiceIdx: 0,
     saAnswers: [''],
