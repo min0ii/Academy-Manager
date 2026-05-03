@@ -536,6 +536,7 @@ function AutoMonitorView({
 }) {
   const totalStudents = submissions.length
   const avgP = pct(avgScore, maxScore)
+  const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set())
 
   // Per-question wrong rate analysis
   const questionAnalysis = (examDetail?.questions ?? []).map(q => {
@@ -628,45 +629,65 @@ function AutoMonitorView({
                   </div>
                 </div>
 
-                {/* Per-question answer table */}
+                {/* 문항별 칩 + 자세히 보기 */}
                 {s.isSubmitted && s.answers.length > 0 && examDetail && (
-                  <div className="mt-2 pl-12 overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr>
-                          <th className="px-2 py-1.5 text-left font-semibold text-slate-400 bg-slate-50 rounded-l-lg w-10">문항</th>
-                          <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">제출</th>
-                          <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">정답</th>
-                          <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50 rounded-r-lg w-8">결과</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {examDetail.questions.map((q, qi) => {
-                          const ans = s.answers.find(a => a.question_id === q.id)
-                          const correctAns = examDetail.answers.find(a => a.question_id === q.id)
-                          const ok = ans?.is_correct
-                          return (
-                            <tr key={q.id} className="border-t border-slate-100">
-                              <td className="px-2 py-1.5 font-medium text-slate-500">{qi + 1}번</td>
-                              <td className={`px-2 py-1.5 text-center font-bold ${ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
-                                {ans?.student_answer ?? '—'}
-                              </td>
-                              <td className="px-2 py-1.5 text-center font-bold text-slate-700">
-                                {correctAns?.answer_text ?? '—'}
-                              </td>
-                              <td className="px-2 py-1.5 text-center font-bold">
-                                {ok === true
-                                  ? <span className="text-emerald-500">✓</span>
-                                  : ok === false
-                                  ? <span className="text-red-400">✗</span>
-                                  : <span className="text-slate-200">—</span>}
-                              </td>
-                            </tr>
-                          )
+                  <>
+                    <div className="mt-2 flex flex-wrap gap-1.5 pl-12">
+                      {examDetail.questions.map((q, qi) => {
+                        const ans = s.answers.find(a => a.question_id === q.id)
+                        const ok = ans?.is_correct
+                        return (
+                          <div key={q.id}
+                            title={`${qi + 1}번: ${ans?.student_answer ?? '미답'}`}
+                            className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-default ${ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
+                            {qi + 1}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="pl-12 mt-1.5">
+                      <button
+                        onClick={() => setExpandedStudents(prev => {
+                          const next = new Set(prev)
+                          next.has(s.studentId) ? next.delete(s.studentId) : next.add(s.studentId)
+                          return next
                         })}
-                      </tbody>
-                    </table>
-                  </div>
+                        className="text-xs text-slate-400 hover:text-blue-500 transition-colors">
+                        {expandedStudents.has(s.studentId) ? '접기 ▲' : '자세히 보기 ▼'}
+                      </button>
+                    </div>
+                    {expandedStudents.has(s.studentId) && (
+                      <div className="mt-1.5 pl-12 overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr>
+                              <th className="px-2 py-1.5 text-left font-semibold text-slate-400 bg-slate-50 rounded-l-lg w-10">문항</th>
+                              <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">제출</th>
+                              <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50 rounded-r-lg">정답</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {examDetail.questions.map((q, qi) => {
+                              const ans = s.answers.find(a => a.question_id === q.id)
+                              const correctAns = examDetail.answers.find(a => a.question_id === q.id)
+                              const ok = ans?.is_correct
+                              return (
+                                <tr key={q.id} className="border-t border-slate-100">
+                                  <td className="px-2 py-1.5 font-medium text-slate-500">{qi + 1}번</td>
+                                  <td className={`px-2 py-1.5 text-center font-bold ${ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                    {ans?.student_answer ?? '—'}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-center font-bold text-slate-700">
+                                    {correctAns?.answer_text ?? '—'}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )
