@@ -1104,6 +1104,7 @@ function GradesContent() {
     })
     setSavingAdj(false)
     setAdjSaved(true)
+    await refreshSubmissions()
   }
 
   function updateWizardQ(idx: number, updates: Partial<WizardQuestion>) {
