@@ -653,7 +653,7 @@ function AutoMonitorView({
                           return next
                         })}
                         className="text-xs text-slate-400 hover:text-blue-500 transition-colors">
-                        {expandedStudents.has(s.studentId) ? '접기 ▲' : '자세히 보기 ▼'}
+                        {expandedStudents.has(s.studentId) ? '접기' : '자세히 보기'}
                       </button>
                     </div>
                     {expandedStudents.has(s.studentId) && (
