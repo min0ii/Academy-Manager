@@ -604,7 +604,7 @@ function AutoMonitorView({
                     {s.isSubmitted ? (
                       <>
                         <div className="text-right">
-                          <p className={`text-base font-bold ${scoreColor(p)}`}>{fmt(s.finalScore)}</p>
+                          <p className="text-base font-bold text-slate-800">{fmt(s.finalScore)}</p>
                           <p className="text-xs text-slate-400">/ {maxScore}점</p>
                         </div>
                         {status === 'closed' && s.submissionId && (
@@ -628,20 +628,44 @@ function AutoMonitorView({
                   </div>
                 </div>
 
-                {/* Per-question color chips */}
+                {/* Per-question answer table */}
                 {s.isSubmitted && s.answers.length > 0 && examDetail && (
-                  <div className="mt-2 flex flex-wrap gap-1.5 pl-12">
-                    {examDetail.questions.map((q, qi) => {
-                      const ans = s.answers.find(a => a.question_id === q.id)
-                      const ok = ans?.is_correct
-                      return (
-                        <div key={q.id}
-                          title={`${qi + 1}번: ${ans?.student_answer ?? '미답'}`}
-                          className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-default ${ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
-                          {qi + 1}
-                        </div>
-                      )
-                    })}
+                  <div className="mt-2 pl-12 overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="px-2 py-1.5 text-left font-semibold text-slate-400 bg-slate-50 rounded-l-lg w-10">문항</th>
+                          <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">제출</th>
+                          <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">정답</th>
+                          <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50 rounded-r-lg w-8">결과</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {examDetail.questions.map((q, qi) => {
+                          const ans = s.answers.find(a => a.question_id === q.id)
+                          const correctAns = examDetail.answers.find(a => a.question_id === q.id)
+                          const ok = ans?.is_correct
+                          return (
+                            <tr key={q.id} className="border-t border-slate-100">
+                              <td className="px-2 py-1.5 font-medium text-slate-500">{qi + 1}번</td>
+                              <td className={`px-2 py-1.5 text-center font-bold ${ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                {ans?.student_answer ?? '—'}
+                              </td>
+                              <td className="px-2 py-1.5 text-center font-bold text-slate-700">
+                                {correctAns?.answer_text ?? '—'}
+                              </td>
+                              <td className="px-2 py-1.5 text-center font-bold">
+                                {ok === true
+                                  ? <span className="text-emerald-500">✓</span>
+                                  : ok === false
+                                  ? <span className="text-red-400">✗</span>
+                                  : <span className="text-slate-200">—</span>}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -657,12 +681,19 @@ function AutoMonitorView({
             <p className="text-sm font-semibold text-slate-700">문항별 오답률</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {questionAnalysis.map(({ question, total, correct, wrongRate }, qi) => {
+            {[...questionAnalysis]
+              .sort((a, b) => {
+                const wa = a.wrongRate ?? -1
+                const wb = b.wrongRate ?? -1
+                if (wb !== wa) return wb - wa
+                return a.question.order_num - b.question.order_num
+              })
+              .map(({ question, total, correct, wrongRate }) => {
               const wr = wrongRate ?? 0
               return (
                 <div key={question.id} className="px-4 py-3 flex items-center gap-3">
                   <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-sm font-bold flex items-center justify-center flex-shrink-0">
-                    {qi + 1}
+                    {question.order_num}
                   </span>
                   <div className="flex-1 min-w-0">
                     {question.question_text && (
