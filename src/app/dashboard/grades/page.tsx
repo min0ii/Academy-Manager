@@ -1550,7 +1550,7 @@ function GradesContent() {
             시험 시작
           </button>
         )}
-        {selectedExam?.exam_type === 'auto' && currentStatus === 'active' && (
+        {selectedExam?.exam_type === 'auto' && currentStatus === 'active' && !selectedExam?.no_deadline && (
           <button onClick={closeExam} disabled={closing}
             className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex-shrink-0">
             {closing ? '마감 중...' : selectedExam?.end_at ? '조기 마감' : '마감'}
