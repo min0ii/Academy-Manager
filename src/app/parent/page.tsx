@@ -354,6 +354,9 @@ export default function ParentPage() {
     내점수: Math.round((t.myScore! / t.maxScore!) * 100),
     반평균: t.avgScore !== null && t.maxScore ? Math.round((t.avgScore / t.maxScore) * 100) : null,
   }))
+  // 동일 이름 시험 탐지 (목록에서 구분 표시용)
+  const _allTestNames = tests.map(t => t.name)
+  const duplicateTestNames = new Set(_allTestNames.filter((n, i) => _allTestNames.indexOf(n) !== i))
 
   const hwStats = {
     total:   homeworks.length,
@@ -628,7 +631,9 @@ export default function ParentPage() {
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
+                                <p className="text-sm font-semibold text-slate-800 truncate" title={t.name}>
+                                  {duplicateTestNames.has(t.name) ? `${t.name} (${t.date.slice(5).replace('-', '/')})` : t.name}
+                                </p>
                                 {t.noDeadline && <span className="text-xs bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-full flex-shrink-0">자유응시</span>}
                               </div>
                               <p className="text-xs text-slate-400 mt-0.5">{t.date.replace(/-/g,'. ')}{t.maxScore !== null ? ` · 만점 ${t.maxScore}점` : ''}</p>

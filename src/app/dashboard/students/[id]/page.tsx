@@ -255,6 +255,10 @@ function StudentReportContent() {
   const clinicTotal = clinicData.length
   const clinicRate  = clinicTotal > 0 ? Math.round((clinicDone / clinicTotal) * 100) : null
 
+  // 동일 이름 시험 탐지 (목록에서 구분 표시용)
+  const _allGradeNames = gradeRecords.map(r => r.name)
+  const duplicateGradeNames = new Set(_allGradeNames.filter((n, i) => _allGradeNames.indexOf(n) !== i))
+
   if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
   if (!student) return null
 
@@ -450,7 +454,8 @@ function StudentReportContent() {
                       <div style={{ width: Math.max(320, grades.length * 64) }}>
                         <LineChart width={Math.max(320, grades.length * 64)} height={200} data={grades} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }}
+                            tickFormatter={(v: string) => v.length > 10 ? v.slice(0, 9) + '…' : v} />
                           <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
                           <Tooltip
                             formatter={(value, name) => [`${value}%`, name]}
@@ -486,7 +491,9 @@ function StudentReportContent() {
                       return (
                         <div key={i} className="flex items-center gap-3 px-4 py-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">{r.name}</p>
+                            <p className="text-sm font-semibold text-slate-800 truncate" title={r.name}>
+                              {duplicateGradeNames.has(r.name) ? `${r.name} (${r.date.slice(5).replace('-', '/')})` : r.name}
+                            </p>
                             <p className="text-xs text-slate-400 mt-0.5">{r.date}</p>
                           </div>
                           {r.absent ? (
