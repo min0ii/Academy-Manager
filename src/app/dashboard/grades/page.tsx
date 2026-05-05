@@ -313,10 +313,14 @@ function WizardQuestionCard({
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}>
                 {q.correctChoiceIdx === ci && <div className="w-2 h-2 rounded-full bg-white" />}
               </button>
-              <span className="text-xs text-slate-400 w-4 flex-shrink-0">{ci + 1}.</span>
-              <input type="text" value={text} onChange={e => updateChoice(ci, e.target.value)}
+              <span className="text-xs text-slate-400 w-4 flex-shrink-0 mt-1.5">{ci + 1}.</span>
+              <textarea value={text} onChange={e => updateChoice(ci, e.target.value)}
                 placeholder={`${ci + 1}번 선택지`}
-                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                rows={1}
+                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-hidden leading-relaxed"
+                style={{ height: 'auto' }}
+                onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px' }}
+              />
               {q.choices.length > 2 && (
                 <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={14} /></button>
               )}

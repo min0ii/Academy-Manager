@@ -428,17 +428,22 @@ export default function ExamTab({
                   </div>
 
                   {q.question_type === 'multiple_choice' ? (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {qChoices.map(c => (
-                        <button key={c.id}
-                          onClick={() => !isExpired && handleAnswer(q.id, String(c.choice_num), 'multiple_choice')}
-                          disabled={isExpired}
-                          className={`px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${currentAns === String(c.choice_num) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                          <span className="font-bold mr-1.5">{c.choice_num}.</span>
-                          {c.choice_text || `선택지 ${c.choice_num}`}
-                        </button>
-                      ))}
-                    </div>
+                    (() => {
+                      const isLong = qChoices.some(c => (c.choice_text ?? '').length > 8)
+                      return (
+                        <div className={`grid gap-2 ${isLong ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                          {qChoices.map(c => (
+                            <button key={c.id}
+                              onClick={() => !isExpired && handleAnswer(q.id, String(c.choice_num), 'multiple_choice')}
+                              disabled={isExpired}
+                              className={`px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${currentAns === String(c.choice_num) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
+                              <span className="font-bold mr-1.5">{c.choice_num}.</span>
+                              {c.choice_text || `선택지 ${c.choice_num}`}
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })()
                   ) : (
                     <input
                       type="text"
