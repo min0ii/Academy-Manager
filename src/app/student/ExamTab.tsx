@@ -21,6 +21,7 @@ type AvailableExam = {
 type Question = {
   id: string
   order_num: number
+  question_label?: string | null
   question_text: string | null
   question_type: 'multiple_choice' | 'short_answer'
   score: number
@@ -314,7 +315,7 @@ export default function ExamTab({
                 <div key={q.id} className="px-4 py-3">
                   <div className="flex items-start gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${r?.isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
-                      {idx + 1}
+                      {q.question_label ?? (idx + 1)}
                     </div>
                     <div className="flex-1 min-w-0">
                       {q.question_text && <p className="text-xs text-slate-500 mb-1">{q.question_text}</p>}
@@ -417,11 +418,11 @@ export default function ExamTab({
                 <div key={q.id} className="bg-white rounded-2xl border border-slate-200 p-4">
                   <div className="flex items-start gap-3 mb-3">
                     <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${currentAns ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      {idx + 1}
+                      {q.question_label ?? (idx + 1)}
                     </span>
                     <div className="flex-1">
                       {q.question_text && <p className="text-sm text-slate-700 leading-relaxed">{q.question_text}</p>}
-                      {!q.question_text && <p className="text-sm text-slate-400">{idx + 1}번 문제</p>}
+                      {!q.question_text && <p className="text-sm text-slate-400">{q.question_label ? `${q.question_label}번 문제` : `${idx + 1}번 문제`}</p>}
                     </div>
                     <span className="text-xs text-slate-400 flex-shrink-0">{q.score}점</span>
                   </div>
@@ -475,7 +476,7 @@ export default function ExamTab({
                     {q.question_text ? (
                       <p className="text-base text-slate-800 leading-relaxed font-medium">{q.question_text}</p>
                     ) : (
-                      <p className="text-base text-slate-800 font-medium">{stepIdx + 1}번 문제</p>
+                      <p className="text-base text-slate-800 font-medium">{q.question_label ? `${q.question_label}번 문제` : `${stepIdx + 1}번 문제`}</p>
                     )}
 
                     {q.question_type === 'multiple_choice' ? (

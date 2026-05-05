@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
         question_text: q.questionText ?? null,
         question_type: q.questionType, // 'multiple_choice' | 'short_answer'
         score: q.score,
+        question_label: q.label ?? null,
       }).select('id').single()
 
       if (qError || !question) continue

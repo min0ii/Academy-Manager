@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, Trash2, AlertTriangle,
-  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText,
+  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
@@ -28,6 +28,7 @@ type ExamItem = {
 type ExamQuestion = {
   id: string
   order_num: number
+  question_label: string | null
   question_text: string | null
   question_type: 'multiple_choice' | 'short_answer'
   score: number
@@ -75,6 +76,7 @@ type WizardQuestion = {
   choices: string[]
   correctChoiceIdx: number
   saAnswers: string[]
+  customLabel: string
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -131,6 +133,7 @@ function newWizardQ(): WizardQuestion {
     choices: ['', '', '', '', ''],
     correctChoiceIdx: 0,
     saAnswers: [''],
+    customLabel: '',
   }
 }
 
@@ -227,13 +230,14 @@ function DateTimePicker({ label, value, onChange, required }: {
 // ── WizardQuestionCard ──────────────────────────────────────────────────────
 
 function WizardQuestionCard({
-  q, idx, total, onChange, onRemove,
+  q, idx, total, onChange, onRemove, customLabels,
 }: {
   q: WizardQuestion
   idx: number
   total: number
   onChange: (u: Partial<WizardQuestion>) => void
   onRemove: () => void
+  customLabels?: boolean
 }) {
   function updateChoice(ci: number, val: string) {
     const next = [...q.choices]; next[ci] = val; onChange({ choices: next })
@@ -255,9 +259,19 @@ function WizardQuestionCard({
     <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
       {/* Header row */}
       <div className="flex items-center gap-2">
-        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
-          {idx + 1}
-        </span>
+        {customLabels ? (
+          <input
+            type="text"
+            value={q.customLabel}
+            onChange={e => onChange({ customLabel: e.target.value })}
+            placeholder="번호"
+            className="w-14 px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        ) : (
+          <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
+            {idx + 1}
+          </span>
+        )}
         <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
           {(['multiple_choice', 'short_answer'] as const).map((t, ti) => (
             <button key={t} onClick={() => onChange({ questionType: t })}
@@ -646,9 +660,9 @@ function AutoMonitorView({
                         const ok = ans?.is_correct
                         return (
                           <div key={q.id}
-                            title={`${qi + 1}번: ${ans?.student_answer ?? '미답'}`}
+                            title={`${q.question_label ?? (qi + 1)}번: ${ans?.student_answer ?? '미답'}`}
                             className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-default ${ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
-                            {qi + 1}
+                            {q.question_label ?? (qi + 1)}
                           </div>
                         )
                       })}
@@ -681,7 +695,7 @@ function AutoMonitorView({
                               const ok = ans?.is_correct
                               return (
                                 <tr key={q.id} className="border-t border-slate-100">
-                                  <td className="px-2 py-1.5 font-medium text-slate-500">{qi + 1}번</td>
+                                  <td className="px-2 py-1.5 font-medium text-slate-500">{q.question_label ? `${q.question_label}번` : `${qi + 1}번`}</td>
                                   <td className={`px-2 py-1.5 text-center font-bold ${ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
                                     {ans?.student_answer ?? '—'}
                                   </td>
@@ -722,7 +736,7 @@ function AutoMonitorView({
               return (
                 <div key={question.id} className="px-4 py-3 flex items-center gap-3">
                   <span className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 text-sm font-bold flex items-center justify-center flex-shrink-0">
-                    {question.order_num}
+                    {question.question_label ?? question.order_num}
                   </span>
                   <div className="flex-1 min-w-0">
                     {question.question_text && (
@@ -808,6 +822,24 @@ function GradesContent() {
   const [autoReveal, setAutoReveal] = useState<'after_close' | 'never'>('after_close')
   const [wizardQs, setWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
   const [addingAuto, setAddingAuto] = useState(false)
+
+  // Custom labels for wizard
+  const [wizardCustomLabels, setWizardCustomLabels] = useState(false)
+
+  // Edit exam modal (scheduled)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editStep, setEditStep] = useState<1 | 2>(1)
+  const [editTitle, setEditTitle] = useState('')
+  const [editEnd, setEditEnd] = useState<DateTimeVal>(emptyDT())
+  const [editReveal, setEditReveal] = useState<'after_close' | 'never'>('after_close')
+  const [editWizardQs, setEditWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
+  const [editCustomLabels, setEditCustomLabels] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  // Title-only edit (active/closed)
+  const [showTitleEdit, setShowTitleEdit] = useState(false)
+  const [editTitleInput, setEditTitleInput] = useState('')
+  const [savingTitle, setSavingTitle] = useState(false)
 
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -973,6 +1005,15 @@ function GradesContent() {
       }
     }
 
+    // 커스텀 번호 유효성 검사
+    if (wizardCustomLabels) {
+      const empty = wizardQs.findIndex(q => !q.customLabel.trim())
+      if (empty !== -1) {
+        alert(`⚠️ ${empty + 1}번째 문제의 번호를 입력해주세요.`)
+        return
+      }
+    }
+
     setAddingAuto(true)
     const token = await getToken()
     if (!token) { setAddingAuto(false); return }
@@ -982,6 +1023,7 @@ function GradesContent() {
       if (q.questionType === 'multiple_choice') {
         return {
           orderNum: idx + 1,
+          label: wizardCustomLabels ? q.customLabel.trim() : null,
           questionText: q.questionText.trim() || null,
           questionType: 'multiple_choice',
           score,
@@ -991,6 +1033,7 @@ function GradesContent() {
       }
       return {
         orderNum: idx + 1,
+        label: wizardCustomLabels ? q.customLabel.trim() : null,
         questionText: q.questionText.trim() || null,
         questionType: 'short_answer',
         score,
@@ -1016,6 +1059,7 @@ function GradesContent() {
       setAddModal('none')
       setAutoTitle(''); setAutoEnd(emptyDT())
       setAutoReveal('after_close'); setWizardQs([newWizardQ()]); setAutoNoDeadline(false)
+      setWizardCustomLabels(false)
       await loadExams(selectedClass.id)
     } else {
       const err = await res.json().catch(() => ({}))
@@ -1106,6 +1150,126 @@ function GradesContent() {
     })
     setSavingManual(false)
     if (res.ok) setManualSaved(true)
+  }
+
+  function openEditExam() {
+    if (!selectedExam || !examDetail) return
+    setEditTitle(selectedExam.title)
+    setEditReveal(selectedExam.answer_reveal === 'never' ? 'never' : 'after_close')
+    if (selectedExam.end_at) {
+      const d = new Date(selectedExam.end_at)
+      setEditEnd({
+        month: String(d.getMonth() + 1),
+        day: String(d.getDate()),
+        hour: String(d.getHours()),
+        minute: String(d.getMinutes()),
+      })
+    } else {
+      setEditEnd(emptyDT())
+    }
+    const qs: WizardQuestion[] = examDetail.questions.map(q => {
+      const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
+      const qAnswers = examDetail.answers.filter(a => a.question_id === q.id)
+      const correctChoiceIdx = q.question_type === 'multiple_choice'
+        ? Math.max(0, parseInt(qAnswers[0]?.answer_text ?? '1') - 1)
+        : 0
+      return {
+        clientId: q.id,
+        questionType: q.question_type,
+        questionText: q.question_text ?? '',
+        score: String(q.score),
+        choices: qChoices.length > 0 ? qChoices.map(c => c.choice_text ?? '') : ['', '', '', '', ''],
+        correctChoiceIdx,
+        saAnswers: q.question_type === 'short_answer' && qAnswers.length > 0 ? qAnswers.map(a => a.answer_text) : [''],
+        customLabel: q.question_label ?? '',
+      }
+    })
+    const hasCustom = qs.some(q => q.customLabel.trim() !== '')
+    setEditCustomLabels(hasCustom)
+    setEditWizardQs(qs.length > 0 ? qs : [newWizardQ()])
+    setEditStep(1)
+    setShowEditModal(true)
+  }
+
+  async function saveEditExam() {
+    if (!selectedExam) return
+    if (!editTitle.trim()) { alert('시험 이름을 입력해주세요.'); return }
+    if (editCustomLabels) {
+      const empty = editWizardQs.findIndex(q => !q.customLabel.trim())
+      if (empty !== -1) { alert(`⚠️ ${empty + 1}번째 문제의 번호를 입력해주세요.`); return }
+    }
+    setSavingEdit(true)
+    const token = await getToken()
+    if (!token) { setSavingEdit(false); return }
+
+    const endIso = dtValToISO(editEnd)
+    const endPartial = isDTValPartial(editEnd)
+    if (endPartial && !endIso) { alert('마감 시간의 월·일·시·분을 모두 입력해주세요.'); setSavingEdit(false); return }
+
+    const questions = editWizardQs.map((q, idx) => {
+      const score = parseFloat(q.score) || 0
+      if (q.questionType === 'multiple_choice') {
+        return {
+          orderNum: idx + 1,
+          label: editCustomLabels ? q.customLabel.trim() : null,
+          questionText: q.questionText.trim() || null,
+          questionType: 'multiple_choice',
+          score,
+          choices: q.choices.map((text, i) => ({ num: i + 1, text })),
+          answers: [String(q.correctChoiceIdx + 1)],
+        }
+      }
+      return {
+        orderNum: idx + 1,
+        label: editCustomLabels ? q.customLabel.trim() : null,
+        questionText: q.questionText.trim() || null,
+        questionType: 'short_answer',
+        score,
+        choices: [],
+        answers: q.saAnswers.filter(a => a.trim()),
+      }
+    })
+
+    const res = await fetch(`/api/exams/${selectedExam.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'update_scheduled',
+        title: editTitle.trim(),
+        endAt: endPartial ? endIso : null,
+        answerReveal: editReveal,
+        questions,
+      }),
+    })
+    setSavingEdit(false)
+    if (res.ok) {
+      setShowEditModal(false)
+      setSelectedExam(prev => prev ? { ...prev, title: editTitle.trim() } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, title: editTitle.trim() } : e))
+      // 상세 데이터 다시 로드
+      await selectExam({ ...selectedExam, title: editTitle.trim() })
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert('수정 실패: ' + (err.error ?? `HTTP ${res.status}`))
+    }
+  }
+
+  async function saveTitleOnly() {
+    if (!selectedExam || !editTitleInput.trim()) return
+    setSavingTitle(true)
+    const token = await getToken()
+    if (!token) { setSavingTitle(false); return }
+    const res = await fetch(`/api/exams/${selectedExam.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'update_title', title: editTitleInput.trim() }),
+    })
+    setSavingTitle(false)
+    if (res.ok) {
+      setSelectedExam(prev => prev ? { ...prev, title: editTitleInput.trim() } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, title: editTitleInput.trim() } : e))
+      setShowTitleEdit(false)
+    }
   }
 
   async function saveAdjustments() {
@@ -1481,6 +1645,7 @@ function GradesContent() {
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {wizardQs.map((q, idx) => (
                 <WizardQuestionCard key={q.clientId} q={q} idx={idx} total={wizardQs.length}
+                  customLabels={wizardCustomLabels}
                   onChange={updates => updateWizardQ(idx, updates)}
                   onRemove={() => setWizardQs(prev => prev.filter((_, i) => i !== idx))}
                 />
@@ -1497,6 +1662,12 @@ function GradesContent() {
                 </span>
                 <button onClick={distributeScore} className="text-xs text-blue-500 hover:text-blue-700 font-medium">배점 균등 분배</button>
               </div>
+              <button
+                onClick={() => setWizardCustomLabels(v => !v)}
+                className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-colors ${wizardCustomLabels ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                {wizardCustomLabels ? '✓ 번호 직접 입력 모드 ON' : '문제 번호 직접 입력'}
+              </button>
               <div className="flex gap-2">
                 <button onClick={() => setAddModal('none')}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
@@ -1523,7 +1694,32 @@ function GradesContent() {
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <h1 className="text-xl font-bold text-slate-800 truncate">{selectedExam?.title}</h1>
+            {showTitleEdit && (currentStatus === 'active' || currentStatus === 'closed') ? (
+              <div className="flex items-center gap-2">
+                <input
+                  value={editTitleInput}
+                  onChange={e => setEditTitleInput(e.target.value)}
+                  className="text-xl font-bold text-slate-800 border-b-2 border-blue-500 focus:outline-none bg-transparent min-w-0"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveTitleOnly(); if (e.key === 'Escape') setShowTitleEdit(false) }}
+                />
+                <button onClick={saveTitleOnly} disabled={savingTitle}
+                  className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-lg disabled:opacity-50">
+                  {savingTitle ? '...' : '저장'}
+                </button>
+                <button onClick={() => setShowTitleEdit(false)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-800 truncate">{selectedExam?.title}</h1>
+                {(currentStatus === 'active' || currentStatus === 'closed') && (
+                  <button onClick={() => { setEditTitleInput(selectedExam?.title ?? ''); setShowTitleEdit(true) }}
+                    className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+                    <Pencil size={14} />
+                  </button>
+                )}
+              </div>
+            )}
             {selectedExam?.exam_type === 'auto' && (
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors(currentStatus)}`}>
                 {statusLabel(currentStatus)}
@@ -1548,6 +1744,12 @@ function GradesContent() {
           <button onClick={startExam}
             className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0">
             시험 시작
+          </button>
+        )}
+        {selectedExam?.exam_type === 'auto' && currentStatus === 'scheduled' && (
+          <button onClick={openEditExam}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors flex-shrink-0">
+            수정
           </button>
         )}
         {selectedExam?.exam_type === 'auto' && currentStatus === 'active' && !selectedExam?.no_deadline && (
@@ -1598,6 +1800,108 @@ function GradesContent() {
           setAdjSaved={setAdjSaved}
           status={currentStatus}
         />
+      )}
+
+      {/* ── 시험 수정 모달 (scheduled) ── */}
+      {showEditModal && (
+        <>
+          {/* Step 1: 기본 정보 */}
+          {editStep === 1 && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl">
+                  <div>
+                    <h2 className="font-bold text-slate-800">시험 수정</h2>
+                    <p className="text-xs text-slate-400">1단계: 기본 정보</p>
+                  </div>
+                  <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">시험 이름 *</label>
+                    <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} autoFocus
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  </div>
+                  {!selectedExam?.no_deadline && (
+                    <DateTimePicker label="마감 시간 (선택)" value={editEnd} onChange={setEditEnd} />
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-2">정답 공개 설정</label>
+                    <div className="flex rounded-xl border border-slate-200 overflow-hidden">
+                      {(selectedExam?.no_deadline
+                        ? [{ val: 'after_close', label: '제출 즉시 공개' }, { val: 'never', label: '볼 수 없게' }] as const
+                        : [{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const
+                      ).map(({ val, label }) => (
+                        <button key={val} onClick={() => setEditReveal(val as 'after_close' | 'never')}
+                          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${editReveal === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setShowEditModal(false)}
+                      className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={() => { if (!editTitle.trim()) { alert('시험 이름을 입력해주세요.'); return }; setEditStep(2) }}
+                      className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+                      다음: 문제 수정 →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: 문제 편집 */}
+          {editStep === 2 && (
+            <div className="fixed inset-0 z-50 flex flex-col bg-white sm:items-center sm:justify-center sm:bg-black/40 sm:px-4">
+              <div className="bg-white sm:rounded-2xl w-full sm:max-w-2xl flex flex-col h-full sm:h-auto sm:max-h-[90vh]">
+                <div className="flex items-center justify-between p-5 border-b border-slate-100 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setEditStep(1)} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={18} /></button>
+                    <div>
+                      <h2 className="font-bold text-slate-800 text-sm truncate max-w-[200px]">{editTitle}</h2>
+                      <p className="text-xs text-slate-400">2단계: 문제 수정</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  {editWizardQs.map((q, idx) => (
+                    <WizardQuestionCard key={q.clientId} q={q} idx={idx} total={editWizardQs.length}
+                      customLabels={editCustomLabels}
+                      onChange={updates => setEditWizardQs(prev => prev.map((x, i) => i === idx ? { ...x, ...updates } : x))}
+                      onRemove={() => setEditWizardQs(prev => prev.filter((_, i) => i !== idx))}
+                    />
+                  ))}
+                  <button onClick={() => setEditWizardQs(prev => [...prev, newWizardQ()])}
+                    className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                    <Plus size={16} /> 문제 추가
+                  </button>
+                </div>
+                <div className="p-5 border-t border-slate-100 flex-shrink-0 space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">
+                      총 {editWizardQs.length}문제 · 총점 {editWizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0)}점
+                    </span>
+                    <button onClick={() => setEditCustomLabels(v => !v)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${editCustomLabels ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                      {editCustomLabels ? '✓ 번호 직접 입력' : '번호 직접 입력'}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowEditModal(false)}
+                      className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={saveEditExam} disabled={savingEdit}
+                      className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+                      {savingEdit ? '저장 중...' : '수정 완료'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

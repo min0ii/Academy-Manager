@@ -234,5 +234,65 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
     return NextResponse.json({ success: true })
   }
 
+  // ── 제목만 수정 (active/closed 포함 모든 상태 가능) ──
+  if (action === 'update_title') {
+    const { title } = body
+    if (!title?.trim()) return NextResponse.json({ error: '제목을 입력해주세요.' }, { status: 400 })
+    await db.from('exams').update({ title: title.trim() }).eq('id', examId)
+    return NextResponse.json({ success: true })
+  }
+
+  // ── scheduled 시험 전체 수정 ──
+  if (action === 'update_scheduled') {
+    const { data: examCheck } = await db.from('exams').select('status').eq('id', examId).single()
+    if (!examCheck || examCheck.status !== 'scheduled')
+      return NextResponse.json({ error: '예정 상태의 시험만 수정할 수 있어요.' }, { status: 400 })
+    const { title, endAt, answerReveal, questions: newQs } = body
+    await db.from('exams').update({
+      title: title?.trim() ?? undefined,
+      end_at: endAt ?? null,
+      answer_reveal: answerReveal ?? 'after_close',
+    }).eq('id', examId)
+    if (Array.isArray(newQs)) {
+      // 기존 questions id 수집 → choices/answers/questions 삭제
+      const { data: oldQs } = await db.from('exam_questions').select('id').eq('exam_id', examId)
+      const oldIds = (oldQs ?? []).map((q: { id: string }) => q.id)
+      if (oldIds.length > 0) {
+        await Promise.all([
+          db.from('exam_correct_answers').delete().in('question_id', oldIds),
+          db.from('exam_choices').delete().in('question_id', oldIds),
+        ])
+        await db.from('exam_questions').delete().in('id', oldIds)
+      }
+      // 새 questions 삽입
+      for (const q of newQs) {
+        const { data: question } = await db.from('exam_questions').insert({
+          exam_id: examId,
+          order_num: q.orderNum,
+          question_text: q.questionText ?? null,
+          question_type: q.questionType,
+          score: q.score,
+          question_label: q.label ?? null,
+        }).select('id').single()
+        if (!question) continue
+        if (q.questionType === 'multiple_choice' && q.choices?.length) {
+          await db.from('exam_choices').insert(
+            q.choices.map((c: { num: number; text: string }) => ({
+              question_id: question.id, choice_num: c.num, choice_text: c.text ?? null,
+            }))
+          )
+        }
+        if (q.answers?.length) {
+          await db.from('exam_correct_answers').insert(
+            q.answers.map((a: string, idx: number) => ({
+              question_id: question.id, answer_text: a, order_num: idx + 1,
+            }))
+          )
+        }
+      }
+    }
+    return NextResponse.json({ success: true })
+  }
+
   return NextResponse.json({ error: '알 수 없는 action이에요.' }, { status: 400 })
 }
