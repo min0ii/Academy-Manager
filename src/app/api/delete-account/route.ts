@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY 환경변수가 없어요.' }, { status: 500 })
   }
 
-  const supabaseAdmin = createClient(
+  const db = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
     const token = req.headers.get('Authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
-    const { data: { user: requester }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    const { data: { user: requester }, error: authError } = await db.auth.getUser(token)
     if (authError || !requester) return NextResponse.json({ error: '인증 오류.' }, { status: 401 })
 
     // 선생님 권한 확인
-    const { data: membership } = await supabaseAdmin
+    const { data: membership } = await db
       .from('academy_teachers')
       .select('academy_id, title')
       .eq('teacher_id', requester.id)
@@ -38,10 +38,10 @@ export async function POST(req: NextRequest) {
 
     if (studentIds.length === 0) return NextResponse.json({ error: '잘못된 요청이에요.' }, { status: 400 })
 
-    // 학원 소속 학생 한 번에 조회
-    const { data: studentRows } = await supabaseAdmin
+    // 학원 소속 학생 조회 (user_id 포함)
+    const { data: studentRows } = await db
       .from('students')
-      .select('id, name, phone, parent_phone')
+      .select('id, name, user_id')
       .in('id', studentIds)
       .eq('academy_id', membership.academy_id)
 
@@ -49,53 +49,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '학생을 찾을 수 없어요.' }, { status: 404 })
     }
 
-    // 삭제할 전화번호 목록 수집
-    const phonesToDelete: { digits: string; studentId: string; isStudent: boolean }[] = []
-    for (const student of studentRows) {
-      if (targetType === 'student' || targetType === 'both') {
-        if (student.phone) {
-          phonesToDelete.push({ digits: String(student.phone).replace(/\D/g, ''), studentId: student.id, isStudent: true })
-        }
+    const userIdsToDelete: string[] = []
+    const errors: string[] = []
+
+    // ── 학생 계정: students.user_id 직접 사용 ──
+    if (targetType === 'student' || targetType === 'both') {
+      for (const s of studentRows) {
+        if (s.user_id) userIdsToDelete.push(s.user_id)
       }
-      if (targetType === 'parent' || targetType === 'both') {
-        if (student.parent_phone) {
-          phonesToDelete.push({ digits: String(student.parent_phone).replace(/\D/g, ''), studentId: student.id, isStudent: false })
+    }
+
+    // ── 학부모 계정: parent_students 테이블에서 parent_id 조회 ──
+    if (targetType === 'parent' || targetType === 'both') {
+      const { data: parentLinks } = await db
+        .from('parent_students')
+        .select('parent_id')
+        .in('student_id', studentIds)
+
+      for (const link of (parentLinks ?? [])) {
+        if (link.parent_id && !userIdsToDelete.includes(link.parent_id)) {
+          userIdsToDelete.push(link.parent_id)
         }
       }
     }
 
-    // profiles 테이블에서 전화번호로 user id 한 번에 조회 (listUsers() 대신)
-    const allDigits = phonesToDelete.map(p => p.digits)
-    const { data: profileRows } = await supabaseAdmin
-      .from('profiles')
-      .select('id, phone')
-      .in('phone', allDigits)
-
-    const phoneToUserId = new Map((profileRows ?? []).map((p: any) => [p.phone, p.id]))
-
-    const errors: string[] = []
-
-    // 각 계정 삭제 — auth 삭제 + profiles 삭제 + user_id 초기화 병렬 처리
-    await Promise.all(phonesToDelete.map(async ({ digits, studentId, isStudent }) => {
-      const userId = phoneToUserId.get(digits)
-      if (!userId) return  // 이미 계정 없음
-
-      const student = studentRows.find(s => s.id === studentId)
-
+    // ── 계정 삭제 ──
+    await Promise.all(userIdsToDelete.map(async (userId) => {
       const [{ error: deleteError }] = await Promise.all([
-        supabaseAdmin.auth.admin.deleteUser(userId),
-        supabaseAdmin.from('profiles').delete().eq('id', userId),
-        // 학생 계정이면 students.user_id 초기화
-        ...(isStudent
-          ? [supabaseAdmin.from('students').update({ user_id: null }).eq('id', studentId)]
-          : []
-        ),
+        db.auth.admin.deleteUser(userId),
+        db.from('profiles').delete().eq('id', userId),
       ])
-
-      if (deleteError) {
-        errors.push(`${student?.name ?? ''} ${isStudent ? '' : '학부모'}: ${deleteError.message}`.trim())
-      }
+      if (deleteError) errors.push(deleteError.message)
     }))
+
+    // ── 학생 user_id 초기화 (학생 계정 삭제 시) ──
+    if (targetType === 'student' || targetType === 'both') {
+      await db.from('students').update({ user_id: null }).in('id', studentIds)
+    }
 
     return NextResponse.json({ success: true, errors })
   } catch {
