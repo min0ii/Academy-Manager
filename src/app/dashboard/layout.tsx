@@ -162,20 +162,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* 모바일 사이드바 오버레이 */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="fixed inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
-          <aside className="relative z-50 flex flex-col w-64 bg-white shadow-xl">
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X size={20} />
-            </button>
-            <Sidebar />
-          </aside>
-        </div>
-      )}
+      <div className={`lg:hidden fixed inset-0 z-40 flex transition-opacity duration-300 ${mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="fixed inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
+        <aside className={`relative z-50 flex flex-col w-64 bg-white shadow-xl transition-transform duration-300 ease-out ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+          >
+            <X size={20} />
+          </button>
+          <Sidebar />
+        </aside>
+      </div>
 
       {/* 메인 영역 */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

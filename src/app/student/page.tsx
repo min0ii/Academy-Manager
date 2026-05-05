@@ -408,7 +408,7 @@ export default function StudentPage() {
         </div>
       )}
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 pb-28 space-y-4">
+      <main key={tab} style={{ animation: 'tabFadeIn 0.18s ease-out' }} className="flex-1 max-w-lg mx-auto w-full px-4 py-5 pb-28 space-y-4">
 
         {/* ── 홈 ── */}
         {tab === 'home' && (
