@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signIn, getProfile, formatPhone } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -11,6 +12,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [checking, setChecking] = useState(true)
+
+  // 이미 로그인된 세션이 있으면 자동 리다이렉트
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setChecking(false); return }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if (profile?.role === 'teacher') router.replace('/dashboard')
+      else if (profile?.role === 'student') router.replace('/student')
+      else if (profile?.role === 'parent') router.replace('/parent')
+      else setChecking(false)
+    }
+    checkSession()
+  }, [router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -35,6 +51,13 @@ export default function LoginPage() {
     else if (profile.role === 'student') router.push('/student')
     else router.push('/parent')
   }
+
+  if (checking) return (
+    <div className="min-h-screen flex items-center justify-center"
+      style={{ background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #f0f9ff 100%)' }}>
+      <div className="w-8 h-8 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+    </div>
+  )
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4"
