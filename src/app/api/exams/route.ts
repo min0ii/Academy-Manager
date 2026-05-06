@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { data: exams, error } = await db
     .from('exams')
-    .select('id, title, exam_type, start_at, end_at, status, answer_reveal, created_at')
+    .select('id, title, exam_type, start_at, end_at, status, answer_reveal, created_at, no_deadline')
     .eq('class_id', classId)
     .order('created_at', { ascending: false })
 
