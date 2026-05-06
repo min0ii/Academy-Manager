@@ -534,7 +534,7 @@ export default function StudentPage() {
                       return (
                         <div key={i} className="flex flex-col items-center py-1.5 gap-1">
                           <span className={`text-xs font-medium leading-none ${isToday?'bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center':dow===0?'text-red-400':dow===6?'text-blue-400':'text-slate-700'}`}>{day}</span>
-                          {record && <span className={`w-1.5 h-1.5 rounded-full ${ATTEND_STYLE[record.status]?.dot ?? 'bg-slate-300'}`} />}
+                          <span className={`w-1.5 h-1.5 rounded-full ${record ? (ATTEND_STYLE[record.status]?.dot ?? 'bg-slate-300') : 'invisible'}`} />
                         </div>
                       )
                     })}
