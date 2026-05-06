@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ setI
   // 문항 목록
   const { data: questions } = await db
     .from('qb_questions')
-    .select('id, set_id, order_num, question_text, question_type, score')
+    .select('id, set_id, order_num, custom_label, question_text, question_type, score')
     .eq('set_id', setId)
     .order('order_num')
 
@@ -127,6 +127,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ setI
       .insert({
         set_id: setId,
         order_num: i + 1,
+        custom_label: q.custom_label ?? null,
         question_text: q.question_text ?? '',
         question_type: q.question_type ?? 'multiple_choice',
         score: q.score ?? 1,

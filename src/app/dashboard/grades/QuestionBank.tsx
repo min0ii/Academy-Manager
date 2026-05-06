@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Folder, FolderOpen, FileText, Plus, ChevronRight, ChevronLeft,
+  Folder, FileText, Plus, ChevronRight, ChevronLeft,
   Pencil, Trash2, X, Check, BookOpen, ArrowLeft, Save,
-  GraduationCap, ChevronDown,
+  GraduationCap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -17,6 +17,7 @@ type QBQuestion = {
   id?: string
   clientId: string
   order_num: number
+  customLabel: string        // 사용자 지정 번호 (빈 문자열 = 순서 번호)
   question_text: string
   question_type: 'multiple_choice' | 'short_answer'
   score: string
@@ -26,11 +27,13 @@ type QBQuestion = {
 }
 
 type ClassItem = { id: string; name: string }
+type BreadcrumbItem = { id: string | null; name: string }
 
 function newQ(order: number): QBQuestion {
   return {
     clientId: Math.random().toString(36).slice(2),
     order_num: order,
+    customLabel: '',
     question_text: '',
     question_type: 'multiple_choice',
     score: '1',
@@ -40,11 +43,12 @@ function newQ(order: number): QBQuestion {
   }
 }
 
-// ── Breadcrumb path tracker ────────────────────────────────────────────────
+// 문제의 표시 번호: customLabel이 있으면 그것, 없으면 순서 번호
+function displayLabel(q: QBQuestion, idx: number): string {
+  return q.customLabel.trim() || String(idx + 1)
+}
 
-type BreadcrumbItem = { id: string | null; name: string }
-
-// ── QuestionCard ───────────────────────────────────────────────────────────
+// ── QuestionCard ──────────────────────────────────────────────────────────
 
 function QuestionCard({
   q, idx, total, onChange, onRemove,
@@ -71,9 +75,15 @@ function QuestionCard({
     <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
-          {idx + 1}
-        </span>
+        {/* 편집 가능한 문제 번호 */}
+        <input
+          type="text"
+          value={q.customLabel}
+          onChange={e => onChange({ customLabel: e.target.value })}
+          placeholder={String(idx + 1)}
+          title="문제 번호 (클릭해서 수정)"
+          className="w-10 h-7 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold text-center border border-transparent hover:border-slate-300 focus:border-blue-400 focus:bg-white focus:outline-none placeholder:text-slate-400 transition-colors"
+        />
         <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
           {(['multiple_choice', 'short_answer'] as const).map((t, ti) => (
             <button key={t} onClick={() => onChange({ question_type: t })}
@@ -99,12 +109,12 @@ function QuestionCard({
       <textarea
         value={q.question_text}
         onChange={e => onChange({ question_text: e.target.value })}
-        placeholder={`${idx + 1}번 문제 내용`}
+        placeholder={`${displayLabel(q, idx)}번 문제 내용`}
         rows={2}
         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
       />
 
-      {/* Choices (MC) */}
+      {/* MC choices */}
       {q.question_type === 'multiple_choice' && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-slate-500">선택지 — 정답을 체크하세요</p>
@@ -114,8 +124,7 @@ function QuestionCard({
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
                 {q.correctChoiceIdx === ci && <span className="w-2 h-2 rounded-full bg-white" />}
               </button>
-              <span className="text-xs text-slate-400 w-4">①②③④⑤⑥⑦⑧⑨⑩'[ci]</span>
-              <span className="text-xs font-medium text-slate-500 w-4 flex-shrink-0">{ci + 1}</span>
+              <span className="text-xs font-semibold text-slate-500 w-4 flex-shrink-0 text-center">{ci + 1}</span>
               <input value={c} onChange={e => updateChoice(ci, e.target.value)}
                 placeholder={`선택지 ${ci + 1}`}
                 className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
@@ -162,41 +171,40 @@ function QuestionCard({
   )
 }
 
-// ── Main QuestionBank Component ─────────────────────────────────────────────
+// ── Main Component ──────────────────────────────────────────────────────────
 
-export default function QuestionBank({
-  onCreateExamFromBank,
-}: {
-  onCreateExamFromBank?: (questions: QBQuestion[], setTitle: string) => void
-}) {
+export default function QuestionBank() {
+  // 폴더 탐색
   const [folderId, setFolderId] = useState<string | null>(null)
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: '문제은행' }])
-
   const [folders, setFolders] = useState<QBFolder[]>([])
   const [sets, setSets] = useState<QBSet[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 세트 편집 상태
+  // 세트 편집
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
   const [editingSetTitle, setEditingSetTitle] = useState('')
   const [questions, setQuestions] = useState<QBQuestion[]>([newQ(1)])
   const [savingSet, setSavingSet] = useState(false)
   const [savedSet, setSavedSet] = useState(false)
 
-  // 이름 변경 인라인
+  // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renamingType, setRenamingType] = useState<'folder' | 'set' | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // 새 폴더/세트 생성 인라인
+  // 새 폴더/세트 생성
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingSet, setCreatingSet] = useState(false)
   const [newSetTitle, setNewSetTitle] = useState('')
   const [creating, setCreating] = useState(false)
 
-  // 반에 시험 생성 모달
+  // 시험 생성 모달 (2단계)
   const [showCreateExamModal, setShowCreateExamModal] = useState(false)
+  const [examModalStep, setExamModalStep] = useState<1 | 2>(1)
+  const [selectedQClientIds, setSelectedQClientIds] = useState<Set<string>>(new Set())
+  const [examNumbering, setExamNumbering] = useState<'original' | 'sequential'>('original')
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [loadingClasses, setLoadingClasses] = useState(false)
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
@@ -237,8 +245,6 @@ export default function QuestionBank({
     setEditingSetId(null)
   }
 
-  // ── 폴더 생성 ──────────────────────────────────────────────────────────
-
   async function createFolder() {
     if (!newFolderName.trim()) return
     setCreating(true)
@@ -253,12 +259,8 @@ export default function QuestionBank({
       const { folder } = await res.json()
       setFolders(prev => [...prev, folder].sort((a, b) => a.name.localeCompare(b.name)))
     }
-    setCreatingFolder(false)
-    setNewFolderName('')
-    setCreating(false)
+    setCreatingFolder(false); setNewFolderName(''); setCreating(false)
   }
-
-  // ── 세트 생성 ──────────────────────────────────────────────────────────
 
   async function createSet() {
     if (!newSetTitle.trim()) return
@@ -273,15 +275,10 @@ export default function QuestionBank({
     if (res.ok) {
       const { set } = await res.json()
       setSets(prev => [{ ...set, questionCount: 0 }, ...prev])
-      // 생성 후 바로 세트 편집 열기
       openEditSet({ ...set, questionCount: 0 })
     }
-    setCreatingSet(false)
-    setNewSetTitle('')
-    setCreating(false)
+    setCreatingSet(false); setNewSetTitle(''); setCreating(false)
   }
-
-  // ── 이름 변경 ──────────────────────────────────────────────────────────
 
   async function saveRename() {
     if (!renamingId || !renameValue.trim()) { setRenamingId(null); return }
@@ -302,12 +299,8 @@ export default function QuestionBank({
       })
       setSets(prev => prev.map(s => s.id === renamingId ? { ...s, title: renameValue.trim() } : s))
     }
-    setRenamingId(null)
-    setRenamingType(null)
-    setRenameValue('')
+    setRenamingId(null); setRenamingType(null); setRenameValue('')
   }
-
-  // ── 삭제 ──────────────────────────────────────────────────────────────
 
   async function deleteItem(type: 'folder' | 'set', id: string, name: string) {
     const msg = type === 'folder'
@@ -325,8 +318,6 @@ export default function QuestionBank({
     if (editingSetId === id) setEditingSetId(null)
   }
 
-  // ── 세트 편집 열기 ──────────────────────────────────────────────────────
-
   async function openEditSet(set: QBSet) {
     setEditingSetId(set.id)
     setEditingSetTitle(set.title)
@@ -340,6 +331,7 @@ export default function QuestionBank({
       id: q.id,
       clientId: Math.random().toString(36).slice(2),
       order_num: q.order_num,
+      customLabel: q.custom_label ?? '',
       question_text: q.question_text ?? '',
       question_type: q.question_type ?? 'multiple_choice',
       score: String(q.score ?? 1),
@@ -356,31 +348,29 @@ export default function QuestionBank({
     setQuestions(loaded.length > 0 ? loaded : [newQ(1)])
   }
 
-  // ── 세트 저장 ──────────────────────────────────────────────────────────
-
   async function saveSet() {
     if (!editingSetId) return
-    setSavingSet(true)
-    setSavedSet(false)
+    setSavingSet(true); setSavedSet(false)
     const token = await getToken()
     if (!token) { setSavingSet(false); return }
 
     const payload = questions.map((q, i) => {
+      const base = {
+        order_num: i + 1,
+        custom_label: q.customLabel.trim() || null,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        score: parseFloat(q.score) || 1,
+      }
       if (q.question_type === 'multiple_choice') {
         return {
-          order_num: i + 1,
-          question_text: q.question_text,
-          question_type: 'multiple_choice',
-          score: parseFloat(q.score) || 1,
+          ...base,
           choices: q.choices.map((c, ci) => ({ choice_num: ci + 1, choice_text: c })),
           answers: [{ answer_text: String(q.correctChoiceIdx + 1), order_num: 1 }],
         }
       }
       return {
-        order_num: i + 1,
-        question_text: q.question_text,
-        question_type: 'short_answer',
-        score: parseFloat(q.score) || 1,
+        ...base,
         choices: [],
         answers: q.saAnswers.filter(a => a.trim()).map((a, ai) => ({ answer_text: a, order_num: ai + 1 })),
       }
@@ -405,21 +395,20 @@ export default function QuestionBank({
     setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, ...updates } : q))
   }
 
-  // ── 반에 시험 생성 ──────────────────────────────────────────────────────
-
   async function openCreateExam() {
     if (!editingSetId) return
-    // 먼저 저장
-    if (!savedSet) {
-      await saveSet()
-    }
-    setShowCreateExamModal(true)
+    if (!savedSet) await saveSet()
+
+    // 전체 선택 초기화
+    setSelectedQClientIds(new Set(questions.map(q => q.clientId)))
+    setExamNumbering('original')
+    setExamModalStep(1)
     setExamTitle(editingSetTitle)
+    setSelectedClassId(null)
+    setShowCreateExamModal(true)
+
+    // 반 목록 로드
     setLoadingClasses(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) { setLoadingClasses(false); return }
-    // academy_id 조회
     const { data: m } = await supabase.auth.getUser()
     const userId = m.user?.id
     if (!userId) { setLoadingClasses(false); return }
@@ -433,51 +422,54 @@ export default function QuestionBank({
 
   async function doCreateExam() {
     if (!editingSetId || !selectedClassId || !examTitle.trim()) {
-      alert('반과 시험 이름을 입력해주세요.')
-      return
+      alert('반과 시험 이름을 입력해주세요.'); return
     }
+    const selectedQs = questions.filter(q => selectedQClientIds.has(q.clientId))
+    if (!selectedQs.length) { alert('문제를 1개 이상 선택해주세요.'); return }
+
     setCreatingExam(true)
     const token = await getToken()
     if (!token) { setCreatingExam(false); return }
 
-    // 문제은행 세트 문항 가져오기
-    const res = await fetch(`/api/question-bank/${editingSetId}`, { headers: { Authorization: `Bearer ${token}` } })
-    if (!res.ok) { alert('문제를 불러오지 못했어요.'); setCreatingExam(false); return }
-    const { questions: dbQs } = await res.json()
-
-    if (!dbQs?.length) { alert('세트에 문제가 없어요. 먼저 문제를 추가하고 저장해주세요.'); setCreatingExam(false); return }
-
-    // exam 생성 API 호출
     const examPayload = {
       classId: selectedClassId,
       title: examTitle.trim(),
       examType: 'auto',
       noDeadline: examNoDeadline,
       answerReveal: 'after_close',
-      questions: dbQs.map((q: any, i: number) => ({
-        orderNum: i + 1,
-        label: null,
-        questionText: q.question_text ?? '',
-        questionType: q.question_type,
-        score: q.score ?? 1,
-        choices: (q.choices ?? []).map((c: any) => ({ num: c.choice_num, text: c.choice_text ?? '' })),
-        answers: (q.answers ?? []).map((a: any) => a.answer_text),
-      })),
+      questions: selectedQs.map((q, i) => {
+        // 원래 번호 유지: customLabel이 있으면 그것, 없으면 은행에서의 순서 번호
+        const label = examNumbering === 'original'
+          ? (q.customLabel.trim() || String(questions.indexOf(q) + 1))
+          : null  // sequential: exam 내 1,2,3...
+        return {
+          orderNum: i + 1,
+          label,
+          questionText: q.question_text,
+          questionType: q.question_type,
+          score: parseFloat(q.score) || 1,
+          choices: q.question_type === 'multiple_choice'
+            ? q.choices.map((c, ci) => ({ num: ci + 1, text: c }))
+            : [],
+          answers: q.question_type === 'multiple_choice'
+            ? [String(q.correctChoiceIdx + 1)]
+            : q.saAnswers.filter(a => a.trim()),
+        }
+      }),
     }
 
-    const createRes = await fetch('/api/exams', {
+    const res = await fetch('/api/exams', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(examPayload),
     })
-
     setCreatingExam(false)
-    if (createRes.ok) {
+    if (res.ok) {
       setShowCreateExamModal(false)
-      alert(`✅ "${examTitle.trim()}" 시험이 생성됐어요!\n시험 생성 탭에서 반을 선택해 확인해보세요.`)
+      alert(`✅ "${examTitle.trim()}" 시험이 생성됐어요!\n시험 생성 탭 → 반별 시험에서 확인해보세요.`)
     } else {
-      const err = await createRes.json().catch(() => ({}))
-      alert('시험 생성 실패: ' + (err.error ?? `HTTP ${createRes.status}`))
+      const err = await res.json().catch(() => ({}))
+      alert('시험 생성 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
   }
 
@@ -486,126 +478,207 @@ export default function QuestionBank({
   if (editingSetId) {
     const totalScore = questions.reduce((acc, q) => acc + (parseFloat(q.score) || 0), 0)
     return (
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
+      <div className="space-y-4 pb-6">
+        {/* 헤더: 뒤로가기 / 제목 / 저장 / 시험생성 */}
+        <div className="flex items-center gap-2">
           <button onClick={() => setEditingSetId(null)}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0">
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
             <input
               value={editingSetTitle}
               onChange={e => setEditingSetTitle(e.target.value)}
-              className="text-xl font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full transition-colors"
+              className="text-lg font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full transition-colors"
             />
-            <p className="text-xs text-slate-400 mt-0.5">{questions.length}문제 · 총 {totalScore}점</p>
+            <p className="text-xs text-slate-400">{questions.length}문제 · 총 {totalScore}점</p>
           </div>
-          <button onClick={openCreateExam}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors flex-shrink-0">
-            <GraduationCap size={15} /> 시험 생성
-          </button>
           <button onClick={saveSet} disabled={savingSet}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors flex-shrink-0 ${savedSet ? 'bg-emerald-100 text-emerald-700 cursor-default' : savingSet ? 'bg-blue-600 text-white opacity-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-            <Save size={15} />
-            {savingSet ? '저장 중...' : savedSet ? '저장됨 ✓' : '저장'}
+            className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-xl transition-colors flex-shrink-0 ${savedSet ? 'bg-emerald-100 text-emerald-700' : savingSet ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+            <Save size={14} />
+            {savingSet ? '저장 중' : savedSet ? '저장됨 ✓' : '저장'}
+          </button>
+          <button onClick={openCreateExam}
+            className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors flex-shrink-0">
+            <GraduationCap size={14} /> 시험 생성
           </button>
         </div>
 
-        {/* Question list */}
+        {/* 번호 수정 안내 */}
+        <p className="text-xs text-slate-400 bg-slate-50 rounded-xl px-3 py-2">
+          💡 문제 왼쪽의 회색 번호 칸을 클릭하면 번호를 바꿀 수 있어요 (예: 3-1, A, ★)
+        </p>
+
+        {/* 문제 목록 */}
         <div className="space-y-3">
           {questions.map((q, i) => (
             <QuestionCard key={q.clientId} q={q} idx={i} total={questions.length}
               onChange={u => updateQ(i, u)}
-              onRemove={() => {
-                setSavedSet(false)
-                setQuestions(prev => prev.filter((_, pi) => pi !== i))
-              }}
+              onRemove={() => { setSavedSet(false); setQuestions(prev => prev.filter((_, pi) => pi !== i)) }}
             />
           ))}
         </div>
 
-        {/* Add question */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setSavedSet(false); setQuestions(prev => [...prev, newQ(prev.length + 1)]) }}
-            className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 rounded-2xl text-sm font-medium transition-colors">
-            <Plus size={16} /> 문제 추가
-          </button>
-        </div>
+        {/* 문제 추가 버튼 */}
+        <button
+          onClick={() => { setSavedSet(false); setQuestions(prev => [...prev, newQ(prev.length + 1)]) }}
+          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 rounded-2xl text-sm font-medium transition-colors">
+          <Plus size={16} /> 문제 추가
+        </button>
 
-        {/* Bottom save bar */}
-        <div className="sticky bottom-0 bg-white border-t border-slate-100 pt-3 pb-1 flex gap-2">
-          <button onClick={saveSet} disabled={savingSet}
-            className={`flex-1 py-3 text-sm font-semibold rounded-xl transition-colors ${savedSet ? 'bg-emerald-100 text-emerald-700 cursor-default' : savingSet ? 'bg-blue-600 text-white opacity-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-            {savingSet ? '저장 중...' : savedSet ? '저장됨 ✓' : '저장하기'}
-          </button>
-          <button onClick={openCreateExam}
-            className="px-5 py-3 text-sm font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-            시험 생성
-          </button>
-        </div>
-
-        {/* Create Exam Modal */}
+        {/* ── 시험 생성 모달 ───────────────────────────────────────────── */}
         {showCreateExamModal && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+
+              {/* 모달 헤더 */}
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-800">반에 시험 생성</h2>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">
+                    {examModalStep === 1 ? '출제할 문제 선택' : '시험 설정'}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {examModalStep === 1
+                      ? `${selectedQClientIds.size} / ${questions.length}문제 선택됨`
+                      : '반과 시험 정보를 입력해주세요'}
+                  </p>
+                </div>
                 <button onClick={() => setShowCreateExamModal(false)} className="text-slate-400 hover:text-slate-600">
                   <X size={20} />
                 </button>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">시험 이름</label>
-                <input value={examTitle} onChange={e => setExamTitle(e.target.value)}
-                  placeholder="시험 이름"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">반 선택</label>
-                {loadingClasses ? (
-                  <p className="text-sm text-slate-400 py-2">불러오는 중...</p>
-                ) : classes.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-2">반이 없어요</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {classes.map(c => (
-                      <button key={c.id} onClick={() => setSelectedClassId(c.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors text-left ${selectedClassId === c.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedClassId === c.id ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                          {c.name[0]}
-                        </div>
-                        {c.name}
-                        {selectedClassId === c.id && <Check size={14} className="ml-auto text-blue-500" />}
-                      </button>
-                    ))}
+              {/* ── STEP 1: 문제 선택 ── */}
+              {examModalStep === 1 && (
+                <>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setSelectedQClientIds(new Set(questions.map(q => q.clientId)))}
+                      className="text-xs text-blue-600 font-semibold hover:underline">전체 선택</button>
+                    <span className="text-slate-200">|</span>
+                    <button onClick={() => setSelectedQClientIds(new Set())}
+                      className="text-xs text-slate-400 font-medium hover:underline">전체 해제</button>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">마감 방식</label>
-                <div className="flex rounded-xl border border-slate-200 overflow-hidden">
-                  {[
-                    { val: true, label: '마감 없음', desc: '제출 즉시 결과 확인' },
-                    { val: false, label: '마감 있음', desc: '마감 후 결과 공개' },
-                  ].map(({ val, label, desc }) => (
-                    <button key={String(val)} onClick={() => setExamNoDeadline(val)}
-                      className={`flex-1 py-2.5 px-3 text-left transition-colors ${examNoDeadline === val ? 'bg-blue-50 border-r border-blue-200 last:border-r-0' : 'hover:bg-slate-50 border-r border-slate-200 last:border-r-0'}`}>
-                      <p className={`text-xs font-semibold ${examNoDeadline === val ? 'text-blue-700' : 'text-slate-700'}`}>{label}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                  {/* 문제 체크박스 목록 */}
+                  <div className="space-y-2">
+                    {questions.map((q, i) => {
+                      const label = displayLabel(q, i)
+                      const checked = selectedQClientIds.has(q.clientId)
+                      return (
+                        <button key={q.clientId}
+                          onClick={() => setSelectedQClientIds(prev => {
+                            const next = new Set(prev)
+                            next.has(q.clientId) ? next.delete(q.clientId) : next.add(q.clientId)
+                            return next
+                          })}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${checked ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          {/* 문제 번호 뱃지 */}
+                          <div className={`min-w-8 h-8 rounded-lg px-1 text-sm font-bold flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            {label}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-slate-700 truncate">
+                              {q.question_text || '(문제 내용 없음)'}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {q.question_type === 'multiple_choice' ? '객관식' : '주관식'} · {q.score}점
+                            </p>
+                          </div>
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}`}>
+                            {checked && <Check size={12} className="text-white" />}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-              <button onClick={doCreateExam} disabled={creatingExam || !selectedClassId || !examTitle.trim()}
-                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">
-                {creatingExam ? '생성 중...' : '시험 생성하기'}
-              </button>
+                  {/* 번호 방식 */}
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 mb-2">시험에서 문제 번호 방식</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { val: 'original', label: '원래 번호 그대로', desc: '은행에서 설정한 번호 사용' },
+                        { val: 'sequential', label: '1번부터 순서대로', desc: '선택한 순서로 1, 2, 3...' },
+                      ] as const).map(({ val, label, desc }) => (
+                        <button key={val} onClick={() => setExamNumbering(val)}
+                          className={`py-3 px-3 rounded-xl border text-left transition-all ${examNumbering === val ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <p className={`text-xs font-semibold ${examNumbering === val ? 'text-blue-700' : 'text-slate-700'}`}>{label}</p>
+                          <p className="text-[10px] text-slate-400 mt-1 leading-tight">{desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button onClick={() => setExamModalStep(2)} disabled={selectedQClientIds.size === 0}
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+                    다음 → ({selectedQClientIds.size}문제 선택됨)
+                  </button>
+                </>
+              )}
+
+              {/* ── STEP 2: 시험 설정 ── */}
+              {examModalStep === 2 && (
+                <>
+                  <button onClick={() => setExamModalStep(1)}
+                    className="flex items-center gap-1 text-sm text-blue-500 hover:text-blue-700 font-medium">
+                    <ChevronLeft size={14} /> 문제 선택으로
+                  </button>
+
+                  {/* 시험 이름 */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">시험 이름</label>
+                    <input value={examTitle} onChange={e => setExamTitle(e.target.value)}
+                      placeholder="시험 이름"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  </div>
+
+                  {/* 반 선택 */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">반 선택</label>
+                    {loadingClasses ? (
+                      <p className="text-sm text-slate-400 py-2">불러오는 중...</p>
+                    ) : classes.length === 0 ? (
+                      <p className="text-sm text-slate-400 py-2">반이 없어요</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                        {classes.map(c => (
+                          <button key={c.id} onClick={() => setSelectedClassId(c.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${selectedClassId === c.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedClassId === c.id ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                              {c.name[0]}
+                            </div>
+                            <span className="flex-1">{c.name}</span>
+                            {selectedClassId === c.id && <Check size={14} className="text-blue-500" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 마감 방식 */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">마감 방식</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { val: true, label: '마감 없음', desc: '제출 즉시 결과 확인' },
+                        { val: false, label: '마감 있음', desc: '마감 후 결과 공개' },
+                      ].map(({ val, label, desc }) => (
+                        <button key={String(val)} onClick={() => setExamNoDeadline(val)}
+                          className={`py-3 px-3 rounded-xl border text-left transition-all ${examNoDeadline === val ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <p className={`text-xs font-semibold ${examNoDeadline === val ? 'text-blue-700' : 'text-slate-700'}`}>{label}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button onClick={doCreateExam}
+                    disabled={creatingExam || !selectedClassId || !examTitle.trim()}
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+                    {creatingExam ? '생성 중...' : `시험 생성하기 (${selectedQClientIds.size}문제)`}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -613,26 +686,26 @@ export default function QuestionBank({
     )
   }
 
-  // ── Render: Folder browser ─────────────────────────────────────────────
+  // ── Render: 폴더 브라우저 ─────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* Breadcrumb */}
+      {/* 브레드크럼 */}
       <div className="flex items-center gap-1 flex-wrap">
         {breadcrumbs.map((b, i) => (
           <span key={i} className="flex items-center gap-1">
             {i > 0 && <ChevronRight size={14} className="text-slate-300" />}
             <button
               onClick={() => navigateBreadcrumb(b)}
-              className={`text-sm font-medium transition-colors ${i === breadcrumbs.length - 1 ? 'text-slate-800 cursor-default' : 'text-blue-500 hover:text-blue-700'}`}
-              disabled={i === breadcrumbs.length - 1}>
+              disabled={i === breadcrumbs.length - 1}
+              className={`text-sm font-medium transition-colors ${i === breadcrumbs.length - 1 ? 'text-slate-800 cursor-default' : 'text-blue-500 hover:text-blue-700'}`}>
               {b.name}
             </button>
           </span>
         ))}
       </div>
 
-      {/* Actions */}
+      {/* 액션 버튼 */}
       <div className="flex gap-2">
         <button onClick={() => { setCreatingFolder(true); setCreatingSet(false) }}
           className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-200 transition-colors">
@@ -644,7 +717,7 @@ export default function QuestionBank({
         </button>
       </div>
 
-      {/* New folder input */}
+      {/* 새 폴더 입력 */}
       {creatingFolder && (
         <div className="flex items-center gap-2 bg-white border border-blue-300 rounded-2xl px-4 py-3">
           <Folder size={16} className="text-slate-400 flex-shrink-0" />
@@ -652,18 +725,12 @@ export default function QuestionBank({
             onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') } }}
             placeholder="폴더 이름"
             className="flex-1 text-sm text-slate-800 focus:outline-none" />
-          <button onClick={createFolder} disabled={creating || !newFolderName.trim()}
-            className="text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors">
-            <Check size={16} />
-          </button>
-          <button onClick={() => { setCreatingFolder(false); setNewFolderName('') }}
-            className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X size={16} />
-          </button>
+          <button onClick={createFolder} disabled={creating || !newFolderName.trim()} className="text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors"><Check size={16} /></button>
+          <button onClick={() => { setCreatingFolder(false); setNewFolderName('') }} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
         </div>
       )}
 
-      {/* New set input */}
+      {/* 새 세트 입력 */}
       {creatingSet && (
         <div className="flex items-center gap-2 bg-white border border-blue-300 rounded-2xl px-4 py-3">
           <FileText size={16} className="text-blue-400 flex-shrink-0" />
@@ -671,18 +738,12 @@ export default function QuestionBank({
             onKeyDown={e => { if (e.key === 'Enter') createSet(); if (e.key === 'Escape') { setCreatingSet(false); setNewSetTitle('') } }}
             placeholder="세트 이름"
             className="flex-1 text-sm text-slate-800 focus:outline-none" />
-          <button onClick={createSet} disabled={creating || !newSetTitle.trim()}
-            className="text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors">
-            <Check size={16} />
-          </button>
-          <button onClick={() => { setCreatingSet(false); setNewSetTitle('') }}
-            className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X size={16} />
-          </button>
+          <button onClick={createSet} disabled={creating || !newSetTitle.trim()} className="text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors"><Check size={16} /></button>
+          <button onClick={() => { setCreatingSet(false); setNewSetTitle('') }} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
         </div>
       )}
 
-      {/* Content */}
+      {/* 콘텐츠 */}
       {loading ? (
         <div className="text-center py-12 text-slate-400 text-sm">불러오는 중...</div>
       ) : folders.length === 0 && sets.length === 0 ? (
@@ -693,7 +754,6 @@ export default function QuestionBank({
         </div>
       ) : (
         <div className="space-y-2">
-          {/* Folders */}
           {folders.map(folder => (
             <div key={folder.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
               {renamingId === folder.id ? (
@@ -712,22 +772,15 @@ export default function QuestionBank({
                     <span className="text-sm font-semibold text-slate-700">{folder.name}</span>
                   </button>
                   <button onClick={() => { setRenamingId(folder.id); setRenamingType('folder'); setRenameValue(folder.name) }}
-                    className="p-1.5 text-slate-300 hover:text-slate-500 rounded-lg transition-colors">
-                    <Pencil size={14} />
-                  </button>
+                    className="p-1.5 text-slate-300 hover:text-slate-500 rounded-lg transition-colors"><Pencil size={14} /></button>
                   <button onClick={() => deleteItem('folder', folder.id, folder.name)}
-                    className="p-1.5 text-slate-300 hover:text-red-400 rounded-lg transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                  <button onClick={() => enterFolder(folder)} className="text-slate-300">
-                    <ChevronRight size={16} />
-                  </button>
+                    className="p-1.5 text-slate-300 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                  <ChevronRight size={16} className="text-slate-300" />
                 </div>
               )}
             </div>
           ))}
 
-          {/* Sets */}
           {sets.map(set => (
             <div key={set.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
               {renamingId === set.id ? (
@@ -748,13 +801,9 @@ export default function QuestionBank({
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                     <button onClick={e => { e.stopPropagation(); setRenamingId(set.id); setRenamingType('set'); setRenameValue(set.title) }}
-                      className="p-1.5 text-slate-300 hover:text-slate-500 rounded-lg transition-colors">
-                      <Pencil size={14} />
-                    </button>
+                      className="p-1.5 text-slate-300 hover:text-slate-500 rounded-lg transition-colors"><Pencil size={14} /></button>
                     <button onClick={e => { e.stopPropagation(); deleteItem('set', set.id, set.title) }}
-                      className="p-1.5 text-slate-300 hover:text-red-400 rounded-lg transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                      className="p-1.5 text-slate-300 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
                   <ChevronRight size={16} className="text-slate-300 flex-shrink-0" />
                 </button>
