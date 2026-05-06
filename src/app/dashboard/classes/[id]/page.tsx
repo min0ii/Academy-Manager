@@ -141,7 +141,7 @@ export default function ClassDetailPage() {
   const [dateTests, setDateTests] = useState<{ id: string; name: string; max_score: number }[]>([])
   const [dayExams, setDayExams]   = useState<{ id: string; title: string; status: string; exam_type: string }[]>([])
 
-  // ── 숙제
+  // ── 과제
   const [dateHomeworks, setDateHomeworks]       = useState<Homework[]>([])
   const [homeworkStatuses, setHomeworkStatuses] = useState<Record<string, HomeworkStatusRecord[]>>({})
   const [expandedHomeworkId, setExpandedHomeworkId] = useState<string | null>(null)
@@ -186,7 +186,7 @@ export default function ClassDetailPage() {
     }
   }, [students])
 
-  // 숙제 탭 열리거나 숙제 목록 바뀔 때 모든 학생 현황 자동 로드
+  // 과제 탭 열리거나 과제 목록 바뀔 때 모든 학생 현황 자동 로드
   useEffect(() => {
     if (panelTab === 'homework' && dateHomeworks.length > 0) {
       dateHomeworks.forEach(hw => loadHomeworkStatuses(hw.id))
@@ -704,7 +704,7 @@ export default function ClassDetailPage() {
     setStatsLoading(false); setStatsLoaded(true)
   }
 
-  // ── 숙제
+  // ── 과제
   async function addHomework(e: React.FormEvent) {
     e.preventDefault()
     if (homeworkForm.due_date && homeworkForm.due_date < homeworkForm.assigned_date) {
@@ -733,7 +733,7 @@ export default function ClassDetailPage() {
   }
 
   async function deleteHomework(hwId: string) {
-    if (!confirm('이 숙제를 삭제할까요?')) return
+    if (!confirm('이 과제를 삭제할까요?')) return
     await supabase.from('homework_status').delete().eq('homework_id', hwId)
     await supabase.from('homework').delete().eq('id', hwId)
     setDateHomeworks(prev => prev.filter(h => h.id !== hwId))
@@ -1293,7 +1293,7 @@ export default function ClassDetailPage() {
 
             const availTabs: PanelTab[] = ['attendance', 'homework', 'clinic']
 
-            const PTAB_LABEL: Record<PanelTab, string> = { attendance: '출결', homework: '숙제', clinic: '클리닉' }
+            const PTAB_LABEL: Record<PanelTab, string> = { attendance: '출결', homework: '과제', clinic: '클리닉' }
 
             return (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -1506,7 +1506,7 @@ export default function ClassDetailPage() {
                       )
                     )}
 
-                    {/* ── 숙제 탭 ── */}
+                    {/* ── 과제 탭 ── */}
                     {panelTab === 'homework' && (
                       <div className="divide-y divide-slate-50">
                         {/* 추가 버튼 */}
@@ -1514,14 +1514,14 @@ export default function ClassDetailPage() {
                           <button
                             onClick={() => { setHomeworkForm({ title: '', assigned_date: selectedDate ?? '', due_date: '', description: '' }); setShowAddHomework(true) }}
                             className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
-                            <Plus size={15} /> 숙제 추가
+                            <Plus size={15} /> 과제 추가
                           </button>
                         </div>
 
                         {dateHomeworks.length === 0 ? (
                           <div className="py-10 text-center text-slate-400 text-sm">
                             <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
-                            이날 출제된 숙제가 없어요
+                            이날 출제된 과제가 없어요
                           </div>
                         ) : dateHomeworks.map(hw => {
                           const statuses  = homeworkStatuses[hw.id] ?? []
@@ -1531,7 +1531,7 @@ export default function ClassDetailPage() {
 
                           return (
                             <div key={hw.id} className="border-b border-slate-100 last:border-0">
-                              {/* 숙제 헤더 */}
+                              {/* 과제 헤더 */}
                               <div className="flex items-center gap-3 px-4 py-3">
                                 <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
                                   <BookOpen size={15} className="text-orange-500" />
@@ -1918,12 +1918,12 @@ export default function ClassDetailPage() {
         </div>
       )}
 
-      {/* ════════ 숙제 추가 모달 ════════ */}
+      {/* ════════ 과제 추가 모달 ════════ */}
       {showAddHomework && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <h2 className="font-bold text-slate-800">숙제 추가</h2>
+              <h2 className="font-bold text-slate-800">과제 추가</h2>
               <button onClick={() => setShowAddHomework(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
             <form onSubmit={addHomework} className="p-5 space-y-4">
@@ -1931,7 +1931,7 @@ export default function ClassDetailPage() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">제목 *</label>
                 <input type="text" value={homeworkForm.title}
                   onChange={e => setHomeworkForm({ ...homeworkForm, title: e.target.value })}
-                  placeholder="숙제 제목을 입력해주세요" required autoFocus
+                  placeholder="과제 제목을 입력해주세요" required autoFocus
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1953,7 +1953,7 @@ export default function ClassDetailPage() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">설명 (선택)</label>
                 <textarea value={homeworkForm.description}
                   onChange={e => setHomeworkForm({ ...homeworkForm, description: e.target.value })}
-                  placeholder="숙제 내용이나 참고사항을 적어주세요" rows={2}
+                  placeholder="과제 내용이나 참고사항을 적어주세요" rows={2}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
               <div className="flex gap-2">

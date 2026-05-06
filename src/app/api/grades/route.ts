@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ records })
   }
 
-  // ── 학부모 숙제 ──
+  // ── 학부모 과제 ──
   if (action === 'parent-homework') {
     const classId   = searchParams.get('classId')
     const studentId = searchParams.get('studentId')
@@ -239,7 +239,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ records })
   }
 
-  // ── 학생 숙제 ──
+  // ── 학생 과제 ──
   if (action === 'my-homework') {
     const classId   = searchParams.get('classId')
     const studentId = searchParams.get('studentId')

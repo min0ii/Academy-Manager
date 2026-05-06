@@ -103,7 +103,7 @@ function StudentReportContent() {
   // ── 퇴원 처리 ──
   async function withdrawStudent() {
     if (!student) return
-    if (!confirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 학생·학부모 계정이 모두 삭제돼요.\n성적·숙제·출결 등 모든 기록은 그대로 보존돼요.`)) return
+    if (!confirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 학생·학부모 계정이 모두 삭제돼요.\n성적·과제·출결 등 모든 기록은 그대로 보존돼요.`)) return
     setActionLoading(true)
 
     // 1. 반 배정 해제 + 퇴원 상태 변경
@@ -169,7 +169,7 @@ function StudentReportContent() {
 
     const token = await getToken()
 
-    // ── 1단계: 출결·숙제·클리닉 메타 + 성적 그래프 전부 동시에 조회
+    // ── 1단계: 출결·과제·클리닉 메타 + 성적 그래프 전부 동시에 조회
     const [
       { data: sessions },
       { data: hwData },
@@ -197,7 +197,7 @@ function StudentReportContent() {
     const hwIds      = (hwData         ?? []).map(h => h.id)
     const csIds      = (clinicSessions ?? []).map(s => s.id)
 
-    // ── 2단계: 출결·숙제·클리닉 상세 동시에 조회
+    // ── 2단계: 출결·과제·클리닉 상세 동시에 조회
     const [attData, hwStatuses, clinicAtts] = await Promise.all([
       sessionIds.length > 0
         ? supabase.from('attendance').select('session_id, status, note').eq('student_id', studentId).in('session_id', sessionIds).then(r => r.data ?? [])
@@ -219,7 +219,7 @@ function StudentReportContent() {
       note:   attMap[s.id]?.note   ?? null,
     })))
 
-    // ── 숙제 조합
+    // ── 과제 조합
     const hwStatusMap: Record<string, string> = {}
     for (const s of hwStatuses) hwStatusMap[s.homework_id] = s.status
     setHomeworks((hwData ?? []).map(h => ({ ...h, status: (hwStatusMap[h.id] as any) ?? null })))
@@ -535,12 +535,12 @@ function StudentReportContent() {
                 </div>
               )}
 
-              {/* ── 숙제 현황 ── */}
+              {/* ── 과제 현황 ── */}
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <BookOpen size={16} className="text-orange-500" />
-                    <h3 className="font-bold text-slate-800">숙제 현황</h3>
+                    <h3 className="font-bold text-slate-800">과제 현황</h3>
                   </div>
                   {hwRate !== null && (
                     <div className="text-right">
@@ -550,7 +550,7 @@ function StudentReportContent() {
                   )}
                 </div>
                 {hwTotal === 0 ? (
-                  <p className="text-center py-8 text-slate-400 text-sm">숙제 기록이 없어요</p>
+                  <p className="text-center py-8 text-slate-400 text-sm">과제 기록이 없어요</p>
                 ) : (
                   <>
                     <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">

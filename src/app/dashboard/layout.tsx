@@ -16,7 +16,7 @@ const NAV = [
   { href: '/dashboard/students', label: '학생 관리', icon: Users },
   { href: '/dashboard/classes', label: '수업 관리', icon: LayoutGrid },
   { href: '/dashboard/grades', label: '시험 관리', icon: BarChart2 },
-  { href: '/dashboard/homework', label: '숙제·클리닉', icon: BookOpen },
+  { href: '/dashboard/homework', label: '과제·클리닉', icon: BookOpen },
   { href: '/dashboard/comments', label: '코멘트', icon: MessageSquare },
 ]
 

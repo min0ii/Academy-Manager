@@ -1514,7 +1514,7 @@ function GradesContent() {
                     <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-emerald-500 mt-0.5 flex-shrink-0">•</span>제출하는 순간 바로 자신의 성적·오답을 확인할 수 있어요</li>
                     <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-emerald-500 mt-0.5 flex-shrink-0">•</span>아직 안 본 학생은 언제든지 응시할 수 있어요</li>
                     <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-emerald-500 mt-0.5 flex-shrink-0">•</span>제출한 학생들의 평균·최고·최저 점수가 실시간으로 보여요</li>
-                    <li className="text-xs text-slate-400 flex items-start gap-1.5 pt-1 border-t border-slate-100 mt-1"><span className="flex-shrink-0">📌</span>숙제 퀴즈, 자유롭게 응시하는 시험에 적합해요</li>
+                    <li className="text-xs text-slate-400 flex items-start gap-1.5 pt-1 border-t border-slate-100 mt-1"><span className="flex-shrink-0">📌</span>과제 퀴즈, 자유롭게 응시하는 시험에 적합해요</li>
                   </ul>
                 </div>
               </button>

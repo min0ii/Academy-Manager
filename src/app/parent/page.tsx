@@ -679,7 +679,7 @@ export default function ParentPage() {
               <>
                 {/* 서브 토글 */}
                 <div className="flex bg-white rounded-2xl border border-slate-200 p-1.5 gap-1.5">
-                  {([{ key: 'homework', label: '숙제' }, { key: 'clinic', label: '클리닉' }] as const).map(({ key, label }) => (
+                  {([{ key: 'homework', label: '과제' }, { key: 'clinic', label: '클리닉' }] as const).map(({ key, label }) => (
                     <button key={key} onClick={() => setHwClinicSub(key)}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                         hwClinicSub === key ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
@@ -689,12 +689,12 @@ export default function ParentPage() {
                   ))}
                 </div>
 
-                {/* 숙제 */}
+                {/* 과제 */}
                 {hwClinicSub === 'homework' && (
                   <>
                     {hwStats.total > 0 && (
                       <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-                        <h2 className="font-bold text-slate-800 text-sm">숙제 현황</h2>
+                        <h2 className="font-bold text-slate-800 text-sm">과제 현황</h2>
                         <div className="grid grid-cols-3 gap-2">
                           {[
                             { label: '완료',   value: hwStats.done,    color: 'text-emerald-600' },
@@ -710,11 +710,11 @@ export default function ParentPage() {
                       </div>
                     )}
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">숙제 목록</h2></div>
+                      <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">과제 목록</h2></div>
                       {hwLoading ? (
                         <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
                       ) : homeworks.length === 0 ? (
-                        <div className="px-5 py-8 text-center text-slate-400 text-sm">숙제 기록이 없어요</div>
+                        <div className="px-5 py-8 text-center text-slate-400 text-sm">과제 기록이 없어요</div>
                       ) : (
                         <div className="divide-y divide-slate-100">
                           {homeworks.map(h => {

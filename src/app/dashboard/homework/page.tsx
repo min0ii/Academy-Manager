@@ -84,7 +84,7 @@ export default function HomeworkPage() {
       .then(({ data }) => { setClasses(data ?? []); setClassesLoading(false) })
   }, [ctx])
 
-  // 반 선택 시 숙제·클리닉 로드
+  // 반 선택 시 과제·클리닉 로드
   const loadClassData = useCallback(async (cls: ClassItem) => {
     setSelectedClass(cls)
     setDetail(null)
@@ -103,7 +103,7 @@ export default function HomeworkPage() {
 
     const totalStudents = studentList.length
 
-    // 숙제 목록
+    // 과제 목록
     const { data: hwList } = await supabase
       .from('homework')
       .select('id, title, assigned_date, due_date, description')
@@ -127,7 +127,7 @@ export default function HomeworkPage() {
       if (s.name) schedNameMap[s.day_of_week] = s.name
     }
 
-    // 숙제별 완료 현황 집계
+    // 과제별 완료 현황 집계
     const hwIds = (hwList ?? []).map((h: { id: string }) => h.id)
     const hwStatusMap: Record<string, { done: number; partial: number; none: number }> = {}
     const hwStudentMap: Record<string, StudentHwStat> = {}
@@ -289,7 +289,7 @@ export default function HomeworkPage() {
             <BookOpen size={20} className="text-orange-500" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-800">숙제·클리닉</h1>
+            <h1 className="text-lg font-bold text-slate-800">과제·클리닉</h1>
             <p className="text-xs text-slate-500">반을 선택하면 전체 기록을 볼 수 있어요</p>
           </div>
         </div>
@@ -351,7 +351,7 @@ export default function HomeworkPage() {
               ? detail.kind === 'homework'
                 ? detail.item.title
                 : (detail.item.clinic_name ?? '클리닉')
-              : '숙제·클리닉 기록'}
+              : '과제·클리닉 기록'}
           </h1>
         </div>
       </div>
@@ -428,7 +428,7 @@ export default function HomeworkPage() {
             <button onClick={() => setViewTab('homework')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${viewTab === 'homework' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
               <ClipboardList size={15} />
-              숙제 {homeworks.length > 0 && <span className="text-xs opacity-70">({homeworks.length})</span>}
+              과제 {homeworks.length > 0 && <span className="text-xs opacity-70">({homeworks.length})</span>}
             </button>
             <button onClick={() => setViewTab('clinic')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${viewTab === 'clinic' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}>
@@ -441,7 +441,7 @@ export default function HomeworkPage() {
             <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
           ) : viewTab === 'homework' ? (
             <>
-              {/* 숙제 요약 카드 */}
+              {/* 과제 요약 카드 */}
               {homeworks.length > 0 && (
                 <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -490,12 +490,12 @@ export default function HomeworkPage() {
                 </div>
               )}
 
-              {/* 숙제 목록 */}
+              {/* 과제 목록 */}
               {homeworks.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">
                   <ClipboardList size={32} className="mx-auto mb-3 opacity-40" />
-                  <p className="text-sm">출제된 숙제가 없습니다</p>
-                  <p className="text-xs mt-1 text-slate-400">수업 관리 → 캘린더에서 날짜를 선택해 숙제를 추가하세요</p>
+                  <p className="text-sm">출제된 과제가 없습니다</p>
+                  <p className="text-xs mt-1 text-slate-400">수업 관리 → 캘린더에서 날짜를 선택해 과제를 추가하세요</p>
                 </div>
               ) : (
                 <div className="space-y-2">
