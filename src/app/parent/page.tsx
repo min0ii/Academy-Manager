@@ -591,6 +591,10 @@ export default function ParentPage() {
                         </div>
                       ))}
                     </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      득점률은 각 시험의 만점을 100%로 환산한 점수예요.<br />
+                      예) 80점 만점에 64점 → 80%
+                    </p>
                   </div>
                 )}
                 {chartData.length >= 2 && (
