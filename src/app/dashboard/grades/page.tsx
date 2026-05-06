@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
+import QuestionBank from './QuestionBank'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -777,7 +778,8 @@ function GradesContent() {
   const searchParams = useSearchParams()
   const autoOpenDone = useRef(false)
 
-  const [view, setView] = useState<'classes' | 'exams' | 'exam_detail'>('classes')
+  const [view, setView] = useState<'classes' | 'exams' | 'exam_detail' | 'bank'>('classes')
+  const [mainTab, setMainTab] = useState<'exams' | 'bank'>('exams')
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null)
   const [selectedExam, setSelectedExam] = useState<ExamItem | null>(null)
 
@@ -1331,32 +1333,53 @@ function GradesContent() {
   if (view === 'classes') return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">시험 관리</h1>
-        <p className="text-sm text-slate-500 mt-0.5">반을 선택해서 시험을 관리해요</p>
+        <h1 className="text-2xl font-bold text-slate-800">시험 생성</h1>
+        <p className="text-sm text-slate-500 mt-0.5">문제은행에서 문제를 관리하고, 반별 시험을 만들어요</p>
       </div>
-      {loadingClasses ? (
-        <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
-      ) : classes.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
-          <p className="text-lg mb-1">등록된 반이 없어요</p>
-          <p className="text-sm">수업 관리에서 반을 먼저 만들어주세요</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {classes.map(c => (
-            <button key={c.id} onClick={() => selectClass(c)}
-              className="w-full flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all text-left">
-              <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-blue-600 font-bold text-lg">{c.name[0]}</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-slate-800">{c.name}</p>
-                <p className="text-xs text-slate-500 mt-0.5">시험 {c.examCount}개</p>
-              </div>
-              <ChevronRight size={16} className="text-slate-300" />
-            </button>
-          ))}
-        </div>
+
+      {/* 탭: 문제은행 / 반 목록 */}
+      <div className="flex rounded-2xl border border-slate-200 overflow-hidden bg-white">
+        {([['bank', '📚 문제은행'], ['exams', '🏫 반별 시험']] as const).map(([tab, label]) => (
+          <button key={tab} onClick={() => setMainTab(tab)}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${mainTab === tab ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* 문제은행 탭 */}
+      {mainTab === 'bank' && (
+        <QuestionBank />
+      )}
+
+      {/* 반별 시험 탭 */}
+      {mainTab === 'exams' && (
+        <>
+          {loadingClasses ? (
+            <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+          ) : classes.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <p className="text-lg mb-1">등록된 반이 없어요</p>
+              <p className="text-sm">수업 관리에서 반을 먼저 만들어주세요</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {classes.map(c => (
+                <button key={c.id} onClick={() => selectClass(c)}
+                  className="w-full flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all text-left">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-600 font-bold text-lg">{c.name[0]}</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-800">{c.name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">시험 {c.examCount}개</p>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-300" />
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
