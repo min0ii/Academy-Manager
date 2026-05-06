@@ -807,7 +807,8 @@ function GradesContent() {
   const [savingAdj, setSavingAdj] = useState(false)
   const [adjSaved, setAdjSaved] = useState(false)
 
-  // Close exam
+  // Start / Close exam
+  const [starting, setStarting] = useState(false)
   const [closing, setClosing] = useState(false)
 
   // Add exam modal: 'none' | 'type_select' | 'manual' | 'auto_deadline' | 'auto_1' | 'auto_2'
@@ -1085,8 +1086,9 @@ function GradesContent() {
   async function startExam() {
     if (!selectedExam) return
     if (!confirm('시험을 시작할까요? 학생들이 바로 응시할 수 있게 돼요.')) return
+    setStarting(true)
     const token = await getToken()
-    if (!token) return
+    if (!token) { setStarting(false); return }
     const res = await fetch(`/api/exams/${selectedExam.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1095,8 +1097,12 @@ function GradesContent() {
     if (res.ok) {
       const now = new Date().toISOString()
       setSelectedExam(prev => prev ? { ...prev, status: 'active', start_at: now } : null)
-      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, status: 'active' } : e))
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, status: 'active', start_at: now } : e))
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? '시험 시작에 실패했어요. 다시 시도해주세요.')
     }
+    setStarting(false)
   }
 
   async function closeExam() {
@@ -1745,9 +1751,9 @@ function GradesContent() {
           )}
         </div>
         {selectedExam?.exam_type === 'auto' && currentStatus === 'scheduled' && (
-          <button onClick={startExam}
-            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0">
-            시험 시작
+          <button onClick={startExam} disabled={starting}
+            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0 disabled:opacity-50">
+            {starting ? '시작 중...' : '시험 시작'}
           </button>
         )}
         {selectedExam?.exam_type === 'auto' && currentStatus === 'scheduled' && (
