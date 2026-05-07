@@ -1,15 +1,57 @@
 'use client'
 
-import { Clock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Clock, XCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function PendingPage() {
   const router = useRouter()
+  const [status, setStatus] = useState<'pending' | 'rejected' | null>(null)
+
+  useEffect(() => {
+    async function checkStatus() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
+      const { data: membership } = await supabase
+        .from('academy_teachers')
+        .select('academies(status)')
+        .eq('teacher_id', user.id)
+        .single()
+
+      const st = (membership as any)?.academies?.status
+      if (st === 'approved') { router.push('/dashboard'); return }
+      setStatus(st === 'rejected' ? 'rejected' : 'pending')
+    }
+    checkStatus()
+  }, [router])
 
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  if (!status) return null
+
+  if (status === 'rejected') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+        <div className="text-center max-w-sm">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+            <XCircle className="text-red-500" size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">가입이 거부되었어요</h1>
+          <p className="text-slate-500 mb-8">관리자에게 문의해주세요.</p>
+          <button
+            onClick={handleLogout}
+            className="text-sm text-slate-400 hover:text-slate-600 underline"
+          >
+            로그아웃
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
