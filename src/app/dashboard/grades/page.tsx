@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, Trash2, AlertTriangle,
-  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil,
+  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
@@ -232,6 +232,7 @@ function DateTimePicker({ label, value, onChange, required }: {
 
 function WizardQuestionCard({
   q, idx, total, onChange, onRemove, customLabels,
+  onDragStart, onDragOver, onDrop, isDragOver,
 }: {
   q: WizardQuestion
   idx: number
@@ -239,6 +240,10 @@ function WizardQuestionCard({
   onChange: (u: Partial<WizardQuestion>) => void
   onRemove: () => void
   customLabels?: boolean
+  onDragStart?: () => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDrop?: () => void
+  isDragOver?: boolean
 }) {
   function updateChoice(ci: number, val: string) {
     const next = [...q.choices]; next[ci] = val; onChange({ choices: next })
@@ -257,9 +262,22 @@ function WizardQuestionCard({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+    <div
+      className={`bg-white border rounded-2xl p-4 space-y-3 transition-colors ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-slate-200'}`}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       {/* Header row */}
       <div className="flex items-center gap-2">
+        {onDragStart && (
+          <div
+            draggable
+            onDragStart={onDragStart}
+            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0"
+          >
+            <GripVertical size={16} />
+          </div>
+        )}
         {customLabels ? (
           <input
             type="text"
@@ -832,6 +850,8 @@ function GradesContent() {
 
   // Custom labels for wizard
   const [wizardCustomLabels, setWizardCustomLabels] = useState(false)
+  const [wDragIdx, setWDragIdx] = useState<number | null>(null)
+  const [wDragOverIdx, setWDragOverIdx] = useState<number | null>(null)
 
   // Edit exam modal (scheduled)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -842,6 +862,15 @@ function GradesContent() {
   const [editWizardQs, setEditWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
   const [editCustomLabels, setEditCustomLabels] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [eDragIdx, setEDragIdx] = useState<number | null>(null)
+  const [eDragOverIdx, setEDragOverIdx] = useState<number | null>(null)
+
+  function reorderQs(arr: WizardQuestion[], from: number, to: number) {
+    const next = [...arr]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    return next
+  }
 
   // Title-only edit (active/closed)
   const [showTitleEdit, setShowTitleEdit] = useState(false)
@@ -1681,6 +1710,14 @@ function GradesContent() {
                   customLabels={wizardCustomLabels}
                   onChange={updates => updateWizardQ(idx, updates)}
                   onRemove={() => setWizardQs(prev => prev.filter((_, i) => i !== idx))}
+                  onDragStart={() => setWDragIdx(idx)}
+                  onDragOver={e => { e.preventDefault(); setWDragOverIdx(idx) }}
+                  onDrop={() => {
+                    if (wDragIdx !== null && wDragIdx !== idx)
+                      setWizardQs(prev => reorderQs(prev, wDragIdx, idx))
+                    setWDragIdx(null); setWDragOverIdx(null)
+                  }}
+                  isDragOver={wDragOverIdx === idx}
                 />
               ))}
               <button onClick={() => setWizardQs(prev => [...prev, newWizardQ()])}
@@ -1905,6 +1942,14 @@ function GradesContent() {
                       customLabels={editCustomLabels}
                       onChange={updates => setEditWizardQs(prev => prev.map((x, i) => i === idx ? { ...x, ...updates } : x))}
                       onRemove={() => setEditWizardQs(prev => prev.filter((_, i) => i !== idx))}
+                      onDragStart={() => setEDragIdx(idx)}
+                      onDragOver={e => { e.preventDefault(); setEDragOverIdx(idx) }}
+                      onDrop={() => {
+                        if (eDragIdx !== null && eDragIdx !== idx)
+                          setEditWizardQs(prev => reorderQs(prev, eDragIdx, idx))
+                        setEDragIdx(null); setEDragOverIdx(null)
+                      }}
+                      isDragOver={eDragOverIdx === idx}
                     />
                   ))}
                   <button onClick={() => setEditWizardQs(prev => [...prev, newWizardQ()])}
