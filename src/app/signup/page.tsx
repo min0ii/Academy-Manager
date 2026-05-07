@@ -67,7 +67,7 @@ export default function SignupPage() {
       })
     }
 
-    router.push('/onboarding')
+    router.push('/pending')
   }
 
   return (

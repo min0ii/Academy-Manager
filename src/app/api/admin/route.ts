@@ -6,7 +6,6 @@ const db = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// 관리자 확인
 async function isAdmin(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
   if (!token) return false
@@ -16,13 +15,14 @@ async function isAdmin(req: NextRequest) {
   return data?.is_admin === true
 }
 
-// GET: 전체 학원 목록 (pending 우선)
+// GET: 원장 계정 목록 (pending 우선)
 export async function GET(req: NextRequest) {
   if (!await isAdmin(req)) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
   const { data } = await db
-    .from('academies')
-    .select('id, name, status, created_at, teacher_id, profiles(name, phone)')
+    .from('profiles')
+    .select('id, name, phone, status, created_at')
+    .eq('role', 'teacher')
     .order('created_at', { ascending: false })
 
   return NextResponse.json(data ?? [])
@@ -32,10 +32,10 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   if (!await isAdmin(req)) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
-  const { academyId, status } = await req.json()
-  if (!academyId || !['approved', 'rejected'].includes(status))
+  const { profileId, status } = await req.json()
+  if (!profileId || !['approved', 'rejected'].includes(status))
     return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
-  await db.from('academies').update({ status }).eq('id', academyId)
+  await db.from('profiles').update({ status }).eq('id', profileId)
   return NextResponse.json({ ok: true })
 }

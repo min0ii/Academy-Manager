@@ -157,22 +157,21 @@ export default function OnboardingPage() {
 
   const currentStepIndex = STEPS.findIndex(s => s.key === step)
 
-  // ── 완료 화면 (승인 대기 안내) ──
+  // ── 완료 화면 ──
   if (step === 'done') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="text-center max-w-sm">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
-            <CheckCircle className="text-amber-500" size={32} />
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4">
+            <CheckCircle className="text-emerald-600" size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-2">신청이 완료됐어요!</h1>
-          <p className="text-slate-500 mb-2">관리자 승인 후 서비스를 이용할 수 있어요.</p>
-          <p className="text-slate-400 text-sm mb-6">보통 1~2일 내로 연락드립니다.</p>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">설정 완료!</h1>
+          <p className="text-slate-500 mb-6">이제 학원 관리를 시작할 수 있어요.<br />학생 명부는 대시보드에서 언제든 추가·수정할 수 있어요.</p>
           <button
-            onClick={() => router.push('/login')}
-            className="px-6 py-3 bg-slate-600 text-white font-semibold rounded-xl hover:bg-slate-700 transition-colors"
+            onClick={() => router.push('/dashboard')}
+            className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors"
           >
-            로그인 화면으로
+            대시보드로 이동
           </button>
         </div>
       </div>

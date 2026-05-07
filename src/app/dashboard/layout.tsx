@@ -36,17 +36,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       // 프로필 + 소속 정보 병렬 조회
       const [{ data: profile }, { data: membership }] = await Promise.all([
-        supabase.from('profiles').select('name, role').eq('id', user.id).single(),
+        supabase.from('profiles').select('name, role, status').eq('id', user.id).single(),
         supabase.from('academy_teachers')
-          .select('academy_id, role, title, academies(name, logo_url, status)')
+          .select('academy_id, role, title, academies(name, logo_url)')
           .eq('teacher_id', user.id)
           .single(),
       ])
 
       if (!profile || profile.role !== 'teacher') { router.push('/login'); return }
+      // 미승인 계정 차단 (강사/조교는 status가 없거나 approved)
+      if (profile.status && profile.status !== 'approved') { router.push('/pending'); return }
+      // 학원 미설정 → 온보딩
+      if (!membership) { router.push('/onboarding'); return }
 
       const ac = (membership as any)?.academies
-      if (ac?.status && ac.status !== 'approved') { router.push('/pending'); return }
       setTeacherName(profile.name)
       if (ac) setAcademy(ac)
       if (membership?.title) setTeacherTitle(membership.title)
