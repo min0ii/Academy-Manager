@@ -173,6 +173,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
       }
 
       // 6. 메모리에서 채점 — DB 호출 없음
+      // 단, 아무 답안도 없는 학생은 미제출(is_submitted=false)로 유지
       const answerUpserts: Record<string, unknown>[] = []
       const now = new Date().toISOString()
       const submissionScores: { id: string; score: number }[] = []
@@ -180,8 +181,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
       for (const studentId of unsubmittedStudents) {
         const sub = submissionByStudent.get(studentId)!
         const answerMap = answersBySubmission.get(sub.id) ?? new Map()
-        let totalScore = 0
 
+        // 아무 답안도 없으면 미제출로 남김 (0점 처리 안 함)
+        const hasAnyAnswer = Array.from(answerMap.values()).some(v => v && String(v).trim() !== '')
+        if (!hasAnyAnswer) continue
+
+        let totalScore = 0
         for (const q of qs) {
           const studentAns = (answerMap.get(q.id) ?? '').trim().toLowerCase()
           const correctAns = correctMap.get(q.id) ?? []
@@ -210,7 +215,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
         )
       }
 
-      // 8. 제출 상태 일괄 업데이트 (병렬)
+      // 8. 제출 상태 일괄 업데이트 (답안 있는 학생만, 병렬)
       await Promise.all(submissionScores.map(({ id, score }) =>
         db.from('exam_submissions').update({
           is_submitted: true,
