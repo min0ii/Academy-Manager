@@ -276,8 +276,8 @@ function StudentReportContent() {
       {/* 기본 정보 */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-blue-600 font-bold text-xl">{student.name[0]}</span>
+          <div className="w-14 h-14 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-violet-600 font-bold text-xl">{student.name[0]}</span>
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -290,7 +290,7 @@ function StudentReportContent() {
               {student.school_name && (
                 <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{student.school_name}</span>
               )}
-              <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{student.grade}학년</span>
+              <span className="text-xs px-2 py-0.5 bg-violet-50 text-violet-600 rounded-full">{student.grade}학년</span>
               {classes.map(c => (
                 <span key={c.id} className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full">{c.name}</span>
               ))}
@@ -375,8 +375,8 @@ function StudentReportContent() {
                 <button key={c.id} onClick={() => setSelectedClassId(c.id)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
                     selectedClassId === c.id
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+                      ? 'bg-violet-600 text-white border-violet-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
                   }`}>
                   {c.name}
                 </button>
@@ -394,7 +394,7 @@ function StudentReportContent() {
                   <h3 className="font-bold text-slate-800">출결 현황</h3>
                   {attRate !== null && (
                     <div className="text-right">
-                      <span className="text-2xl font-bold text-blue-600">{attRate}%</span>
+                      <span className="text-2xl font-bold text-violet-600">{attRate}%</span>
                       <p className="text-xs text-slate-400">출석률 ({totalSessions}회 기준)</p>
                     </div>
                   )}
@@ -587,7 +587,7 @@ function StudentReportContent() {
                     {homeworks.length > 5 && (
                       <button
                         onClick={() => setShowAllHomework(v => !v)}
-                        className="w-full py-2.5 text-xs font-medium text-blue-500 hover:bg-blue-50 transition-colors border-t border-slate-100"
+                        className="w-full py-2.5 text-xs font-medium text-violet-500 hover:bg-violet-50 transition-colors border-t border-slate-100"
                       >
                         {showAllHomework ? '접기 ▲' : `더보기 (${homeworks.length - 5}개 더) ▼`}
                       </button>
@@ -683,8 +683,8 @@ function StudentReportContent() {
                       )}
                       className={`px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
                         selected
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
                       }`}
                     >
                       {c.name}
@@ -708,7 +708,7 @@ function StudentReportContent() {
               <button
                 onClick={handleTransfer}
                 disabled={transferring}
-                className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 text-sm transition-colors disabled:opacity-50"
+                className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 text-sm transition-colors disabled:opacity-50"
               >
                 {transferring ? '변경 중...' : '변경 완료'}
               </button>

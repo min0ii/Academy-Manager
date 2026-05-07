@@ -111,7 +111,7 @@ function statusLabel(s: 'scheduled' | 'active' | 'closed') {
   return '마감'
 }
 function statusColors(s: 'scheduled' | 'active' | 'closed') {
-  if (s === 'scheduled') return 'bg-blue-100 text-blue-700'
+  if (s === 'scheduled') return 'bg-violet-100 text-violet-700'
   if (s === 'active') return 'bg-emerald-100 text-emerald-700'
   return 'bg-slate-100 text-slate-500'
 }
@@ -195,7 +195,7 @@ function DateTimePicker({ label, value, onChange, required }: {
 }) {
   const errs = dtValErrors(value)
   const base = 'w-14 px-2 py-2.5 rounded-xl border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent transition-colors'
-  const normal = `${base} border-slate-200 focus:ring-blue-500`
+  const normal = `${base} border-slate-200 focus:ring-violet-500`
   const error  = `${base} border-red-400 bg-red-50 focus:ring-red-400 text-red-700`
   const hasAnyError = Object.keys(errs).length > 0
   return (
@@ -266,7 +266,7 @@ function WizardQuestionCard({
             value={q.customLabel}
             onChange={e => onChange({ customLabel: e.target.value })}
             placeholder="번호"
-            className="w-14 px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-14 px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 text-center focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
           />
         ) : (
           <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
@@ -276,7 +276,7 @@ function WizardQuestionCard({
         <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
           {(['multiple_choice', 'short_answer'] as const).map((t, ti) => (
             <button key={t} onClick={() => onChange({ questionType: t })}
-              className={`px-2.5 py-1.5 font-medium transition-colors ${ti > 0 ? 'border-l border-slate-200' : ''} ${q.questionType === t ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              className={`px-2.5 py-1.5 font-medium transition-colors ${ti > 0 ? 'border-l border-slate-200' : ''} ${q.questionType === t ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
               {t === 'multiple_choice' ? '객관식' : '주관식'}
             </button>
           ))}
@@ -284,7 +284,7 @@ function WizardQuestionCard({
         <div className="flex items-center gap-1 ml-auto">
           <input type="number" value={q.score} onChange={e => onChange({ score: e.target.value })}
             min="0" step="0.5" placeholder="점"
-            className="w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            className="w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
           <span className="text-xs text-slate-400">점</span>
         </div>
         {total > 1 && (
@@ -300,7 +300,7 @@ function WizardQuestionCard({
         onChange={e => onChange({ questionText: e.target.value })}
         placeholder={`${idx + 1}번 문제 내용 (선택사항)`}
         rows={2}
-        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
+        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent placeholder:text-slate-300"
       />
 
       {/* MC choices */}
@@ -311,14 +311,14 @@ function WizardQuestionCard({
             <div key={ci} className="flex items-center gap-2">
               <button
                 onClick={() => onChange({ correctChoiceIdx: ci })}
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}>
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-violet-600 bg-violet-600' : 'border-slate-300 hover:border-violet-400'}`}>
                 {q.correctChoiceIdx === ci && <div className="w-2 h-2 rounded-full bg-white" />}
               </button>
               <span className="text-xs text-slate-400 w-4 flex-shrink-0 mt-1.5">{ci + 1}.</span>
               <textarea value={text} onChange={e => updateChoice(ci, e.target.value)}
                 placeholder={`${ci + 1}번 선택지`}
                 rows={1}
-                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-hidden leading-relaxed"
+                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none overflow-hidden leading-relaxed"
                 style={{ height: 'auto' }}
                 onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px' }}
               />
@@ -328,7 +328,7 @@ function WizardQuestionCard({
             </div>
           ))}
           {q.choices.length < 5 && (
-            <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            <button onClick={addChoice} className="text-xs text-violet-500 hover:text-violet-700 font-medium flex items-center gap-1">
               <Plus size={12} /> 선택지 추가
             </button>
           )}
@@ -343,7 +343,7 @@ function WizardQuestionCard({
             <div key={ai} className="flex items-center gap-2">
               <input type="text" value={ans} onChange={e => updateSA(ai, e.target.value)}
                 placeholder={ai === 0 ? '정답 입력' : '추가 인정 답안'}
-                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
               {q.saAnswers.length > 1 && (
                 <button onClick={() => onChange({ saAnswers: q.saAnswers.filter((_, i) => i !== ai) })}
                   className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={14} /></button>
@@ -351,7 +351,7 @@ function WizardQuestionCard({
             </div>
           ))}
           <button onClick={() => onChange({ saAnswers: [...q.saAnswers, ''] })}
-            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            className="text-xs text-violet-500 hover:text-violet-700 font-medium flex items-center gap-1">
             <Plus size={12} /> 인정 답안 추가
           </button>
         </div>
@@ -406,7 +406,7 @@ function ManualScoreView({
     setEntries(prev => prev.map(e => e.studentId === studentId ? { ...e, score } : e))
   }
 
-  const inp = 'w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  const inp = 'w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent'
 
   return (
     <div className="space-y-5">
@@ -454,13 +454,13 @@ function ManualScoreView({
         <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white flex-1">
           {([['all', '전체'], ['submitted', '제출'], ['not_submitted', '미제출·미실시']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setFilter(key)}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors border-r last:border-r-0 border-slate-200 ${filter === key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors border-r last:border-r-0 border-slate-200 ${filter === key ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
               {label}
             </button>
           ))}
         </div>
         <button onClick={onSave} disabled={saving || saved}
-          className={`px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors flex-shrink-0 ${saved ? 'bg-emerald-100 text-emerald-700 cursor-default' : saving ? 'bg-blue-600 text-white opacity-50 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+          className={`px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors flex-shrink-0 ${saved ? 'bg-emerald-100 text-emerald-700 cursor-default' : saving ? 'bg-violet-600 text-white opacity-50 cursor-not-allowed' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
           {saving ? '저장 중...' : saved ? '저장됨 ✓' : '저장'}
         </button>
       </div>
@@ -513,7 +513,7 @@ function ManualScoreView({
                             updateScore(entry.studentId, val)
                           }}
                           placeholder="-" step="any" min="0" max={maxNum ?? undefined}
-                          className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${!entry.score ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
+                          className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${!entry.score ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-violet-500'}`}
                         />
                         <span className="text-xs text-slate-400">점</span>
                       </>
@@ -590,7 +590,7 @@ function AutoMonitorView({
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">{lastRefresh ? `${lastRefresh.toLocaleTimeString('ko-KR')} 기준` : ''}</p>
         <button onClick={onRefresh} disabled={refreshing}
-          className="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-50">
+          className="flex items-center gap-1.5 text-xs text-violet-500 hover:text-violet-700 font-medium disabled:opacity-50">
           <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
           {refreshing ? '새로고침 중...' : '새로고침'}
         </button>
@@ -602,7 +602,7 @@ function AutoMonitorView({
           <p className="text-sm font-semibold text-slate-700">제출 현황</p>
           {(status === 'closed' || status === 'active') && Object.keys(editAdjusted).length > 0 && (
             <button onClick={onSaveAdj} disabled={savingAdj || adjSaved}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${adjSaved ? 'bg-emerald-100 text-emerald-700 cursor-default' : savingAdj ? 'bg-blue-600 text-white opacity-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${adjSaved ? 'bg-emerald-100 text-emerald-700 cursor-default' : savingAdj ? 'bg-violet-600 text-white opacity-50' : 'bg-violet-600 text-white hover:bg-violet-700'}`}>
               {savingAdj ? '저장 중...' : adjSaved ? '저장됨 ✓' : '조정 점수 저장'}
             </button>
           )}
@@ -640,7 +640,7 @@ function AutoMonitorView({
                             <input type="number" value={adjVal}
                               onChange={e => { setAdjSaved(false); setEditAdjusted(prev => ({ ...prev, [s.studentId]: e.target.value })) }}
                               placeholder="조정" step="any"
-                              className="w-16 px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-16 px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 text-center focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                               title="조정 점수 (입력 후 저장 버튼 클릭)"
                             />
                           </div>
@@ -679,7 +679,7 @@ function AutoMonitorView({
                           next.has(s.studentId) ? next.delete(s.studentId) : next.add(s.studentId)
                           return next
                         })}
-                        className="text-xs text-slate-400 hover:text-blue-500 transition-colors">
+                        className="text-xs text-slate-400 hover:text-violet-500 transition-colors">
                         {expandedStudents.has(s.studentId) ? '접기' : '자세히 보기'}
                       </button>
                     </div>
@@ -1341,7 +1341,7 @@ function GradesContent() {
       <div className="flex rounded-2xl border border-slate-200 overflow-hidden bg-white">
         {([['bank', '📚 문제은행'], ['exams', '🏫 반별 시험']] as const).map(([tab, label]) => (
           <button key={tab} onClick={() => setMainTab(tab)}
-            className={`flex-1 py-3 text-sm font-semibold transition-colors ${mainTab === tab ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+            className={`flex-1 py-3 text-sm font-semibold transition-colors ${mainTab === tab ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
             {label}
           </button>
         ))}
@@ -1366,9 +1366,9 @@ function GradesContent() {
             <div className="space-y-2">
               {classes.map(c => (
                 <button key={c.id} onClick={() => selectClass(c)}
-                  className="w-full flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all text-left">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-blue-600 font-bold text-lg">{c.name[0]}</span>
+                  className="w-full flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-violet-300 hover:shadow-sm transition-all text-left">
+                  <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-violet-600 font-bold text-lg">{c.name[0]}</span>
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-800">{c.name}</p>
@@ -1398,7 +1398,7 @@ function GradesContent() {
           <p className="text-sm text-slate-500 mt-0.5">시험 목록</p>
         </div>
         <button onClick={() => setAddModal('type_select')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm flex-shrink-0">
+          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm flex-shrink-0">
           <Plus size={16} /> 시험 추가
         </button>
       </div>
@@ -1416,10 +1416,10 @@ function GradesContent() {
             const st = examStatus(exam)
             return (
               <div key={exam.id} onClick={() => selectExam(exam)}
-                className="flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer">
+                className="flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-violet-300 hover:shadow-sm transition-all cursor-pointer">
                 <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0">
                   {exam.exam_type === 'auto'
-                    ? <ClipboardList size={20} className="text-blue-500" />
+                    ? <ClipboardList size={20} className="text-violet-500" />
                     : <FileText size={20} className="text-emerald-500" />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1475,9 +1475,9 @@ function GradesContent() {
                 </div>
               </button>
               <button onClick={() => setAddModal('auto_deadline')}
-                className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-blue-400 rounded-2xl transition-colors text-left">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <ClipboardList size={18} className="text-blue-600" />
+                className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-violet-400 rounded-2xl transition-colors text-left">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <ClipboardList size={18} className="text-violet-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-800">자동 채점</p>
@@ -1509,16 +1509,16 @@ function GradesContent() {
               {/* 마감 있는 시험 */}
               <button
                 onClick={() => { setAutoNoDeadline(false); setAddModal('auto_1') }}
-                className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-blue-400 rounded-2xl transition-colors text-left group">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
+                className="w-full flex items-start gap-4 p-4 border-2 border-slate-200 hover:border-violet-400 rounded-2xl transition-colors text-left group">
+                <div className="w-10 h-10 rounded-xl bg-violet-50 group-hover:bg-violet-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
                   <span className="text-lg">⏱️</span>
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-slate-800">마감 있는 시험</p>
                   <ul className="mt-2 space-y-1">
-                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>마감 시간을 정하거나 선생님이 직접 마감 버튼을 눌러야 종료돼요</li>
-                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>마감 전까지 학생은 결과를 볼 수 없어요</li>
-                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>마감 후 모든 학생의 성적·정답을 한꺼번에 공개해요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-violet-400 mt-0.5 flex-shrink-0">•</span>마감 시간을 정하거나 선생님이 직접 마감 버튼을 눌러야 종료돼요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-violet-400 mt-0.5 flex-shrink-0">•</span>마감 전까지 학생은 결과를 볼 수 없어요</li>
+                    <li className="text-xs text-slate-500 flex items-start gap-1.5"><span className="text-violet-400 mt-0.5 flex-shrink-0">•</span>마감 후 모든 학생의 성적·정답을 한꺼번에 공개해요</li>
                     <li className="text-xs text-slate-400 flex items-start gap-1.5 pt-1 border-t border-slate-100 mt-1"><span className="flex-shrink-0">📌</span>정해진 시간 안에 함께 보는 시험에 적합해요</li>
                   </ul>
                 </div>
@@ -1564,27 +1564,27 @@ function GradesContent() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">시험 이름 *</label>
                 <input type="text" value={manualTitle} onChange={e => setManualTitle(e.target.value)}
                   placeholder="예: 4월 단원평가" required autoFocus
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">만점 *</label>
                 <div className="flex items-center gap-2">
                   <input type="number" value={manualFormMaxScore} onChange={e => setManualFormMaxScore(e.target.value)}
                     placeholder="100" min="0" step="any" required
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
                   <span className="text-sm text-slate-400 flex-shrink-0">점</span>
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">날짜 (선택)</label>
                 <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
               </div>
               <div className="flex gap-2 pt-1">
                 <button type="button" onClick={() => setAddModal('type_select')}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button type="submit" disabled={addingManual}
-                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
                   {addingManual ? '추가 중...' : '추가'}
                 </button>
               </div>
@@ -1612,7 +1612,7 @@ function GradesContent() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">시험 이름 *</label>
                 <input type="text" value={autoTitle} onChange={e => setAutoTitle(e.target.value)}
                   placeholder="예: 5월 모의고사" autoFocus
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
               </div>
               {!autoNoDeadline && (
                 <DateTimePicker label="마감 시간 (선택)" value={autoEnd} onChange={setAutoEnd} />
@@ -1627,7 +1627,7 @@ function GradesContent() {
                     : [{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const
                   ).map(({ val, label }) => (
                     <button key={val} onClick={() => setAutoReveal(val)}
-                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${autoReveal === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${autoReveal === val ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
                       {label}
                     </button>
                   ))}
@@ -1652,7 +1652,7 @@ function GradesContent() {
                   }
                   setAddModal('auto_2')
                 }}
-                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors">
                   다음: 문제 설정 →
                 </button>
               </div>
@@ -1684,7 +1684,7 @@ function GradesContent() {
                 />
               ))}
               <button onClick={() => setWizardQs(prev => [...prev, newWizardQ()])}
-                className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-violet-300 hover:text-violet-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 <Plus size={16} /> 문제 추가
               </button>
             </div>
@@ -1693,11 +1693,11 @@ function GradesContent() {
                 <span className="text-slate-500">
                   총 {wizardQs.length}문제 · 총점 {wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0)}점
                 </span>
-                <button onClick={distributeScore} className="text-xs text-blue-500 hover:text-blue-700 font-medium">배점 균등 분배</button>
+                <button onClick={distributeScore} className="text-xs text-violet-500 hover:text-violet-700 font-medium">배점 균등 분배</button>
               </div>
               <button
                 onClick={() => setWizardCustomLabels(v => !v)}
-                className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-colors ${wizardCustomLabels ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-colors ${wizardCustomLabels ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
               >
                 {wizardCustomLabels ? '✓ 번호 직접 입력 모드 ON' : '문제 번호 직접 입력'}
               </button>
@@ -1705,7 +1705,7 @@ function GradesContent() {
                 <button onClick={() => setAddModal('none')}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={addAutoExam} disabled={addingAuto}
-                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
                   {addingAuto ? '생성 중...' : '시험 생성'}
                 </button>
               </div>
@@ -1732,12 +1732,12 @@ function GradesContent() {
                 <input
                   value={editTitleInput}
                   onChange={e => setEditTitleInput(e.target.value)}
-                  className="text-xl font-bold text-slate-800 border-b-2 border-blue-500 focus:outline-none bg-transparent min-w-0"
+                  className="text-xl font-bold text-slate-800 border-b-2 border-violet-500 focus:outline-none bg-transparent min-w-0"
                   autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveTitleOnly(); if (e.key === 'Escape') setShowTitleEdit(false) }}
                 />
                 <button onClick={saveTitleOnly} disabled={savingTitle}
-                  className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-lg disabled:opacity-50">
+                  className="text-xs px-2.5 py-1 bg-violet-600 text-white rounded-lg disabled:opacity-50">
                   {savingTitle ? '...' : '저장'}
                 </button>
                 <button onClick={() => setShowTitleEdit(false)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
@@ -1853,7 +1853,7 @@ function GradesContent() {
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">시험 이름 *</label>
                     <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} autoFocus
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
                   </div>
                   {!selectedExam?.no_deadline && (
                     <DateTimePicker label="마감 시간 (선택)" value={editEnd} onChange={setEditEnd} />
@@ -1866,7 +1866,7 @@ function GradesContent() {
                         : [{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const
                       ).map(({ val, label }) => (
                         <button key={val} onClick={() => setEditReveal(val as 'after_close' | 'never')}
-                          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${editReveal === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${editReveal === val ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
                           {label}
                         </button>
                       ))}
@@ -1876,7 +1876,7 @@ function GradesContent() {
                     <button onClick={() => setShowEditModal(false)}
                       className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                     <button onClick={() => { if (!editTitle.trim()) { alert('시험 이름을 입력해주세요.'); return }; setEditStep(2) }}
-                      className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+                      className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors">
                       다음: 문제 수정 →
                     </button>
                   </div>
@@ -1908,7 +1908,7 @@ function GradesContent() {
                     />
                   ))}
                   <button onClick={() => setEditWizardQs(prev => [...prev, newWizardQ()])}
-                    className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                    className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-violet-300 hover:text-violet-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                     <Plus size={16} /> 문제 추가
                   </button>
                 </div>
@@ -1918,7 +1918,7 @@ function GradesContent() {
                       총 {editWizardQs.length}문제 · 총점 {editWizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0)}점
                     </span>
                     <button onClick={() => setEditCustomLabels(v => !v)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${editCustomLabels ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${editCustomLabels ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                       {editCustomLabels ? '✓ 번호 직접 입력' : '번호 직접 입력'}
                     </button>
                   </div>
@@ -1926,7 +1926,7 @@ function GradesContent() {
                     <button onClick={() => setShowEditModal(false)}
                       className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                     <button onClick={saveEditExam} disabled={savingEdit}
-                      className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+                      className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
                       {savingEdit ? '저장 중...' : '수정 완료'}
                     </button>
                   </div>

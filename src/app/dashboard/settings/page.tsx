@@ -182,7 +182,7 @@ export default function SettingsPage() {
             key={key}
             onClick={() => setTab(key)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === key ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              tab === key ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <Icon size={14} />
@@ -209,8 +209,8 @@ export default function SettingsPage() {
                     className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-blue-100 flex items-center justify-center border border-slate-200">
-                    <span className="text-blue-600 font-bold text-2xl">{academyName[0] ?? '학'}</span>
+                  <div className="w-20 h-20 rounded-2xl bg-violet-100 flex items-center justify-center border border-slate-200">
+                    <span className="text-violet-600 font-bold text-2xl">{academyName[0] ?? '학'}</span>
                   </div>
                 )}
                 {isAdmin && (
@@ -239,7 +239,7 @@ export default function SettingsPage() {
                         className={`w-full py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
                           logoSaved
                             ? 'bg-emerald-500 text-white'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-violet-600 text-white hover:bg-violet-700'
                         }`}
                       >
                         {logoSaved
@@ -266,7 +266,7 @@ export default function SettingsPage() {
                 value={academyName}
                 onChange={e => setAcademyName(e.target.value)}
                 disabled={!isAdmin}
-                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
+                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:bg-slate-50 disabled:text-slate-400"
               />
               {isAdmin && (
                 <button
@@ -275,7 +275,7 @@ export default function SettingsPage() {
                   className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center w-16 ${
                     academySaved
                       ? 'bg-emerald-500 text-white'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-violet-600 text-white hover:bg-violet-700'
                   }`}
                 >
                   {academySaved
@@ -299,7 +299,7 @@ export default function SettingsPage() {
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldQuestion size={18} className="text-blue-500" />
+                <ShieldQuestion size={18} className="text-violet-500" />
                 <h2 className="font-bold text-slate-800">비밀번호 찾기 질문</h2>
               </div>
               <button onClick={() => setShowSqModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
@@ -311,8 +311,8 @@ export default function SettingsPage() {
               </div>
             ) : (
               <form onSubmit={handleSaveSQ} className="p-5 space-y-4">
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                  <p className="text-xs text-blue-700 leading-relaxed">
+                <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-violet-700 leading-relaxed">
                     본인만 알 수 있는 <span className="font-semibold">질문과 답변</span>을 만들어주세요.<br />
                     가장 잘 기억할 수 있는 것으로 설정하는 게 좋아요.
                   </p>
@@ -325,7 +325,7 @@ export default function SettingsPage() {
                     onChange={e => setSqQuestion(e.target.value)}
                     placeholder="예: 내 첫 번째 반려동물 이름은?"
                     required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
                   />
                 </div>
                 <div>
@@ -337,7 +337,7 @@ export default function SettingsPage() {
                     placeholder="가장 잘 기억할 수 있는 답변을 쓰세요"
                     required
                     autoComplete="off"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
                   />
                   <p className="text-xs text-slate-400 mt-1.5">대·소문자 구분 없이 입력해도 돼요</p>
                 </div>
@@ -346,7 +346,7 @@ export default function SettingsPage() {
                   <button type="button" onClick={() => setShowSqModal(false)}
                     className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">취소</button>
                   <button type="submit" disabled={sqSaving}
-                    className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
+                    className="flex-1 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm disabled:opacity-50">
                     {sqSaving ? '저장 중...' : '저장'}
                   </button>
                 </div>
@@ -367,13 +367,13 @@ export default function SettingsPage() {
                 type="text"
                 value={myName}
                 onChange={e => setMyName(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
               <button
                 onClick={saveMyName}
                 disabled={savingName}
                 className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center w-16 ${
-                  nameSaved ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
+                  nameSaved ? 'bg-emerald-500 text-white' : 'bg-violet-600 text-white hover:bg-violet-700'
                 }`}
               >
                 {nameSaved
@@ -408,7 +408,7 @@ export default function SettingsPage() {
             )}
             <button
               onClick={() => { setSqQuestion(currentSQ ?? ''); setSqAnswer(''); setSqError(''); setSqSaved(false); setShowSqModal(true) }}
-              className="w-full py-2.5 bg-blue-50 text-blue-600 text-sm font-semibold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-violet-50 text-violet-600 text-sm font-semibold rounded-xl hover:bg-violet-100 transition-colors flex items-center justify-center gap-1.5"
             >
               <ShieldQuestion size={15} />
               {currentSQ ? '질문 변경하기' : '질문 설정하기'}
@@ -426,7 +426,7 @@ export default function SettingsPage() {
                   value={newPw}
                   onChange={e => setNewPw(e.target.value)}
                   placeholder="6자 이상"
-                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
                 <button
                   type="button"
@@ -445,7 +445,7 @@ export default function SettingsPage() {
                   value={confirmPw}
                   onChange={e => setConfirmPw(e.target.value)}
                   placeholder="비밀번호 재입력"
-                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
                 <button
                   type="button"
@@ -461,7 +461,7 @@ export default function SettingsPage() {
             <button
               onClick={changePassword}
               disabled={savingPw || !newPw || !confirmPw}
-              className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 text-sm"
+              className="w-full py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-40 text-sm"
             >
               {savingPw ? '변경 중...' : '비밀번호 변경'}
             </button>

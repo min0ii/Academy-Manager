@@ -131,7 +131,7 @@ export default function TeamPage() {
         {isAdmin && !showAddForm && (
           <button
             onClick={() => { setShowAddForm(true); setAddError('') }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors"
           >
             <Plus size={14} /> 선생님 추가
           </button>
@@ -159,7 +159,7 @@ export default function TeamPage() {
                 onChange={e => setNewName(e.target.value)}
                 required
                 placeholder="선생님 이름"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             <div>
@@ -170,7 +170,7 @@ export default function TeamPage() {
                 onChange={e => setNewPhone(formatPhone(e.target.value))}
                 required
                 placeholder="010-0000-0000"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             <div>
@@ -183,7 +183,7 @@ export default function TeamPage() {
                     onClick={() => setNewTitle(t)}
                     className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors border ${
                       newTitle === t
-                        ? 'bg-blue-600 text-white border-blue-600'
+                        ? 'bg-violet-600 text-white border-violet-600'
                         : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
                     }`}
                   >
@@ -200,7 +200,7 @@ export default function TeamPage() {
                 onChange={e => setNewPwTeacher(e.target.value)}
                 required
                 placeholder="6자 이상"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             <div>
@@ -211,7 +211,7 @@ export default function TeamPage() {
                 onChange={e => setConfirmPwTeacher(e.target.value)}
                 required
                 placeholder="비밀번호 재입력"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             {addError && (
@@ -228,7 +228,7 @@ export default function TeamPage() {
               <button
                 type="submit"
                 disabled={addingTeacher}
-                className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 text-sm transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 text-sm transition-colors disabled:opacity-50"
               >
                 {addingTeacher ? <><Loader2 size={14} className="animate-spin inline mr-1" />추가 중...</> : '추가'}
               </button>
@@ -259,11 +259,11 @@ export default function TeamPage() {
             <div key={m.id} className="flex items-center gap-3 px-4 py-3">
               <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                 m.title === '원장'   ? 'bg-amber-100'  :
-                m.title === '관리자' ? 'bg-blue-100'   :
+                m.title === '관리자' ? 'bg-violet-100'   :
                 m.title === '강사'   ? 'bg-indigo-100' : 'bg-slate-100'
               }`}>
                 {m.title === '원장'   ? <Crown size={15} className="text-amber-600" />         :
-                 m.title === '관리자' ? <Shield size={15} className="text-blue-600" />         :
+                 m.title === '관리자' ? <Shield size={15} className="text-violet-600" />         :
                  m.title === '강사'   ? <GraduationCap size={15} className="text-indigo-600" /> :
                                        <User size={15} className="text-slate-500" />
                 }
@@ -290,7 +290,7 @@ export default function TeamPage() {
                       onClick={() => saveTitle(m.id, t)}
                       className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
                         m.title === t
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-violet-600 text-white'
                           : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >

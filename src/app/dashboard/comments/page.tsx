@@ -238,7 +238,7 @@ export default function CommentsPage() {
         <div className="grid grid-cols-7 border-b border-slate-100">
           {DAYS_KO.map((d, i) => (
             <div key={d} className={`py-2 text-center text-xs font-semibold
-              ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}`}>
+              ${i === 0 ? 'text-red-400' : i === 6 ? 'text-violet-400' : 'text-slate-400'}`}>
               {d}
             </div>
           ))}
@@ -273,7 +273,7 @@ export default function CommentsPage() {
                         ${isSelected   ? 'text-white font-bold' :
                           isToday      ? 'text-violet-600 font-bold' :
                           di === 0     ? 'text-red-400' :
-                          di === 6     ? 'text-blue-400' : 'text-slate-700'}`}>
+                          di === 6     ? 'text-violet-400' : 'text-slate-700'}`}>
                         {day}
                       </span>
                       {hasSession && !isCancelled && (
