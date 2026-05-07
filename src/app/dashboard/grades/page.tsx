@@ -626,7 +626,16 @@ function AutoMonitorView({
           )}
         </div>
         <div className="divide-y divide-slate-100">
-          {submissions.map(s => {
+          {[...submissions]
+            .sort((a, b) => {
+              // 제출자 먼저, 그 안에서 점수 높은 순
+              if (a.isSubmitted && !b.isSubmitted) return -1
+              if (!a.isSubmitted && b.isSubmitted) return 1
+              const sa = a.finalScore ?? -1
+              const sb = b.finalScore ?? -1
+              return sb - sa
+            })
+            .map(s => {
             const p = pct(s.finalScore, maxScore)
             const adjVal = editAdjusted[s.studentId] ?? (s.adjustedScore !== null ? String(s.adjustedScore) : '')
             return (
