@@ -268,7 +268,7 @@ export default function HomeworkPage() {
     return <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full"><Circle size={11} /> 미기록</span>
   }
 
-  const RateBar = ({ done, total, color = 'bg-violet-500' }: { done: number; total: number; color?: string }) => {
+  const RateBar = ({ done, total, color = 'bg-blue-500' }: { done: number; total: number; color?: string }) => {
     const pct = total > 0 ? Math.round((done / total) * 100) : 0
     return (
       <div className="flex items-center gap-2">
@@ -304,9 +304,9 @@ export default function HomeworkPage() {
           <div className="space-y-2">
             {classes.map(cls => (
               <button key={cls.id} onClick={() => loadClassData(cls)}
-                className="w-full flex items-center justify-between px-4 py-4 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:bg-violet-50/40 transition-all text-left group">
-                <span className="font-semibold text-slate-800 group-hover:text-violet-700">{cls.name}</span>
-                <ChevronRight size={18} className="text-slate-400 group-hover:text-violet-500" />
+                className="w-full flex items-center justify-between px-4 py-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:bg-blue-50/40 transition-all text-left group">
+                <span className="font-semibold text-slate-800 group-hover:text-blue-700">{cls.name}</span>
+                <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-500" />
               </button>
             ))}
           </div>
@@ -426,7 +426,7 @@ export default function HomeworkPage() {
           {/* 탭 */}
           <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
             <button onClick={() => setViewTab('homework')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${viewTab === 'homework' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}>
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${viewTab === 'homework' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
               <ClipboardList size={15} />
               과제 {homeworks.length > 0 && <span className="text-xs opacity-70">({homeworks.length})</span>}
             </button>
@@ -446,7 +446,7 @@ export default function HomeworkPage() {
                 <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-slate-700">전체 평균 완료율</p>
-                    <span className="text-2xl font-bold text-violet-600">{hwAvgRate ?? 0}%</span>
+                    <span className="text-2xl font-bold text-blue-600">{hwAvgRate ?? 0}%</span>
                   </div>
                   <RateBar
                     done={homeworks.reduce((s, h) => s + h.done + h.partial, 0)}

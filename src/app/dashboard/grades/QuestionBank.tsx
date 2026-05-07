@@ -82,12 +82,12 @@ function QuestionCard({
           onChange={e => onChange({ customLabel: e.target.value })}
           placeholder={String(idx + 1)}
           title="문제 번호 (클릭해서 수정)"
-          className="w-10 h-7 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold text-center border border-transparent hover:border-slate-300 focus:border-violet-400 focus:bg-white focus:outline-none placeholder:text-slate-400 transition-colors"
+          className="w-10 h-7 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold text-center border border-transparent hover:border-slate-300 focus:border-blue-400 focus:bg-white focus:outline-none placeholder:text-slate-400 transition-colors"
         />
         <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
           {(['multiple_choice', 'short_answer'] as const).map((t, ti) => (
             <button key={t} onClick={() => onChange({ question_type: t })}
-              className={`px-2.5 py-1.5 font-medium transition-colors ${ti > 0 ? 'border-l border-slate-200' : ''} ${q.question_type === t ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              className={`px-2.5 py-1.5 font-medium transition-colors ${ti > 0 ? 'border-l border-slate-200' : ''} ${q.question_type === t ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
               {t === 'multiple_choice' ? '객관식' : '주관식'}
             </button>
           ))}
@@ -95,7 +95,7 @@ function QuestionCard({
         <div className="flex items-center gap-1 ml-auto">
           <input type="number" value={q.score} onChange={e => onChange({ score: e.target.value })}
             min="0" step="0.5" placeholder="점"
-            className="w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+            className="w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           <span className="text-xs text-slate-400">점</span>
         </div>
         {total > 1 && (
@@ -111,7 +111,7 @@ function QuestionCard({
         onChange={e => onChange({ question_text: e.target.value })}
         placeholder={`${displayLabel(q, idx)}번 문제 내용`}
         rows={2}
-        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent placeholder:text-slate-300"
+        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
       />
 
       {/* MC choices */}
@@ -121,13 +121,13 @@ function QuestionCard({
           {q.choices.map((c, ci) => (
             <div key={ci} className="flex items-center gap-2">
               <button onClick={() => onChange({ correctChoiceIdx: ci })}
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-violet-500 bg-violet-500' : 'border-slate-300'}`}>
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
                 {q.correctChoiceIdx === ci && <span className="w-2 h-2 rounded-full bg-white" />}
               </button>
               <span className="text-xs font-semibold text-slate-500 w-4 flex-shrink-0 text-center">{ci + 1}</span>
               <input value={c} onChange={e => updateChoice(ci, e.target.value)}
                 placeholder={`선택지 ${ci + 1}`}
-                className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+                className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               {q.choices.length > 2 && (
                 <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 transition-colors">
                   <X size={14} />
@@ -137,7 +137,7 @@ function QuestionCard({
           ))}
           {q.choices.length < 5 && (
             <button onClick={() => onChange({ choices: [...q.choices, ''] })}
-              className="text-xs text-violet-500 hover:text-violet-700 font-medium flex items-center gap-1 mt-1">
+              className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1 mt-1">
               <Plus size={12} /> 선택지 추가
             </button>
           )}
@@ -152,7 +152,7 @@ function QuestionCard({
             <div key={ai} className="flex items-center gap-2">
               <input value={a} onChange={e => updateSA(ai, e.target.value)}
                 placeholder={`정답 ${ai + 1}`}
-                className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+                className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               {q.saAnswers.length > 1 && (
                 <button onClick={() => onChange({ saAnswers: q.saAnswers.filter((_, i) => i !== ai) })}
                   className="text-slate-300 hover:text-red-400 transition-colors">
@@ -162,7 +162,7 @@ function QuestionCard({
             </div>
           ))}
           <button onClick={() => onChange({ saAnswers: [...q.saAnswers, ''] })}
-            className="text-xs text-violet-500 hover:text-violet-700 font-medium flex items-center gap-1">
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
             <Plus size={12} /> 정답 추가
           </button>
         </div>
@@ -489,7 +489,7 @@ export default function QuestionBank() {
             <input
               value={editingSetTitle}
               onChange={e => setEditingSetTitle(e.target.value)}
-              className="text-lg font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-violet-500 focus:outline-none w-full transition-colors"
+              className="text-lg font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full transition-colors"
             />
             <p className="text-xs text-slate-400">{questions.length}문제 · 총 {totalScore}점</p>
           </div>
@@ -499,7 +499,7 @@ export default function QuestionBank() {
             {savingSet ? '저장 중' : savedSet ? '저장됨 ✓' : '저장'}
           </button>
           <button onClick={openCreateExam}
-            className="flex items-center gap-1 px-3 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors flex-shrink-0">
+            className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors flex-shrink-0">
             <GraduationCap size={14} /> 시험 생성
           </button>
         </div>
@@ -522,7 +522,7 @@ export default function QuestionBank() {
         {/* 문제 추가 버튼 */}
         <button
           onClick={() => { setSavedSet(false); setQuestions(prev => [...prev, newQ(prev.length + 1)]) }}
-          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-300 text-slate-400 hover:border-violet-400 hover:text-violet-500 rounded-2xl text-sm font-medium transition-colors">
+          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 rounded-2xl text-sm font-medium transition-colors">
           <Plus size={16} /> 문제 추가
         </button>
 
@@ -553,7 +553,7 @@ export default function QuestionBank() {
                 <>
                   <div className="flex items-center gap-3">
                     <button onClick={() => setSelectedQClientIds(new Set(questions.map(q => q.clientId)))}
-                      className="text-xs text-violet-600 font-semibold hover:underline">전체 선택</button>
+                      className="text-xs text-blue-600 font-semibold hover:underline">전체 선택</button>
                     <span className="text-slate-200">|</span>
                     <button onClick={() => setSelectedQClientIds(new Set())}
                       className="text-xs text-slate-400 font-medium hover:underline">전체 해제</button>
@@ -571,9 +571,9 @@ export default function QuestionBank() {
                             next.has(q.clientId) ? next.delete(q.clientId) : next.add(q.clientId)
                             return next
                           })}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${checked ? 'border-violet-400 bg-violet-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${checked ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
                           {/* 문제 번호 뱃지 */}
-                          <div className={`min-w-8 h-8 rounded-lg px-1 text-sm font-bold flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-violet-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                          <div className={`min-w-8 h-8 rounded-lg px-1 text-sm font-bold flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
                             {label}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -584,7 +584,7 @@ export default function QuestionBank() {
                               {q.question_type === 'multiple_choice' ? '객관식' : '주관식'} · {q.score}점
                             </p>
                           </div>
-                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-violet-500 border-violet-500' : 'border-slate-300'}`}>
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}`}>
                             {checked && <Check size={12} className="text-white" />}
                           </div>
                         </button>
@@ -601,8 +601,8 @@ export default function QuestionBank() {
                         { val: 'sequential', label: '1번부터 순서대로', desc: '선택한 순서로 1, 2, 3...' },
                       ] as const).map(({ val, label, desc }) => (
                         <button key={val} onClick={() => setExamNumbering(val)}
-                          className={`py-3 px-3 rounded-xl border text-left transition-all ${examNumbering === val ? 'border-violet-500 bg-violet-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                          <p className={`text-xs font-semibold ${examNumbering === val ? 'text-violet-700' : 'text-slate-700'}`}>{label}</p>
+                          className={`py-3 px-3 rounded-xl border text-left transition-all ${examNumbering === val ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <p className={`text-xs font-semibold ${examNumbering === val ? 'text-blue-700' : 'text-slate-700'}`}>{label}</p>
                           <p className="text-[10px] text-slate-400 mt-1 leading-tight">{desc}</p>
                         </button>
                       ))}
@@ -610,7 +610,7 @@ export default function QuestionBank() {
                   </div>
 
                   <button onClick={() => setExamModalStep(2)} disabled={selectedQClientIds.size === 0}
-                    className="w-full py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
                     다음 → ({selectedQClientIds.size}문제 선택됨)
                   </button>
                 </>
@@ -620,7 +620,7 @@ export default function QuestionBank() {
               {examModalStep === 2 && (
                 <>
                   <button onClick={() => setExamModalStep(1)}
-                    className="flex items-center gap-1 text-sm text-violet-500 hover:text-violet-700 font-medium">
+                    className="flex items-center gap-1 text-sm text-blue-500 hover:text-blue-700 font-medium">
                     <ChevronLeft size={14} /> 문제 선택으로
                   </button>
 
@@ -629,7 +629,7 @@ export default function QuestionBank() {
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">시험 이름</label>
                     <input value={examTitle} onChange={e => setExamTitle(e.target.value)}
                       placeholder="시험 이름"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   </div>
 
                   {/* 반 선택 */}
@@ -643,12 +643,12 @@ export default function QuestionBank() {
                       <div className="space-y-1.5 max-h-44 overflow-y-auto">
                         {classes.map(c => (
                           <button key={c.id} onClick={() => setSelectedClassId(c.id)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${selectedClassId === c.id ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedClassId === c.id ? 'bg-violet-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${selectedClassId === c.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedClassId === c.id ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
                               {c.name[0]}
                             </div>
                             <span className="flex-1">{c.name}</span>
-                            {selectedClassId === c.id && <Check size={14} className="text-violet-500" />}
+                            {selectedClassId === c.id && <Check size={14} className="text-blue-500" />}
                           </button>
                         ))}
                       </div>
@@ -664,8 +664,8 @@ export default function QuestionBank() {
                         { val: false, label: '마감 있음', desc: '마감 후 결과 공개' },
                       ].map(({ val, label, desc }) => (
                         <button key={String(val)} onClick={() => setExamNoDeadline(val)}
-                          className={`py-3 px-3 rounded-xl border text-left transition-all ${examNoDeadline === val ? 'border-violet-500 bg-violet-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                          <p className={`text-xs font-semibold ${examNoDeadline === val ? 'text-violet-700' : 'text-slate-700'}`}>{label}</p>
+                          className={`py-3 px-3 rounded-xl border text-left transition-all ${examNoDeadline === val ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <p className={`text-xs font-semibold ${examNoDeadline === val ? 'text-blue-700' : 'text-slate-700'}`}>{label}</p>
                           <p className="text-[10px] text-slate-400 mt-1">{desc}</p>
                         </button>
                       ))}
@@ -674,7 +674,7 @@ export default function QuestionBank() {
 
                   <button onClick={doCreateExam}
                     disabled={creatingExam || !selectedClassId || !examTitle.trim()}
-                    className="w-full py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
                     {creatingExam ? '생성 중...' : `시험 생성하기 (${selectedQClientIds.size}문제)`}
                   </button>
                 </>
@@ -698,7 +698,7 @@ export default function QuestionBank() {
             <button
               onClick={() => navigateBreadcrumb(b)}
               disabled={i === breadcrumbs.length - 1}
-              className={`text-sm font-medium transition-colors ${i === breadcrumbs.length - 1 ? 'text-slate-800 cursor-default' : 'text-violet-500 hover:text-violet-700'}`}>
+              className={`text-sm font-medium transition-colors ${i === breadcrumbs.length - 1 ? 'text-slate-800 cursor-default' : 'text-blue-500 hover:text-blue-700'}`}>
               {b.name}
             </button>
           </span>
@@ -712,33 +712,33 @@ export default function QuestionBank() {
           <Folder size={14} /> 폴더 추가
         </button>
         <button onClick={() => { setCreatingSet(true); setCreatingFolder(false) }}
-          className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white text-sm font-medium rounded-xl hover:bg-violet-700 transition-colors">
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
           <Plus size={14} /> 새 세트
         </button>
       </div>
 
       {/* 새 폴더 입력 */}
       {creatingFolder && (
-        <div className="flex items-center gap-2 bg-white border border-violet-300 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2 bg-white border border-blue-300 rounded-2xl px-4 py-3">
           <Folder size={16} className="text-slate-400 flex-shrink-0" />
           <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') } }}
             placeholder="폴더 이름"
             className="flex-1 text-sm text-slate-800 focus:outline-none" />
-          <button onClick={createFolder} disabled={creating || !newFolderName.trim()} className="text-violet-600 hover:text-violet-800 disabled:opacity-40 transition-colors"><Check size={16} /></button>
+          <button onClick={createFolder} disabled={creating || !newFolderName.trim()} className="text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors"><Check size={16} /></button>
           <button onClick={() => { setCreatingFolder(false); setNewFolderName('') }} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
         </div>
       )}
 
       {/* 새 세트 입력 */}
       {creatingSet && (
-        <div className="flex items-center gap-2 bg-white border border-violet-300 rounded-2xl px-4 py-3">
-          <FileText size={16} className="text-violet-400 flex-shrink-0" />
+        <div className="flex items-center gap-2 bg-white border border-blue-300 rounded-2xl px-4 py-3">
+          <FileText size={16} className="text-blue-400 flex-shrink-0" />
           <input autoFocus value={newSetTitle} onChange={e => setNewSetTitle(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') createSet(); if (e.key === 'Escape') { setCreatingSet(false); setNewSetTitle('') } }}
             placeholder="세트 이름"
             className="flex-1 text-sm text-slate-800 focus:outline-none" />
-          <button onClick={createSet} disabled={creating || !newSetTitle.trim()} className="text-violet-600 hover:text-violet-800 disabled:opacity-40 transition-colors"><Check size={16} /></button>
+          <button onClick={createSet} disabled={creating || !newSetTitle.trim()} className="text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors"><Check size={16} /></button>
           <button onClick={() => { setCreatingSet(false); setNewSetTitle('') }} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
         </div>
       )}
@@ -761,8 +761,8 @@ export default function QuestionBank() {
                   <Folder size={18} className="text-amber-400 flex-shrink-0" />
                   <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setRenamingId(null) }}
-                    className="flex-1 text-sm text-slate-800 focus:outline-none border-b border-violet-400" />
-                  <button onClick={saveRename} className="text-violet-600 hover:text-violet-800 transition-colors"><Check size={16} /></button>
+                    className="flex-1 text-sm text-slate-800 focus:outline-none border-b border-blue-400" />
+                  <button onClick={saveRename} className="text-blue-600 hover:text-blue-800 transition-colors"><Check size={16} /></button>
                   <button onClick={() => setRenamingId(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
                 </div>
               ) : (
@@ -785,16 +785,16 @@ export default function QuestionBank() {
             <div key={set.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
               {renamingId === set.id ? (
                 <div className="flex items-center gap-2 px-4 py-3">
-                  <FileText size={18} className="text-violet-400 flex-shrink-0" />
+                  <FileText size={18} className="text-blue-400 flex-shrink-0" />
                   <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setRenamingId(null) }}
-                    className="flex-1 text-sm text-slate-800 focus:outline-none border-b border-violet-400" />
-                  <button onClick={saveRename} className="text-violet-600 hover:text-violet-800 transition-colors"><Check size={16} /></button>
+                    className="flex-1 text-sm text-slate-800 focus:outline-none border-b border-blue-400" />
+                  <button onClick={saveRename} className="text-blue-600 hover:text-blue-800 transition-colors"><Check size={16} /></button>
                   <button onClick={() => setRenamingId(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
                 </div>
               ) : (
                 <button onClick={() => openEditSet(set)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors group">
-                  <FileText size={18} className="text-violet-400 flex-shrink-0" />
+                  <FileText size={18} className="text-blue-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-700">{set.title}</p>
                     <p className="text-xs text-slate-400 mt-0.5">{set.questionCount}문제</p>

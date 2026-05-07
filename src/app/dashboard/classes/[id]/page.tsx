@@ -848,7 +848,7 @@ export default function ClassDetailPage() {
         ]).map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 min-w-max flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
-              tab === key ? 'bg-white text-violet-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              tab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}>
             <Icon size={15} />{label}
           </button>
@@ -882,7 +882,7 @@ export default function ClassDetailPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     { label: '총 수업 횟수', val: `${totalSess}회`,    color: 'text-slate-700',   bg: 'bg-slate-50'   },
-                    { label: '평균 출석률',  val: `${avgRate}%`,        color: 'text-violet-600',    bg: 'bg-violet-50'    },
+                    { label: '평균 출석률',  val: `${avgRate}%`,        color: 'text-blue-600',    bg: 'bg-blue-50'    },
                     { label: '누적 출석',    val: `${totalPresent}건`,  color: 'text-green-600',   bg: 'bg-green-50'   },
                     { label: '누적 결석',    val: `${totalAbsent}건`,   color: 'text-red-500',     bg: 'bg-red-50'     },
                   ].map(({ label, val, color, bg }) => (
@@ -948,8 +948,8 @@ export default function ClassDetailPage() {
                       const rateColor = rate >= 80 ? 'text-green-600' : rate >= 60 ? 'text-amber-500' : 'text-red-500'
                       return (
                         <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-                          <div className="w-7 h-7 rounded-full bg-violet-50 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-bold text-violet-600">{i + 1}</span>
+                          <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-blue-600">{i + 1}</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-slate-800">{s.name}</p>
@@ -985,7 +985,7 @@ export default function ClassDetailPage() {
                 <p className="text-xs text-slate-400 mt-0.5">일주일에 여러 번 수업도 추가할 수 있어요</p>
               </div>
               <button onClick={() => setShowScheduleForm(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-xl hover:bg-violet-100 transition-colors">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
                 <Plus size={14} /> 수업 추가
               </button>
             </div>
@@ -998,8 +998,8 @@ export default function ClassDetailPage() {
               <div className="space-y-2">
                 {schedules.map(s => (
                   <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
-                      <span className="text-violet-600 font-bold text-base">{DAYS[s.day_of_week]}</span>
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-600 font-bold text-base">{DAYS[s.day_of_week]}</span>
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-slate-800">{DAYS[s.day_of_week]}요일</p>
@@ -1096,7 +1096,7 @@ export default function ClassDetailPage() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-slate-700">소속 학생 {students.length}명</h2>
             <button onClick={() => setShowAddStudent(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-xl hover:bg-violet-100 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
               <Plus size={14} /> 학생 배정
             </button>
           </div>
@@ -1113,14 +1113,14 @@ export default function ClassDetailPage() {
                   <div key={s.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                     <div className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
                       onClick={() => setExpandedStudentId(isExpanded ? null : s.id)}>
-                      <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
-                        <span className="text-violet-600 font-bold text-sm">{s.name[0]}</span>
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-blue-600 font-bold text-sm">{s.name[0]}</span>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-800">{s.name}</p>
                           {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
-                          <span className="text-xs px-2 py-0.5 bg-violet-50 text-violet-600 rounded-full">{s.grade}학년</span>
+                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{s.grade}학년</span>
                         </div>
                         <p className="text-sm text-slate-500">{formatPhone(s.phone)}</p>
                       </div>
@@ -1148,7 +1148,7 @@ export default function ClassDetailPage() {
                         </div>
                         <button
                           onClick={() => router.push(`/dashboard/students/${s.id}?from=${encodeURIComponent(`/dashboard/classes/${classId}?tab=students`)}`)}
-                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-violet-300 hover:text-violet-600 transition-colors">
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-blue-300 hover:text-blue-600 transition-colors">
                           <FileText size={14} /> 리포트 보기
                         </button>
                       </div>
@@ -1175,7 +1175,7 @@ export default function ClassDetailPage() {
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input type="text" value={studentSearch} onChange={e => setStudentSearch(e.target.value)}
                       placeholder="이름 또는 학교로 검색" autoFocus
-                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 </div>
                 <div className="overflow-y-auto flex-1 p-3 space-y-1">
@@ -1185,8 +1185,8 @@ export default function ClassDetailPage() {
                     const checked = selectedNewIds.has(s.id)
                     return (
                       <button key={s.id} onClick={() => toggleNewId(s.id)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors text-left ${checked ? 'bg-violet-50' : 'hover:bg-slate-50'}`}>
-                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-violet-600 border-violet-600' : 'border-slate-300'}`}>
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors text-left ${checked ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
                           {checked && <Check size={12} className="text-white" strokeWidth={3} />}
                         </div>
                         <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -1202,7 +1202,7 @@ export default function ClassDetailPage() {
                 </div>
                 <div className="p-4 border-t border-slate-100">
                   <button onClick={assignStudents} disabled={selectedNewIds.size === 0 || assigning}
-                    className="w-full py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-40">
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40">
                     {assigning ? '배정 중...' : selectedNewIds.size > 0 ? `${selectedNewIds.size}명 배정하기` : '학생을 선택해주세요'}
                   </button>
                 </div>
@@ -1224,7 +1224,7 @@ export default function ClassDetailPage() {
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="grid grid-cols-7 border-b border-slate-100">
               {DAYS.map((d, i) => (
-                <div key={i} className={`py-2.5 text-center text-xs font-semibold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-violet-400' : 'text-slate-400'}`}>{d}</div>
+                <div key={i} className={`py-2.5 text-center text-xs font-semibold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}`}>{d}</div>
               ))}
             </div>
             <div className="grid grid-cols-7">
@@ -1253,18 +1253,18 @@ export default function ClassDetailPage() {
                 return (
                   <div key={day} onClick={handleDayClick}
                     className={`h-14 flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer
-                      ${isSelected ? 'bg-violet-50' : isClassDay || isClinicDay ? 'hover:bg-slate-50' : 'hover:bg-slate-50'}
+                      ${isSelected ? 'bg-blue-50' : isClassDay || isClinicDay ? 'hover:bg-slate-50' : 'hover:bg-slate-50'}
                     `}>
                     <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-colors
-                      ${isSelected ? 'bg-violet-600 text-white' : ''}
+                      ${isSelected ? 'bg-blue-600 text-white' : ''}
                       ${!isSelected && isToday ? 'bg-slate-200 text-slate-700' : ''}
                       ${!isSelected && !isToday && col === 0 ? 'text-red-400' : ''}
-                      ${!isSelected && !isToday && col === 6 ? 'text-violet-400' : ''}
+                      ${!isSelected && !isToday && col === 6 ? 'text-blue-400' : ''}
                       ${!isSelected && !isToday && col !== 0 && col !== 6 ? 'text-slate-700' : ''}
                     `}>{day}</span>
                     <div className="flex gap-0.5 items-center h-2">
                       {(hasSession || isClassDay) && (
-                        <div className={`w-1.5 h-1.5 rounded-full ${hasSession ? 'bg-violet-500' : 'bg-violet-200'}`} />
+                        <div className={`w-1.5 h-1.5 rounded-full ${hasSession ? 'bg-blue-500' : 'bg-blue-200'}`} />
                       )}
                       {(hasClinicSess || isClinicDay) && (
                         <div className={`w-1.5 h-1.5 rounded-full ${hasClinicSess ? 'bg-violet-500' : 'bg-violet-200'}`} />
@@ -1278,8 +1278,8 @@ export default function ClassDetailPage() {
 
           {/* 범례 */}
           <div className="flex items-center gap-4 text-xs text-slate-500 px-1 flex-wrap">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />수업 기록</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-200 inline-block" />수업 예정</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />수업 기록</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-200 inline-block" />수업 예정</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />클리닉 기록</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-200 inline-block" />클리닉 예정</span>
           </div>
@@ -1347,7 +1347,7 @@ export default function ClassDetailPage() {
                     )}
                     {canRecord && !loadingAtt && panelTab === 'attendance' && stats.total > 0 && (
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-violet-600">{stats.rate}%</p>
+                        <p className="text-2xl font-bold text-blue-600">{stats.rate}%</p>
                         <p className="text-xs text-slate-400">출석률</p>
                       </div>
                     )}
@@ -1366,7 +1366,7 @@ export default function ClassDetailPage() {
                     {availTabs.map(t => (
                       <button key={t} onClick={() => setPanelTab(t)}
                         className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 ${
-                          panelTab === t ? 'text-violet-600 border-violet-600' : 'text-slate-500 border-transparent hover:text-slate-700'
+                          panelTab === t ? 'text-blue-600 border-blue-600' : 'text-slate-500 border-transparent hover:text-slate-700'
                         }`}>
                         {PTAB_LABEL[t]}
                       </button>
@@ -1418,13 +1418,13 @@ export default function ClassDetailPage() {
                               {dayExams.map(e => (
                                 <button key={e.id}
                                   onClick={() => router.push(`/dashboard/grades?classId=${classId}&examId=${e.id}`)}
-                                  className="w-full flex items-center gap-3 p-2.5 bg-violet-50 rounded-xl hover:bg-violet-100 transition-colors text-left">
-                                  <BarChart2 size={15} className="text-violet-600 flex-shrink-0" />
+                                  className="w-full flex items-center gap-3 p-2.5 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors text-left">
+                                  <BarChart2 size={15} className="text-blue-600 flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-violet-800 truncate">{e.title}</p>
-                                    <p className="text-xs text-violet-500">{e.exam_type === 'auto' ? '자동채점' : '수동입력'} · {e.status === 'closed' ? '마감' : '진행중'}</p>
+                                    <p className="text-sm font-medium text-blue-800 truncate">{e.title}</p>
+                                    <p className="text-xs text-blue-500">{e.exam_type === 'auto' ? '자동채점' : '수동입력'} · {e.status === 'closed' ? '마감' : '진행중'}</p>
                                   </div>
-                                  <span className="text-xs text-violet-600 flex-shrink-0">성적 보기 →</span>
+                                  <span className="text-xs text-blue-600 flex-shrink-0">성적 보기 →</span>
                                 </button>
                               ))}
                             </div>
@@ -1478,7 +1478,7 @@ export default function ClassDetailPage() {
                                           onChange={e => handleNoteChange(att.student_id, e.target.value)}
                                           onBlur={e => saveNote(att.student_id, e.target.value)}
                                           placeholder="사유 입력 (선택)"
-                                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-400 bg-slate-50" />
+                                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-slate-50" />
                                       </div>
                                     )}
                                     {isDetail && (
@@ -1513,7 +1513,7 @@ export default function ClassDetailPage() {
                         <div className="px-4 py-3">
                           <button
                             onClick={() => { setHomeworkForm({ title: '', assigned_date: selectedDate ?? '', due_date: '', description: '' }); setShowAddHomework(true) }}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-violet-400 hover:text-violet-500 hover:bg-violet-50 transition-colors">
+                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors">
                             <Plus size={15} /> 과제 추가
                           </button>
                         </div>
@@ -1546,7 +1546,7 @@ export default function ClassDetailPage() {
                                         value={hwDueDateEdits[hw.id] ?? (hw.due_date ?? '')}
                                         onChange={e => setHwDueDateEdits(prev => ({ ...prev, [hw.id]: e.target.value }))}
                                         onBlur={e => saveHomeworkDueDate(hw.id, e.target.value)}
-                                        className="text-xs text-slate-500 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-violet-400 focus:outline-none cursor-pointer"
+                                        className="text-xs text-slate-500 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-400 focus:outline-none cursor-pointer"
                                       />
                                     </div>
                                     {statuses.length > 0 && (
@@ -1701,10 +1701,10 @@ export default function ClassDetailPage() {
                   setExtraForm({ start_time: '15:00', end_time: '17:00' })
                   setShowAddExtra(true)
                 }}
-                className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-violet-400 hover:bg-violet-50 transition-all group"
+                className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all group"
               >
-                <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center group-hover:bg-violet-200 transition-colors">
-                  <CalendarDays size={22} className="text-violet-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <CalendarDays size={22} className="text-blue-600" />
                 </div>
                 <span className="text-sm font-semibold text-slate-700">수업</span>
               </button>
@@ -1746,20 +1746,20 @@ export default function ClassDetailPage() {
                   <label className="block text-xs font-medium text-slate-600 mb-1">시작 시간</label>
                   <input type="time" value={extraForm.start_time}
                     onChange={e => setExtraForm({ ...extraForm, start_time: e.target.value })} required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">종료 시간</label>
                   <input type="time" value={extraForm.end_time}
                     onChange={e => setExtraForm({ ...extraForm, end_time: e.target.value })} required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowAddExtra(false)}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button type="submit" disabled={savingExtra}
-                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
                   {savingExtra ? '추가 중...' : '수업 추가'}
                 </button>
               </div>
@@ -1832,7 +1832,7 @@ export default function ClassDetailPage() {
                   {DAYS.map((d, i) => (
                     <button key={i} type="button" onClick={() => setScheduleForm({ ...scheduleForm, day_of_week: i })}
                       className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${
-                        scheduleForm.day_of_week === i ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-600 hover:border-violet-300'
+                        scheduleForm.day_of_week === i ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'
                       }`}>{d}</button>
                   ))}
                 </div>
@@ -1842,13 +1842,13 @@ export default function ClassDetailPage() {
                   <label className="block text-xs font-medium text-slate-600 mb-1">시작 시간</label>
                   <input type="time" value={scheduleForm.start_time}
                     onChange={e => setScheduleForm({ ...scheduleForm, start_time: e.target.value })} required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">종료 시간</label>
                   <input type="time" value={scheduleForm.end_time}
                     onChange={e => setScheduleForm({ ...scheduleForm, end_time: e.target.value })} required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
               {scheduleError && (
@@ -1857,7 +1857,7 @@ export default function ClassDetailPage() {
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setShowScheduleForm(false); setScheduleError('') }}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
-                <button type="submit" className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors">추가</button>
+                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">추가</button>
               </div>
             </form>
           </div>
@@ -1932,21 +1932,21 @@ export default function ClassDetailPage() {
                 <input type="text" value={homeworkForm.title}
                   onChange={e => setHomeworkForm({ ...homeworkForm, title: e.target.value })}
                   placeholder="과제 제목을 입력해주세요" required autoFocus
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">출제일 *</label>
                   <input type="date" value={homeworkForm.assigned_date}
                     onChange={e => setHomeworkForm({ ...homeworkForm, assigned_date: e.target.value })} required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">마감일 (선택)</label>
                   <input type="date" value={homeworkForm.due_date}
                     min={homeworkForm.assigned_date || undefined}
                     onChange={e => setHomeworkForm({ ...homeworkForm, due_date: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
               <div>
@@ -1954,13 +1954,13 @@ export default function ClassDetailPage() {
                 <textarea value={homeworkForm.description}
                   onChange={e => setHomeworkForm({ ...homeworkForm, description: e.target.value })}
                   placeholder="과제 내용이나 참고사항을 적어주세요" rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowAddHomework(false)}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button type="submit" disabled={savingHomework}
-                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
                   {savingHomework ? '추가 중...' : '추가'}
                 </button>
               </div>

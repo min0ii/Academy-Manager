@@ -567,7 +567,7 @@ export default function StudentsPage() {
         <button
           onClick={() => setPageTab('list')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${
-            pageTab === 'list' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            pageTab === 'list' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
           }`}
         >
           <Users size={14} /> 학생 목록
@@ -608,7 +608,7 @@ export default function StudentsPage() {
                 <input ref={fileInputRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
                 <button
                   onClick={openAdd}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm"
                 >
                   <Plus size={16} /> 학생 추가
                 </button>
@@ -618,7 +618,7 @@ export default function StudentsPage() {
                 <button onClick={toggleSelectAll}
                   className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
                 >
-                  {allSelected ? <CheckSquare size={15} className="text-violet-600" /> : <Square size={15} />}
+                  {allSelected ? <CheckSquare size={15} className="text-blue-600" /> : <Square size={15} />}
                   {allSelected ? '전체 해제' : '전체 선택'}
                 </button>
                 <button onClick={exitSelectMode}
@@ -644,7 +644,7 @@ export default function StudentsPage() {
             <input
               type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="이름, 학교, 학년, 전화번호로 검색"
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             />
           </div>
 
@@ -653,7 +653,7 @@ export default function StudentsPage() {
             <button
               onClick={() => { setStatusFilter('active'); setClassFilter(null) }}
               className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                statusFilter === 'active' ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-500 border-slate-200 hover:border-violet-300'
+                statusFilter === 'active' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
               }`}
             >재원</button>
             <button
@@ -669,13 +669,13 @@ export default function StudentsPage() {
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => setClassFilter(null)}
                 className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
-                  classFilter === null ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                  classFilter === null ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
                 }`}
               >전체</button>
               {classes.map(c => (
                 <button key={c.id} onClick={() => setClassFilter(classFilter === c.id ? null : c.id)}
                   className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
-                    classFilter === c.id ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                    classFilter === c.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
                   }`}
                 >{c.name}</button>
               ))}
@@ -721,8 +721,8 @@ export default function StudentsPage() {
                           {isSelected && <X size={14} className="text-white" />}
                         </div>
                       ) : (
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${s.status === 'inactive' ? 'bg-slate-100' : 'bg-violet-100'}`}>
-                          <span className={`font-bold text-sm ${s.status === 'inactive' ? 'text-slate-400' : 'text-violet-600'}`}>{s.name[0]}</span>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${s.status === 'inactive' ? 'bg-slate-100' : 'bg-blue-100'}`}>
+                          <span className={`font-bold text-sm ${s.status === 'inactive' ? 'text-slate-400' : 'text-blue-600'}`}>{s.name[0]}</span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -730,13 +730,13 @@ export default function StudentsPage() {
                           <p className={`font-semibold ${s.status === 'inactive' ? 'text-slate-400' : 'text-slate-800'}`}>{s.name}</p>
                           {s.status === 'inactive' && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full">퇴원</span>}
                           {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'inactive' ? 'bg-slate-50 text-slate-400' : 'bg-violet-50 text-violet-600'}`}>{s.grade}학년</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'inactive' ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{s.grade}학년</span>
                         </div>
                         <p className="text-sm text-slate-400">{formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}</p>
                       </div>
                       {!selectMode && (
                         <div className="flex items-center gap-1">
-                          <button onClick={e => { e.stopPropagation(); openEdit(s) }} className="p-2 text-slate-400 hover:text-violet-500 transition-colors">
+                          <button onClick={e => { e.stopPropagation(); openEdit(s) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
                             <Pencil size={15} />
                           </button>
                           <button onClick={e => { e.stopPropagation(); handleDelete(s.id, s.name) }} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
@@ -925,8 +925,8 @@ export default function StudentsPage() {
                           ) : (
                             <div className="w-5 flex-shrink-0" />
                           )}
-                          <div className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
-                            <span className="text-violet-600 font-bold text-sm">{s.name[0]}</span>
+                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-blue-600 font-bold text-sm">{s.name[0]}</span>
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-slate-800">{s.name}</p>
@@ -965,7 +965,7 @@ export default function StudentsPage() {
                             ) : (
                               <button onClick={() => createSingleAccount(s.id, 'student')}
                                 disabled={acSt?.creating === 'student'}
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50">
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">
                                 {acSt?.creating === 'student' ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                                 계정 생성
                               </button>
@@ -1044,13 +1044,13 @@ export default function StudentsPage() {
                   <label className="block text-xs font-medium text-slate-600 mb-1">이름 *</label>
                   <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                     placeholder="홍길동" required
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">학교명</label>
                   <input type="text" value={form.school_name} onChange={e => setForm({ ...form, school_name: e.target.value })}
                     placeholder="일산동고"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
 
@@ -1059,7 +1059,7 @@ export default function StudentsPage() {
                 <div className="flex gap-2">
                   {['1', '2', '3'].map(g => (
                     <button key={g} type="button" onClick={() => setForm({ ...form, grade: g })}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${form.grade === g ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-600 hover:border-violet-300'}`}>
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${form.grade === g ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
                       {g}학년
                     </button>
                   ))}
@@ -1070,7 +1070,7 @@ export default function StudentsPage() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">학생 전화번호 *</label>
                 <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })}
                   placeholder="010-0000-0000" required
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1078,13 +1078,13 @@ export default function StudentsPage() {
                   <label className="block text-xs font-medium text-slate-600 mb-1">학부모 전화번호</label>
                   <input type="tel" value={form.parentPhone} onChange={e => setForm({ ...form, parentPhone: formatPhone(e.target.value) })}
                     placeholder="010-0000-0000"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">관계</label>
                   <input type="text" value={form.parentRelation} onChange={e => setForm({ ...form, parentRelation: e.target.value })}
                     placeholder="엄마, 아빠 등"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
 
@@ -1097,7 +1097,7 @@ export default function StudentsPage() {
                       return (
                         <button key={c.id} type="button"
                           onClick={() => setForm({ ...form, classIds: selected ? form.classIds.filter(id => id !== c.id) : [...form.classIds, c.id] })}
-                          className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${selected ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'}`}>
+                          className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
                           {c.name}
                         </button>
                       )
@@ -1110,7 +1110,7 @@ export default function StudentsPage() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">메모 (선생님만 보임)</label>
                 <textarea value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
                   placeholder="특이사항 등" rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
 
               {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{error}</p>}
@@ -1119,7 +1119,7 @@ export default function StudentsPage() {
                 <button type="button" onClick={() => setShowForm(false)}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button type="submit" disabled={saving}
-                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
                   {saving ? '저장 중...' : '저장'}
                 </button>
               </div>

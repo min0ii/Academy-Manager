@@ -76,12 +76,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const Sidebar = () => (
     <div className="flex flex-col h-full">
       {/* 학원 정보 */}
-      <div className="p-5 border-b border-violet-100">
+      <div className="p-5 border-b border-slate-100">
         <div className="flex items-center gap-3">
           {academy?.logo_url ? (
             <img src={academy.logo_url} alt="로고" className="w-10 h-10 rounded-xl object-cover" />
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
               <span className="text-white font-bold text-lg">
                 {academy?.name?.[0] ?? '학'}
               </span>
@@ -106,8 +106,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-violet-100 text-violet-700 font-semibold'
-                  : 'text-slate-600 hover:bg-violet-50 hover:text-violet-700'
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
               }`}
             >
               <Icon size={18} />
@@ -118,13 +118,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </nav>
 
       {/* 하단 */}
-      <div className="p-3 border-t border-violet-100 space-y-0.5">
+      <div className="p-3 border-t border-slate-100 space-y-0.5">
         <Link
           href="/dashboard/settings"
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
             isActive('/dashboard/settings')
-              ? 'bg-violet-50 text-violet-600'
+              ? 'bg-blue-50 text-blue-600'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
           }`}
         >
@@ -136,7 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
             isActive('/dashboard/team')
-              ? 'bg-violet-50 text-violet-600'
+              ? 'bg-blue-50 text-blue-600'
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
           }`}
         >
@@ -155,9 +155,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 
   return (
-    <div className="flex h-screen bg-violet-50">
+    <div className="flex h-screen bg-slate-50">
       {/* PC 사이드바 */}
-      <aside className="hidden lg:flex flex-col w-60 bg-white border-r border-violet-100 flex-shrink-0">
+      <aside className="hidden lg:flex flex-col w-60 bg-white border-r border-slate-200 flex-shrink-0">
         <Sidebar />
       </aside>
 
@@ -178,7 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* 메인 영역 */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* 모바일 헤더 */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-violet-100">
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200">
           <button onClick={() => setMobileOpen(true)} className="text-slate-600">
             <Menu size={22} />
           </button>

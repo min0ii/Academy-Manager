@@ -109,7 +109,7 @@ export default function ClassesPage() {
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm"
+          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm"
         >
           <Plus size={16} /> 반 추가
         </button>
@@ -129,10 +129,10 @@ export default function ClassesPage() {
             <div
               key={c.id}
               onClick={() => router.push(`/dashboard/classes/${c.id}`)}
-              className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4 cursor-pointer hover:border-violet-300 hover:shadow-sm transition-all"
+              className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
             >
-              <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-violet-600 font-bold text-lg">{c.name[0]}</span>
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-blue-600 font-bold text-lg">{c.name[0]}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-slate-800">{c.name}</p>
@@ -146,7 +146,7 @@ export default function ClassesPage() {
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={e => openEdit(c, e)}
-                  className="p-2 text-slate-400 hover:text-violet-500 transition-colors"
+                  className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
                 >
                   <Pencil size={15} />
                 </button>
@@ -179,7 +179,7 @@ export default function ClassesPage() {
                 <input
                   type="text" value={name} onChange={e => setName(e.target.value)}
                   placeholder="예: 중3 심화반" required autoFocus
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               {error && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{error}</p>}
@@ -189,7 +189,7 @@ export default function ClassesPage() {
                   취소
                 </button>
                 <button type="submit" disabled={saving}
-                  className="flex-1 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
                   {saving ? '저장 중...' : '저장'}
                 </button>
               </div>

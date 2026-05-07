@@ -20,7 +20,7 @@ const QUICK_LINKS = [
 ]
 
 const colorMap: Record<string, string> = {
-  blue:   'bg-violet-50 text-violet-600',
+  blue:   'bg-blue-50 text-blue-600',
   violet: 'bg-violet-50 text-violet-600',
   amber:  'bg-amber-50 text-amber-600',
   emerald:'bg-emerald-50 text-emerald-600',
@@ -70,8 +70,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-violet-50 rounded-xl">
-              <Users size={18} className="text-violet-600" />
+            <div className="p-2 bg-blue-50 rounded-xl">
+              <Users size={18} className="text-blue-600" />
             </div>
             <span className="text-sm font-medium text-slate-600">전체 학생</span>
           </div>
@@ -99,7 +99,7 @@ export default function DashboardPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-violet-300 hover:shadow-sm transition-all group${isLastOdd ? ' sm:col-span-2' : ''}`}
+                className={`flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all group${isLastOdd ? ' sm:col-span-2' : ''}`}
               >
                 <div className={`p-2.5 rounded-xl ${colorMap[item.color]}`}>
                   <Icon size={20} />
@@ -108,7 +108,7 @@ export default function DashboardPage() {
                   <p className="font-semibold text-slate-800 text-sm">{item.label}</p>
                   <p className="text-xs text-slate-500 truncate">{item.desc}</p>
                 </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-violet-400 transition-colors" />
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
               </Link>
             )
           })}
