@@ -6,26 +6,13 @@ import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera, ShieldQuestion,
-  Settings2, Sun, Moon,
 } from 'lucide-react'
 
-type Tab = 'academy' | 'profile' | 'general'
+type Tab = 'academy' | 'profile'
 type Title = '원장' | '관리자' | '강사' | '조교'
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('general')
-
-  // ── 다크 모드 ──────────────────────────────────────────────────
-  const [isDark, setIsDark] = useState(false)
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
-  }, [])
-  function toggleDark() {
-    const next = !isDark
-    setIsDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('linkademy-dark', next ? '1' : '0')
-  }
+  const [tab, setTab] = useState<Tab>('academy')
   const [myId, setMyId] = useState('')
   const [myRole, setMyRole] = useState<'owner' | 'staff'>('staff')
   const [myTitle, setMyTitle] = useState<Title>('강사')
@@ -180,7 +167,6 @@ export default function SettingsPage() {
   if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
 
   const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
-    { key: 'general', label: '기본 설정', Icon: Settings2 },
     { key: 'academy', label: '학원 정보', Icon: Building2 },
     { key: 'profile', label: '내 정보', Icon: User },
   ]
@@ -204,48 +190,6 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
-
-      {/* ── 기본 설정 탭 ── */}
-      {tab === 'general' && (
-        <div className="space-y-4">
-          {/* 화면 설정 카드 */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-            <h2 className="font-bold text-slate-800">화면 설정</h2>
-
-            {/* 다크 모드 토글 */}
-            <div className="flex items-center justify-between py-1">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${isDark ? 'bg-violet-900' : 'bg-amber-50'}`}>
-                  {isDark
-                    ? <Moon size={20} className="text-violet-300" />
-                    : <Sun size={20} className="text-amber-500" />}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">다크 모드</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {isDark ? '어두운 화면으로 표시 중이에요' : '밝은 화면으로 표시 중이에요'}
-                  </p>
-                </div>
-              </div>
-
-              {/* 토글 스위치 */}
-              <button
-                onClick={toggleDark}
-                className={`relative w-12 h-6 rounded-full transition-colors duration-300 flex-shrink-0 ${isDark ? 'bg-violet-600' : 'bg-slate-300'}`}
-                aria-label="다크 모드 전환"
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${isDark ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            <div className="border-t border-slate-100 pt-3">
-              <p className="text-xs text-slate-400 leading-relaxed">
-                설정은 이 기기에 저장돼요. 다음에 접속해도 유지됩니다.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── 학원 정보 탭 ── */}
       {tab === 'academy' && (
