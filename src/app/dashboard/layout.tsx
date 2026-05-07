@@ -38,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const [{ data: profile }, { data: membership }] = await Promise.all([
         supabase.from('profiles').select('name, role').eq('id', user.id).single(),
         supabase.from('academy_teachers')
-          .select('academy_id, role, title, academies(name, logo_url)')
+          .select('academy_id, role, title, academies(name, logo_url, status)')
           .eq('teacher_id', user.id)
           .single(),
       ])
@@ -46,6 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!profile || profile.role !== 'teacher') { router.push('/login'); return }
 
       const ac = (membership as any)?.academies
+      if (ac?.status && ac.status !== 'approved') { router.push('/pending'); return }
       setTeacherName(profile.name)
       if (ac) setAcademy(ac)
       if (membership?.title) setTeacherTitle(membership.title)
