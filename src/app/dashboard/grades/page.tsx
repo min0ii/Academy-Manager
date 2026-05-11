@@ -1519,21 +1519,17 @@ function GradesContent() {
                     {exam.exam_type === 'auto' && (
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors(st)}`}>{statusLabel(st)}</span>
                     )}
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 flex-shrink-0">
-                      {exam.exam_type === 'auto' ? '자동채점' : '수동입력'}
-                    </span>
-                    {exam.no_deadline && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium flex-shrink-0">마감없음</span>
-                    )}
                     {exam.category && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium flex-shrink-0">{exam.category}</span>
                     )}
                   </div>
                   <p className="text-xs text-slate-500">
                     {exam.exam_type === 'auto'
-                      ? exam.no_deadline ? '자유 응시 · 마감 없음'
-                        : (exam.end_at ? `${formatDT(exam.end_at)} 까지` : '')
-                      : exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
+                      ? [
+                          '자동채점',
+                          exam.no_deadline ? '자유 응시 · 마감 없음' : (exam.end_at ? `${formatDT(exam.end_at)} 까지` : ''),
+                        ].filter(Boolean).join(' · ')
+                      : ['수동입력', exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'].join(' · ')}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
