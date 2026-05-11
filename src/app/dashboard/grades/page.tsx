@@ -1139,7 +1139,7 @@ function GradesContent() {
       await loadExams(selectedClass.id)
     } else {
       const err = await res.json().catch(() => ({}))
-      alert('시험 생성 실패: ' + (err.error ?? `HTTP ${res.status}`))
+      alert('시험 관리 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
     setAddingAuto(false)
   }
@@ -1404,7 +1404,7 @@ function GradesContent() {
   if (view === 'classes') return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">시험 생성</h1>
+        <h1 className="text-2xl font-bold text-slate-800">시험 관리</h1>
         <p className="text-sm text-slate-500 mt-0.5">문제은행에서 문제를 관리하고, 반별 시험을 만들어요</p>
       </div>
 
@@ -1818,7 +1818,7 @@ function GradesContent() {
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={addAutoExam} disabled={addingAuto}
                   className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
-                  {addingAuto ? '생성 중...' : '시험 생성'}
+                  {addingAuto ? '생성 중...' : '시험 관리'}
                 </button>
               </div>
             </div>

@@ -466,7 +466,7 @@ export default function QuestionBank() {
     setCreatingExam(false)
     if (res.ok) {
       setShowCreateExamModal(false)
-      alert(`✅ "${examTitle.trim()}" 시험이 생성됐어요!\n시험 생성 탭 → 반별 시험에서 확인해보세요.`)
+      alert(`✅ "${examTitle.trim()}" 시험이 생성됐어요!\n시험 관리 탭 → 반별 시험에서 확인해보세요.`)
     } else {
       const err = await res.json().catch(() => ({}))
       alert('시험 생성 실패: ' + (err.error ?? `HTTP ${res.status}`))
