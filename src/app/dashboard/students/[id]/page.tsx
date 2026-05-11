@@ -29,6 +29,7 @@ type GradeRecord = {
   myScore: number | null; myPct: number | null
   avgScore: number | null; avgPct: number | null
   absent: boolean
+  category?: string | null
 }
 type HomeworkRow = {
   id: string; title: string; assigned_date: string; due_date: string | null
@@ -64,6 +65,7 @@ function StudentReportContent() {
   const [attendance, setAttendance]     = useState<AttendanceRow[]>([])
   const [grades, setGrades]             = useState<GradePoint[]>([])
   const [gradeRecords, setGradeRecords] = useState<GradeRecord[]>([])
+  const [gradeCategoryFilter, setGradeCategoryFilter] = useState<string | null>(null)
   const [homeworks, setHomeworks]       = useState<HomeworkRow[]>([])
   const [clinicData, setClinicData]     = useState<ClinicRow[]>([])
   const [showAllHomework, setShowAllHomework] = useState(false)
@@ -478,11 +480,34 @@ function StudentReportContent() {
               {gradeRecords.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="p-4 border-b border-slate-100">
-                    <h3 className="font-bold text-slate-800">시험 점수 내역</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">최신순 · 반평균과 비교</p>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <h3 className="font-bold text-slate-800">시험 점수 내역</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">최신순 · 반평균과 비교</p>
+                      </div>
+                      {/* 카테고리 필터 */}
+                      {(() => {
+                        const cats = Array.from(new Set(gradeRecords.map(r => r.category).filter(Boolean) as string[]))
+                        if (cats.length === 0) return null
+                        return (
+                          <div className="flex gap-1.5 flex-wrap">
+                            <button onClick={() => setGradeCategoryFilter(null)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${gradeCategoryFilter === null ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                              전체
+                            </button>
+                            {cats.map(cat => (
+                              <button key={cat} onClick={() => setGradeCategoryFilter(cat === gradeCategoryFilter ? null : cat)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${gradeCategoryFilter === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                    </div>
                   </div>
                   <div className="divide-y divide-slate-100">
-                    {gradeRecords.map((r, i) => {
+                    {gradeRecords.filter(r => !gradeCategoryFilter || r.category === gradeCategoryFilter).map((r, i) => {
                       const myColor = r.myPct === null ? 'text-slate-400'
                         : r.myPct >= 80 ? 'text-emerald-600'
                         : r.myPct >= 60 ? 'text-amber-600'

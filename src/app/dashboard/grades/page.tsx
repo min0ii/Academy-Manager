@@ -24,6 +24,7 @@ type ExamItem = {
   answer_reveal: 'after_close' | 'never' | 'revealed'
   created_at: string
   no_deadline?: boolean
+  category?: string | null
 }
 
 type ExamQuestion = {
@@ -848,6 +849,10 @@ function GradesContent() {
   const [manualTitle, setManualTitle] = useState('')
   const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10))
   const [manualFormMaxScore, setManualFormMaxScore] = useState('100')
+  const [manualCategory, setManualCategory] = useState('')
+  const [autoCategory, setAutoCategory] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [addingManual, setAddingManual] = useState(false)
 
   // Auto wizard
@@ -1014,10 +1019,11 @@ function GradesContent() {
         answerReveal: 'immediate',
         questions: [],
         maxScore: manualFormMaxScore !== '' ? Number(manualFormMaxScore) : null,
+        category: manualCategory.trim() || null,
       }),
     })
     if (res.ok) {
-      setManualTitle(''); setManualDate(new Date().toISOString().slice(0, 10)); setManualFormMaxScore('100')
+      setManualTitle(''); setManualDate(new Date().toISOString().slice(0, 10)); setManualFormMaxScore('100'); setManualCategory('')
       setAddModal('none')
       await loadExams(selectedClass.id)
     }
@@ -1098,11 +1104,12 @@ function GradesContent() {
         answerReveal: autoReveal,
         noDeadline: autoNoDeadline,
         questions,
+        category: autoCategory.trim() || null,
       }),
     })
     if (res.ok) {
       setAddModal('none')
-      setAutoTitle(''); setAutoEnd(emptyDT())
+      setAutoTitle(''); setAutoEnd(emptyDT()); setAutoCategory('')
       setAutoReveal('after_close'); setWizardQs([newWizardQ()]); setAutoNoDeadline(false)
       setWizardCustomLabels(false)
       await loadExams(selectedClass.id)
@@ -1237,6 +1244,7 @@ function GradesContent() {
     const hasCustom = qs.some(q => q.customLabel.trim() !== '')
     setEditCustomLabels(hasCustom)
     setEditWizardQs(qs.length > 0 ? qs : [newWizardQ()])
+    setEditCategory(selectedExam?.category ?? '')
     setEditStep(1)
     setShowEditModal(true)
   }
@@ -1289,13 +1297,14 @@ function GradesContent() {
         endAt: endPartial ? endIso : null,
         answerReveal: editReveal,
         questions,
+        category: editCategory.trim() || null,
       }),
     })
     setSavingEdit(false)
     if (res.ok) {
       setShowEditModal(false)
-      setSelectedExam(prev => prev ? { ...prev, title: editTitle.trim() } : null)
-      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, title: editTitle.trim() } : e))
+      setSelectedExam(prev => prev ? { ...prev, title: editTitle.trim(), category: editCategory.trim() || null } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, title: editTitle.trim(), category: editCategory.trim() || null } : e))
       // 상세 데이터 다시 로드
       await selectExam({ ...selectedExam, title: editTitle.trim() })
     } else {
@@ -1441,6 +1450,26 @@ function GradesContent() {
         </button>
       </div>
 
+      {/* 카테고리 필터 */}
+      {(() => {
+        const cats = Array.from(new Set(exams.map(e => e.category).filter(Boolean) as string[]))
+        if (cats.length === 0) return null
+        return (
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setCategoryFilter(null)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${categoryFilter === null ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+              전체
+            </button>
+            {cats.map(cat => (
+              <button key={cat} onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${categoryFilter === cat ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                {cat}
+              </button>
+            ))}
+          </div>
+        )
+      })()}
+
       {loadingExams ? (
         <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
       ) : exams.length === 0 ? (
@@ -1450,7 +1479,7 @@ function GradesContent() {
         </div>
       ) : (
         <div className="space-y-2">
-          {exams.map(exam => {
+          {exams.filter(e => !categoryFilter || e.category === categoryFilter).map(exam => {
             const st = examStatus(exam)
             return (
               <div key={exam.id} onClick={() => selectExam(exam)}
@@ -1471,6 +1500,9 @@ function GradesContent() {
                     </span>
                     {exam.no_deadline && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium flex-shrink-0">마감없음</span>
+                    )}
+                    {exam.category && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium flex-shrink-0">{exam.category}</span>
                     )}
                   </div>
                   <p className="text-xs text-slate-500">
@@ -1618,6 +1650,13 @@ function GradesContent() {
                 <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">카테고리 (선택)</label>
+                <input type="text" value={manualCategory} onChange={e => setManualCategory(e.target.value)}
+                  placeholder="예: 복습 테스트, 모의고사"
+                  list="category-suggestions"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              </div>
               <div className="flex gap-2 pt-1">
                 <button type="button" onClick={() => setAddModal('type_select')}
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
@@ -1650,6 +1689,13 @@ function GradesContent() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">시험 이름 *</label>
                 <input type="text" value={autoTitle} onChange={e => setAutoTitle(e.target.value)}
                   placeholder="예: 5월 모의고사" autoFocus
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">카테고리 (선택)</label>
+                <input type="text" value={autoCategory} onChange={e => setAutoCategory(e.target.value)}
+                  placeholder="예: 복습 테스트, 모의고사"
+                  list="category-suggestions"
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
               {!autoNoDeadline && (
@@ -1901,6 +1947,13 @@ function GradesContent() {
                     <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} autoFocus
                       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">카테고리 (선택)</label>
+                    <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
+                      placeholder="예: 복습 테스트, 모의고사"
+                      list="category-suggestions"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  </div>
                   {!selectedExam?.no_deadline && (
                     <DateTimePicker label="마감 시간 (선택)" value={editEnd} onChange={setEditEnd} />
                   )}
@@ -1990,6 +2043,13 @@ function GradesContent() {
           )}
         </>
       )}
+
+      {/* 카테고리 자동완성 */}
+      <datalist id="category-suggestions">
+        {Array.from(new Set(exams.map(e => e.category).filter(Boolean) as string[])).map(cat => (
+          <option key={cat} value={cat} />
+        ))}
+      </datalist>
     </div>
   )
 }

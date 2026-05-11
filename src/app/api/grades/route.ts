@@ -102,9 +102,9 @@ export async function GET(req: NextRequest) {
 
     // 신시스템 (마감된 시험 + 마감없는 시험 중 제출 완료)
     const [{ data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
-      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline')
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
-      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline')
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
     ])
     const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? [])]
@@ -141,6 +141,7 @@ export async function GET(req: NextRequest) {
           classHigh: arr.length > 0 ? Math.max(...arr) : null,
           classLow: arr.length > 0 ? Math.min(...arr) : null,
           absent: false,
+          category: (exam as any).category ?? null,
         })
       }
     }
@@ -585,9 +586,9 @@ export async function GET(req: NextRequest) {
 
     // 신시스템 (마감된 시험 + 마감없는 시험 중 제출 완료)
     const [{ data: closedExams2 }, { data: noDeadlineExams2 }] = await Promise.all([
-      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline')
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
-      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline')
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
     ])
     const allExams2 = [...(closedExams2 ?? []), ...(noDeadlineExams2 ?? [])]
@@ -629,6 +630,7 @@ export async function GET(req: NextRequest) {
           classHigh: arr.length > 0 ? Math.max(...arr) : null,
           classLow: arr.length > 0 ? Math.min(...arr) : null,
           absent: false,
+          category: (exam as any).category ?? null,
         })
       }
     }

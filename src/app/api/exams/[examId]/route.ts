@@ -252,11 +252,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
     const { data: examCheck } = await db.from('exams').select('status').eq('id', examId).single()
     if (!examCheck || examCheck.status !== 'scheduled')
       return NextResponse.json({ error: '예정 상태의 시험만 수정할 수 있어요.' }, { status: 400 })
-    const { title, endAt, answerReveal, questions: newQs } = body
+    const { title, endAt, answerReveal, questions: newQs, category } = body
     await db.from('exams').update({
       title: title?.trim() ?? undefined,
       end_at: endAt ?? null,
       answer_reveal: answerReveal ?? 'after_close',
+      category: category?.trim() || null,
     }).eq('id', examId)
     if (Array.isArray(newQs)) {
       // 기존 questions id 수집 → choices/answers/questions 삭제
