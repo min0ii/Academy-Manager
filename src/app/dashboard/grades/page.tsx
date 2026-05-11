@@ -891,6 +891,30 @@ function GradesContent() {
   const [editTitleInput, setEditTitleInput] = useState('')
   const [savingTitle, setSavingTitle] = useState(false)
 
+  // Category inline edit (모든 상태)
+  const [showCategoryEdit, setShowCategoryEdit] = useState(false)
+  const [editCategoryInput, setEditCategoryInput] = useState('')
+  const [savingCategory, setSavingCategory] = useState(false)
+
+  async function saveCategoryOnly() {
+    if (!selectedExam) return
+    setSavingCategory(true)
+    const token = await getToken()
+    if (!token) { setSavingCategory(false); return }
+    const res = await fetch(`/api/exams/${selectedExam.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'update_category', category: editCategoryInput }),
+    })
+    setSavingCategory(false)
+    if (res.ok) {
+      const newCat = editCategoryInput.trim() || null
+      setSelectedExam(prev => prev ? { ...prev, category: newCat } : null)
+      setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, category: newCat } : e))
+      setShowCategoryEdit(false)
+    }
+  }
+
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ?? null
@@ -1863,6 +1887,33 @@ function GradesContent() {
             <p className="text-sm text-slate-500">
               {selectedExam?.start_at ? formatDT(selectedExam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'}
             </p>
+          )}
+          {/* 카테고리 인라인 편집 */}
+          {showCategoryEdit ? (
+            <div className="flex items-center gap-1.5 mt-1">
+              <input
+                type="text" value={editCategoryInput}
+                onChange={e => setEditCategoryInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveCategoryOnly(); if (e.key === 'Escape') setShowCategoryEdit(false) }}
+                placeholder="카테고리 입력 (비우면 삭제)"
+                list="category-suggestions"
+                autoFocus
+                className="px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+              />
+              <button onClick={saveCategoryOnly} disabled={savingCategory}
+                className="px-2 py-1 bg-blue-600 text-white text-xs rounded-lg disabled:opacity-50">저장</button>
+              <button onClick={() => setShowCategoryEdit(false)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 mt-1">
+              {selectedExam?.category ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">{selectedExam.category}</span>
+              ) : null}
+              <button onClick={() => { setEditCategoryInput(selectedExam?.category ?? ''); setShowCategoryEdit(true) }}
+                className="text-xs text-slate-400 hover:text-slate-600 underline">
+                {selectedExam?.category ? '카테고리 수정' : '+ 카테고리'}
+              </button>
+            </div>
           )}
         </div>
         {selectedExam?.exam_type === 'auto' && currentStatus === 'scheduled' && (

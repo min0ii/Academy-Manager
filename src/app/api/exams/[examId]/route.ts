@@ -247,6 +247,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
     return NextResponse.json({ success: true })
   }
 
+  // ── 카테고리 수정 (모든 상태 가능) ──
+  if (action === 'update_category') {
+    const { category } = body
+    await db.from('exams').update({ category: category?.trim() || null }).eq('id', examId)
+    return NextResponse.json({ success: true })
+  }
+
   // ── scheduled 시험 전체 수정 ──
   if (action === 'update_scheduled') {
     const { data: examCheck } = await db.from('exams').select('status').eq('id', examId).single()
