@@ -69,6 +69,7 @@ export default function ParentPage() {
   const [student, setStudent]   = useState<StudentInfo | null>(null)
   const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
   const [academyName, setAcademyName] = useState('')
+  const [academyLogo, setAcademyLogo] = useState<string | null>(null)
 
   // 비밀번호 변경
   const [mustChangePw, setMustChangePw] = useState(false)
@@ -180,6 +181,7 @@ export default function ParentPage() {
     if (!cls) return
 
     setAcademyName(cls.academies?.name ?? '')
+    setAcademyLogo((cls.academies as any)?.logo_url ?? null)
 
     let teacherName: string | null = null
     if (cls.teacher_id) {
@@ -390,12 +392,19 @@ export default function ParentPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
-            <GraduationCap size={15} className="text-white" />
-          </div>
+        <button
+          onClick={() => setTab('home')}
+          className="flex items-center gap-2 hover:opacity-75 transition-opacity"
+        >
+          {academyLogo ? (
+            <img src={academyLogo} alt="학원 로고" className="w-7 h-7 rounded-lg object-cover" />
+          ) : (
+            <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
+              <GraduationCap size={15} className="text-white" />
+            </div>
+          )}
           <span className="text-sm font-bold text-slate-800">{academyName || '학원'}</span>
-        </div>
+        </button>
         <button onClick={handleSignOut}
           className="flex items-center gap-1.5 text-slate-400 hover:text-slate-600 text-sm transition-colors">
           <LogOut size={15} /><span className="hidden sm:block">로그아웃</span>

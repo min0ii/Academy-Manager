@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   // 반 정보
   const { data: classStudents } = await db.from('class_students')
-    .select('classes(id, name, academy_id, teacher_id, academies(name), class_schedules(day_of_week, start_time, end_time))')
+    .select('classes(id, name, academy_id, teacher_id, academies(name, logo_url), class_schedules(day_of_week, start_time, end_time))')
     .eq('student_id', student.id)
 
   if (!classStudents || classStudents.length === 0)
@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
   if (!cls) return NextResponse.json({ student, classInfo: null, academyName: '' })
 
   const academyName = cls.academies?.name ?? ''
+  const academyLogo = cls.academies?.logo_url ?? null
 
   // 담당 선생님 이름
   let teacherName: string | null = null
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
     schedules: cls.class_schedules ?? [],
   }
 
-  return NextResponse.json({ student, classInfo, academyName })
+  return NextResponse.json({ student, classInfo, academyName, academyLogo })
 }
 
 // GET /api/student?action=attendance&classId=xxx&studentId=xxx
