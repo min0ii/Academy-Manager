@@ -728,7 +728,7 @@ export default function StudentPage() {
                                 </>}
                                 {t.rank != null && t.myScore !== null && <>
                                   <span className="text-slate-300">|</span>
-                                  <span>내 등수 <strong className="text-blue-600">{t.rank}위</strong><span className="text-slate-400"> / {t.totalSubmitted}명</span></span>
+                                  <span><span className="text-slate-400">{t.totalSubmitted}명 중</span> <strong className="text-blue-600">{t.rank}위</strong></span>
                                 </>}
                               </div>
                             )}
@@ -767,7 +767,7 @@ export default function StudentPage() {
                     </p>
                     {examResultRankInfo && !examResultModal.isAbsent && (
                       <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                        {examResultRankInfo.rank}위 / {examResultRankInfo.total}명
+                        {examResultRankInfo.total}명 중 {examResultRankInfo.rank}위
                       </span>
                     )}
                   </div>
