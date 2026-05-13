@@ -432,24 +432,32 @@ export async function GET(req: NextRequest) {
         const avgRaw  = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
         const dateStr = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
 
+        // 등수 계산 (제출자 중 본인보다 높은 점수 수 + 1)
+        const rank = myScore !== null && arr.length > 0
+          ? arr.filter((s: number) => s > myScore).length + 1
+          : null
+        const totalSubmitted = arr.length
+
         records.push({
-          name:         exam.title,
-          date:         dateStr,
+          name:           exam.title,
+          date:           dateStr,
           maxScore,
           myScore,
-          myPct:        myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
-          avgScore:     avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
-          avgPct:       avgRaw !== null && maxScore ? Math.round((avgRaw / maxScore) * 100) : null,
-          classHigh:    arr.length > 0 ? Math.max(...arr) : null,
-          classLow:     arr.length > 0 ? Math.min(...arr) : null,
-          absent:       false,
+          myPct:          myScore !== null && maxScore ? Math.round((myScore / maxScore) * 100) : null,
+          avgScore:       avgRaw !== null ? Math.round(avgRaw * 10) / 10 : null,
+          avgPct:         avgRaw !== null && maxScore ? Math.round((avgRaw / maxScore) * 100) : null,
+          classHigh:      arr.length > 0 ? Math.max(...arr) : null,
+          classLow:       arr.length > 0 ? Math.min(...arr) : null,
+          absent:         false,
           isForfeited,
           isAdjusted,
-          noDeadline:   exam.no_deadline ?? false,
-          examId:       exam.id,
-          examType:     exam.exam_type,
-          answerReveal: exam.answer_reveal,
-          category:     exam.category ?? null,
+          noDeadline:     exam.no_deadline ?? false,
+          examId:         exam.id,
+          examType:       exam.exam_type,
+          answerReveal:   exam.answer_reveal,
+          category:       exam.category ?? null,
+          rank,
+          totalSubmitted,
         })
       }
     }
