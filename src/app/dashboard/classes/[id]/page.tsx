@@ -217,7 +217,7 @@ export default function ClassDetailPage() {
 
     const { data: allData } = await supabase
       .from('students')
-      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo')
+      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at')
       .eq('academy_id', (classData as any).academy_id)
       .order('name')
     setAllStudents(allData ?? [])
