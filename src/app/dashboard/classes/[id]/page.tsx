@@ -1286,7 +1286,7 @@ export default function ClassDetailPage() {
 
           {/* 날짜 패널 */}
           {selectedDate && (() => {
-            const canRecord  = selectedDate <= todayStr
+            const canRecord  = true
             const dow        = new Date(selectedDate + 'T00:00:00').getDay()
             const isRegDay   = !!selectedSession   || schedules.some(s => s.day_of_week === dow)
             const isClinicDy = !!selectedClinicSession || clinicSchedules.some(s => s.day_of_week === dow)
