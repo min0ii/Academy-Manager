@@ -1,16 +1,22 @@
 import { ImageResponse } from 'next/og'
+import { NextRequest } from 'next/server'
 
-export const size = { width: 180, height: 180 }
-export const contentType = 'image/png'
+export const runtime = 'edge'
 
-export default function AppleIcon() {
+export async function GET(req: NextRequest) {
+  const size = Number(req.nextUrl.searchParams.get('size') ?? '192')
+  const dim = size
+  const radius = Math.round(dim * 0.22)
+  const iconSize = Math.round(dim * 0.6)
+  const strokeW = size >= 256 ? 1.5 : 2
+
   return new ImageResponse(
     (
       <div
         style={{
-          width: 180,
-          height: 180,
-          borderRadius: 0,
+          width: dim,
+          height: dim,
+          borderRadius: radius,
           background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
           display: 'flex',
           alignItems: 'center',
@@ -18,12 +24,12 @@ export default function AppleIcon() {
         }}
       >
         <svg
-          width="108"
-          height="108"
+          width={iconSize}
+          height={iconSize}
           viewBox="0 0 24 24"
           fill="none"
           stroke="white"
-          stroke-width="2"
+          stroke-width={String(strokeW)}
           stroke-linecap="round"
           stroke-linejoin="round"
         >
@@ -32,6 +38,6 @@ export default function AppleIcon() {
         </svg>
       </div>
     ),
-    { ...size }
+    { width: dim, height: dim }
   )
 }
