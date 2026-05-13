@@ -19,7 +19,7 @@ type ClinicSchedule  = { id: string; day_of_week: number; start_time: string; en
 type Student = {
   id: string; name: string; school_name: string | null
   grade: string; phone: string; parent_phone: string | null
-  parent_relation: string | null; memo: string | null
+  parent_relation: string | null; memo: string | null; enrolled_at: string | null
 }
 type Session      = { id: string; date: string; start_time: string; end_time: string; status: string }
 type ClinicSession = { id: string; class_id: string; date: string; note: string | null; name: string | null; start_time: string | null; end_time: string | null }
@@ -206,7 +206,7 @@ export default function ClassDetailPage() {
       supabase.from('class_schedules').select('*').eq('class_id', classId).order('day_of_week').order('start_time'),
       supabase.from('clinic_schedules').select('*').eq('class_id', classId).order('day_of_week').order('start_time'),
       supabase.from('class_students')
-        .select('students(id, name, school_name, grade, phone, parent_phone, parent_relation, memo)')
+        .select('students(id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at)')
         .eq('class_id', classId),
     ])
     if (!classData) { router.push('/dashboard/classes'); return }
@@ -432,17 +432,20 @@ export default function ClassDetailPage() {
     setDateHomeworks(hwData ?? [])
     setHomeworkStatuses({})
 
+    // 해당 날짜 기준으로 등록된 학생만 (enrolled_at 이 dateStr 이하이거나 null)
+    const enrolledStudents = students.filter(s => !s.enrolled_at || s.enrolled_at <= dateStr)
+
     if (session) {
       const { data: attData } = await supabase
         .from('attendance').select('id, student_id, status, note').eq('session_id', session.id)
       const attMap: Record<string, any> = {}
       for (const a of (attData ?? [])) attMap[a.student_id] = a
-      setAttendanceList(students.map(s => ({
+      setAttendanceList(enrolledStudents.map(s => ({
         id: attMap[s.id]?.id ?? null, student_id: s.id,
         status: attMap[s.id]?.status ?? null, note: attMap[s.id]?.note ?? null,
       })))
     } else {
-      setAttendanceList(students.map(s => ({ id: null, student_id: s.id, status: null, note: null })))
+      setAttendanceList(enrolledStudents.map(s => ({ id: null, student_id: s.id, status: null, note: null })))
     }
 
     if (clinicSession) {
@@ -450,12 +453,12 @@ export default function ClassDetailPage() {
         .from('clinic_attendance').select('id, student_id, status').eq('clinic_session_id', clinicSession.id)
       const cAttMap: Record<string, any> = {}
       for (const a of (cAttData ?? [])) cAttMap[a.student_id] = a
-      setClinicAttList(students.map(s => ({
+      setClinicAttList(enrolledStudents.map(s => ({
         id: cAttMap[s.id]?.id ?? null, student_id: s.id, status: cAttMap[s.id]?.status ?? null,
       })))
     } else if (clinicSchedules.some(s => s.day_of_week === dow)) {
       // 정규 클리닉 요일: 세션 없어도 학생 목록 준비
-      setClinicAttList(students.map(s => ({ id: null, student_id: s.id, status: null })))
+      setClinicAttList(enrolledStudents.map(s => ({ id: null, student_id: s.id, status: null })))
     } else {
       // 정규 클리닉 아닌 날: 비워서 "클리닉 추가" 버튼 표시
       setClinicAttList([])
