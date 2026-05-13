@@ -30,7 +30,7 @@ type TestRecord = {
   name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
   avgScore: number | null; avgPct: number | null; classHigh: number | null; classLow: number | null; absent: boolean
-  isForfeited?: boolean; noDeadline?: boolean
+  isForfeited?: boolean; noDeadline?: boolean; isAdjusted?: boolean; category?: string | null
 }
 type ClinicRecord = {
   id: string; clinic_name: string | null; date: string
@@ -90,6 +90,7 @@ export default function ParentPage() {
   const [tests, setTests]           = useState<TestRecord[]>([])
   const [gradesLoaded, setGradesLoaded] = useState(false)
   const [gradesLoading, setGradesLoading] = useState(false)
+  const [gradeCategoryFilter, setGradeCategoryFilter] = useState<string | null>(null)
 
   // 과제·클리닉
   const [hwClinicSub, setHwClinicSub]   = useState<HwClinicSub>('homework')
@@ -344,7 +345,9 @@ export default function ParentPage() {
   const attendRate = attendStats.total > 0
     ? Math.round((attendStats.present + attendStats.late + attendStats.earlyLeave) / attendStats.total * 100) : null
 
-  const scoredTests = tests.filter(t => !t.absent && t.myScore !== null && t.maxScore !== null)
+  const gradeCategories = [...new Set(tests.map(t => t.category).filter(Boolean))] as string[]
+  const filteredTests = gradeCategoryFilter ? tests.filter(t => t.category === gradeCategoryFilter) : tests
+  const scoredTests = filteredTests.filter(t => !t.absent && t.myScore !== null && t.maxScore !== null)
   const pcts = scoredTests.map(t => (t.myScore! / t.maxScore!) * 100)
   const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a,b) => a+b, 0) / pcts.length) : null
   const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
@@ -354,8 +357,7 @@ export default function ParentPage() {
     내점수: Math.round((t.myScore! / t.maxScore!) * 100),
     반평균: t.avgScore !== null && t.maxScore ? Math.round((t.avgScore / t.maxScore) * 100) : null,
   }))
-  // 동일 이름 시험 탐지 (목록에서 구분 표시용)
-  const _allTestNames = tests.map(t => t.name)
+  const _allTestNames = filteredTests.map(t => t.name)
   const duplicateTestNames = new Set(_allTestNames.filter((n, i) => _allTestNames.indexOf(n) !== i))
 
   const hwStats = {
@@ -576,6 +578,20 @@ export default function ParentPage() {
           <>
             {!classInfo ? <NoClass /> : (
               <>
+                {gradeCategories.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={() => setGradeCategoryFilter(null)}
+                      className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${!gradeCategoryFilter ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                      전체
+                    </button>
+                    {gradeCategories.map(cat => (
+                      <button key={cat} onClick={() => setGradeCategoryFilter(cat)}
+                        className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${gradeCategoryFilter === cat ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700 hover:bg-violet-100'}`}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {scoredTests.length > 0 && (
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                     <h2 className="font-bold text-slate-800 text-sm">성적 요약</h2>
@@ -626,15 +642,15 @@ export default function ParentPage() {
                   <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">전체 성적 기록</h2></div>
                   {gradesLoading ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
-                  ) : tests.length === 0 ? (
+                  ) : filteredTests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
                     <div className="divide-y divide-slate-100">
-                      {[...tests].reverse().map((t, i) => (
+                      {[...filteredTests].reverse().map((t, i) => (
                         <div key={i} className="px-5 py-4">
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="text-sm font-semibold text-slate-800 truncate" title={t.name}>
                                   {duplicateTestNames.has(t.name) ? `${t.name} (${t.date.slice(5).replace('-', '/')})` : t.name}
                                 </p>
@@ -650,6 +666,7 @@ export default function ParentPage() {
                               <div className="text-right flex-shrink-0">
                                 <p className={`text-base font-black ${t.myPct===null?'text-slate-700':t.myPct>=80?'text-emerald-600':t.myPct>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
                                 {t.myPct !== null && <p className="text-xs text-slate-400">{t.myPct}%</p>}
+                                {t.isAdjusted && <p className="text-xs text-amber-500 mt-0.5">점수 수정됨</p>}
                               </div>
                             ) : <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>}
                           </div>

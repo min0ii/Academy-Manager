@@ -334,9 +334,9 @@ export async function GET(req: NextRequest) {
     // exams: 마감된 시험 OR 마감없는 시험(active 상태, 학생이 제출했을 경우 표시)
     const [{ data: tests }, { data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
       db.from('tests').select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true }),
-      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline')
+      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
-      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline')
+      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('no_deadline', true).eq('status', 'active').order('start_at', { ascending: true }),
     ])
     // 중복 제거: 마감없는 시험이 closed 됐을 경우 closedExams에도 포함될 수 있으니 합쳐서 dedup
@@ -426,6 +426,7 @@ export async function GET(req: NextRequest) {
         // 마감없는 시험은 제출한 경우만 표시 (미제출이면 exam tab에서 볼 수 있음)
         if (exam.no_deadline && !mySub?.is_submitted) continue
         const myScore = (mySub?.is_submitted && !isForfeited) ? (mySub.adjusted_score ?? mySub.auto_score) : null
+        const isAdjusted = !!(mySub?.is_submitted && !isForfeited && mySub.adjusted_score !== null && mySub.adjusted_score !== mySub.auto_score)
         const maxScore = exam.max_score ?? maxScoreByExam[exam.id] ?? null
         const arr     = allScoresByExam[exam.id] ?? []
         const avgRaw  = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
@@ -443,10 +444,12 @@ export async function GET(req: NextRequest) {
           classLow:     arr.length > 0 ? Math.min(...arr) : null,
           absent:       false,
           isForfeited,
+          isAdjusted,
           noDeadline:   exam.no_deadline ?? false,
           examId:       exam.id,
           examType:     exam.exam_type,
           answerReveal: exam.answer_reveal,
+          category:     exam.category ?? null,
         })
       }
     }
