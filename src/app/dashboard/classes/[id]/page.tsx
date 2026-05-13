@@ -674,15 +674,19 @@ export default function ClassDetailPage() {
       .select('session_id, student_id, status')
       .in('session_id', sessIds)
 
-    // 세션별 집계
+    // 세션별 집계 — 해당 수업일 기준 등록된 학생 수만 total에 반영
     const sessMap: Record<string, StatSession> = {}
     for (const s of sessData) {
-      sessMap[s.id] = { id: s.id, date: s.date, start_time: s.start_time, end_time: s.end_time, present: 0, late: 0, early_leave: 0, absent: 0, total: students.length }
+      const enrolledCount = students.filter(st => !st.enrolled_at || st.enrolled_at <= s.date).length
+      sessMap[s.id] = { id: s.id, date: s.date, start_time: s.start_time, end_time: s.end_time, present: 0, late: 0, early_leave: 0, absent: 0, total: enrolledCount }
     }
-    // 학생별 집계
+    // 학생별 집계 — 학생 등록일 이후 세션 수만 sessions에 반영
     const studentMap: Record<string, StatStudent> = {}
     for (const s of students) {
-      studentMap[s.id] = { id: s.id, name: s.name, present: 0, late: 0, early_leave: 0, absent: 0, sessions: sessData.length }
+      const relevantSessions = s.enrolled_at
+        ? sessData.filter((ss: any) => ss.date >= s.enrolled_at!).length
+        : sessData.length
+      studentMap[s.id] = { id: s.id, name: s.name, present: 0, late: 0, early_leave: 0, absent: 0, sessions: relevantSessions }
     }
 
     for (const a of (attData ?? []) as { session_id: string; student_id: string; status: string }[]) {
