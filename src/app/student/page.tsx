@@ -37,6 +37,13 @@ type TestRecord = {
   examId?: string; examType?: string; answerReveal?: string
 }
 
+type StudentContext = {
+  student: StudentInfo
+  classInfo: ClassInfo | null
+  academyName: string
+  academyLogo: string | null
+}
+
 type ExamResultQuestion = {
   id: string; order_num: number; question_text: string | null
   question_type: 'multiple_choice' | 'short_answer'; score: number
@@ -89,6 +96,8 @@ export default function StudentPage() {
   const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
   const [academyName, setAcademyName] = useState('')
   const [academyLogo, setAcademyLogo] = useState<string | null>(null)
+  const [allContexts, setAllContexts] = useState<StudentContext[]>([])
+  const [selectedCtxIdx, setSelectedCtxIdx] = useState(0)
 
   // 비밀번호 변경
   // pwStep: 'pw' → 비밀번호 입력, 'sq' → 보안질문 설정(mustChangePw일 때만), 'done' → 완료
@@ -187,12 +196,36 @@ export default function StudentPage() {
     const res = await fetch('/api/student', { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
 
-    if (json.student)    setStudent(json.student)
-    if (json.classInfo)  setClassInfo(json.classInfo)
-    if (json.academyName) setAcademyName(json.academyName)
-    if (json.academyLogo) setAcademyLogo(json.academyLogo)
+    const contexts: StudentContext[] = json.contexts ?? []
+    setAllContexts(contexts)
+    setSelectedCtxIdx(0)
+
+    if (contexts.length > 0) {
+      const ctx = contexts[0]
+      setStudent(ctx.student)
+      setClassInfo(ctx.classInfo)
+      setAcademyName(ctx.academyName)
+      setAcademyLogo(ctx.academyLogo)
+    }
 
     setLoading(false)
+  }
+
+  function switchContext(idx: number) {
+    if (idx === selectedCtxIdx) return
+    const ctx = allContexts[idx]
+    setSelectedCtxIdx(idx)
+    setStudent(ctx.student)
+    setClassInfo(ctx.classInfo)
+    setAcademyName(ctx.academyName)
+    setAcademyLogo(ctx.academyLogo)
+    // 탭 데이터 초기화
+    setAttendLoaded(false); setAttendance([])
+    setGradesLoaded(false); setTests([])
+    setHwLoaded(false); setHomeworks([])
+    setClinicLoaded(false); setClinics([])
+    setExpandedHwId(null)
+    setTab('home')
   }
 
   async function loadAttendance() {
@@ -436,6 +469,24 @@ export default function StudentPage() {
               <h1 className="text-xl font-bold mt-1">{student ? `${student.name}님` : '학생님'}</h1>
               <p className="text-blue-200 text-xs mt-2">오늘도 열심히 해봐요!</p>
             </div>
+
+            {/* 학원 선택기 (여러 학원에 다닐 때만 표시) */}
+            {allContexts.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+                {allContexts.map((ctx, i) => (
+                  <button key={i}
+                    onClick={() => switchContext(i)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      i === selectedCtxIdx
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {ctx.academyName || '학원'}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 오늘 수업 카드 */}
             {classInfo && (() => {

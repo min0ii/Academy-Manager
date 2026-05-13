@@ -42,6 +42,12 @@ type HomeworkRecord = {
   status: 'done' | 'partial' | 'none' | null
 }
 type CommentRecord = { id: string; date: string; content: string }
+type ChildContext = {
+  student: StudentInfo
+  classInfo: ClassInfo | null
+  academyName: string
+  academyLogo: string | null
+}
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -70,6 +76,8 @@ export default function ParentPage() {
   const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
   const [academyName, setAcademyName] = useState('')
   const [academyLogo, setAcademyLogo] = useState<string | null>(null)
+  const [allContexts, setAllContexts] = useState<ChildContext[]>([])
+  const [selectedCtxIdx, setSelectedCtxIdx] = useState(0)
 
   // 비밀번호 변경
   const [mustChangePw, setMustChangePw] = useState(false)
@@ -159,36 +167,66 @@ export default function ParentPage() {
     }
 
     const parentPhone = profile?.phone ?? ''
-    const { data: studentData } = await supabase
+    // maybeSingle 대신 배열로 조회 — 자녀가 여럿이거나 한 자녀가 여러 학원에 다닐 수 있음
+    const { data: allStudents } = await supabase
       .from('students').select('id, name, school_name, grade, phone')
-      .eq('parent_phone', parentPhone).maybeSingle()
+      .eq('parent_phone', parentPhone)
 
-    if (studentData) {
-      setStudent(studentData)
-      await loadClassInfo(studentData.id)
+    if (allStudents && allStudents.length > 0) {
+      const ctxs: ChildContext[] = []
+      for (const s of allStudents) {
+        const { classInfo: ci, academyName: an, academyLogo: al } = await fetchClassInfo(s.id)
+        ctxs.push({ student: s, classInfo: ci, academyName: an, academyLogo: al })
+      }
+      setAllContexts(ctxs)
+      setSelectedCtxIdx(0)
+      setStudent(ctxs[0].student)
+      setClassInfo(ctxs[0].classInfo)
+      setAcademyName(ctxs[0].academyName)
+      setAcademyLogo(ctxs[0].academyLogo)
     }
     setLoading(false)
   }
 
-  async function loadClassInfo(studentId: string) {
+  // 반·학원 정보를 반환하는 함수 (state 직접 설정 X)
+  async function fetchClassInfo(studentId: string): Promise<{ classInfo: ClassInfo | null; academyName: string; academyLogo: string | null }> {
     const { data: cs } = await supabase
       .from('class_students')
-      .select('classes(id, name, academy_id, teacher_id, academies(name), class_schedules(day_of_week, start_time, end_time))')
+      .select('classes(id, name, academy_id, teacher_id, academies(name, logo_url), class_schedules(day_of_week, start_time, end_time))')
       .eq('student_id', studentId)
 
-    if (!cs?.length) return
+    if (!cs?.length) return { classInfo: null, academyName: '', academyLogo: null }
     const cls = (cs[0] as any).classes
-    if (!cls) return
-
-    setAcademyName(cls.academies?.name ?? '')
-    setAcademyLogo((cls.academies as any)?.logo_url ?? null)
+    if (!cls) return { classInfo: null, academyName: '', academyLogo: null }
 
     let teacherName: string | null = null
     if (cls.teacher_id) {
       const { data: tp } = await supabase.from('profiles').select('name').eq('id', cls.teacher_id).single()
       teacherName = tp?.name ?? null
     }
-    setClassInfo({ id: cls.id, name: cls.name, teacher_name: teacherName, schedules: cls.class_schedules ?? [] })
+    return {
+      classInfo: { id: cls.id, name: cls.name, teacher_name: teacherName, schedules: cls.class_schedules ?? [] },
+      academyName: cls.academies?.name ?? '',
+      academyLogo: (cls.academies as any)?.logo_url ?? null,
+    }
+  }
+
+  function switchContext(idx: number) {
+    if (idx === selectedCtxIdx) return
+    const ctx = allContexts[idx]
+    setSelectedCtxIdx(idx)
+    setStudent(ctx.student)
+    setClassInfo(ctx.classInfo)
+    setAcademyName(ctx.academyName)
+    setAcademyLogo(ctx.academyLogo)
+    // 탭 데이터 초기화
+    setAttendLoaded(false); setAttendance([])
+    setGradesLoaded(false); setTests([])
+    setHwLoaded(false); setHomeworks([])
+    setClinicLoaded(false); setClinics([])
+    setCommentsLoaded(false); setCommentList([])
+    setExpandedHwId(null)
+    setTab('home')
   }
 
   async function loadAttendance() {
@@ -428,6 +466,24 @@ export default function ParentPage() {
               <h1 className="text-xl font-bold mt-1">{student ? `${student.name} 학부모님` : parentName || '학부모님'}</h1>
               <p className="text-violet-200 text-xs mt-2">환영합니다!</p>
             </div>
+
+            {/* 자녀/학원 선택기 (여러 명이거나 여러 학원일 때만 표시) */}
+            {allContexts.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+                {allContexts.map((ctx, i) => (
+                  <button key={i}
+                    onClick={() => switchContext(i)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      i === selectedCtxIdx
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-violet-300'
+                    }`}
+                  >
+                    {ctx.student.name}{ctx.academyName ? ` · ${ctx.academyName}` : ''}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 오늘 수업 카드 */}
             {classInfo && (() => {
