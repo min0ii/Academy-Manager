@@ -586,12 +586,15 @@ export async function GET(req: NextRequest) {
     const studentId = searchParams.get('studentId')
     if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
+    const { data: _sr7 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt7 = _sr7?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     const points: { name: string; 내점수: number | null; 반평균: number | null }[] = []
     const records: Record<string, unknown>[] = []
 
     // 구시스템
     const { data: tests } = await db.from('tests')
-      .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
+      .select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt7).order('date', { ascending: true })
     if (tests?.length) {
       const testIds = tests.map(t => t.id)
       const [{ data: myScores }, { data: allScores }] = await Promise.all([
@@ -633,7 +636,10 @@ export async function GET(req: NextRequest) {
       db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
     ])
-    const allExams2 = [...(closedExams2 ?? []), ...(noDeadlineExams2 ?? [])]
+    const allExams2 = [...(closedExams2 ?? []), ...(noDeadlineExams2 ?? [])].filter((e: any) => {
+      const d = e.start_at ? e.start_at.slice(0, 10) : e.created_at?.slice(0, 10) ?? '2000-01-01'
+      return d >= enrolledAt7
+    })
     if (allExams2.length) {
       const examIds = allExams2.map(e => e.id)
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
