@@ -133,6 +133,17 @@ export default function ExamTab({
     setListLoading(false)
   }
 
+  // Beforeunload warning while solving (prevent accidental navigation)
+  useEffect(() => {
+    if (view !== 'solving') return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = '시험이 진행 중입니다. 페이지를 나가면 답안이 사라질 수 있어요.'
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [view])
+
   // Countdown timer
   useEffect(() => {
     if (!examDetail?.exam.end_at) return

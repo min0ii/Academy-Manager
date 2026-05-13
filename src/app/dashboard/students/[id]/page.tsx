@@ -6,6 +6,7 @@ import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X } f
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import { useAcademy } from '@/lib/academy-context'
+import { useDialog } from '@/components/AppDialog'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -50,6 +51,7 @@ const ATT_STYLE = {
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function StudentReportContent() {
+  const { showConfirm, dialog } = useDialog()
   const params       = useParams()
   const router       = useRouter()
   const searchParams = useSearchParams()
@@ -105,7 +107,7 @@ function StudentReportContent() {
   // ── 퇴원 처리 ──
   async function withdrawStudent() {
     if (!student) return
-    if (!confirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 학생·학부모 계정이 모두 삭제돼요.\n성적·과제·출결 등 모든 기록은 그대로 보존돼요.`)) return
+    if (!await showConfirm(`${student.name} 학생을 퇴원 처리할까요?\n\n반 배정이 해제되고 학생·학부모 계정이 모두 삭제돼요.\n성적·과제·출결 등 모든 기록은 그대로 보존돼요.`, { destructive: true, confirmText: '퇴원' })) return
     setActionLoading(true)
 
     // 1. 반 배정 해제 + 퇴원 상태 변경
@@ -135,7 +137,7 @@ function StudentReportContent() {
   // ── 재원 복귀 ──
   async function restoreStudent() {
     if (!student) return
-    if (!confirm(`${student.name} 학생을 재원으로 복귀할까요?\n반 배정은 학생 관리에서 다시 설정해주세요.`)) return
+    if (!await showConfirm(`${student.name} 학생을 재원으로 복귀할까요?\n반 배정은 학생 관리에서 다시 설정해주세요.`, { confirmText: '복귀' })) return
     setActionLoading(true)
     await supabase.from('students').update({ status: 'active', withdrawn_at: null }).eq('id', studentId)
     await loadStudent(ctx!.academyId)
@@ -266,6 +268,7 @@ function StudentReportContent() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
+      {dialog}
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <button onClick={() => router.push(from ? decodeURIComponent(from) : '/dashboard/students')}

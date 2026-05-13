@@ -7,6 +7,7 @@ import {
   GraduationCap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useDialog } from '@/components/AppDialog'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,7 @@ function QuestionCard({
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export default function QuestionBank() {
+  const { showAlert, showConfirm, dialog } = useDialog()
   // 폴더 탐색
   const [folderId, setFolderId] = useState<string | null>(null)
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: '문제은행' }])
@@ -306,7 +308,7 @@ export default function QuestionBank() {
     const msg = type === 'folder'
       ? `"${name}" 폴더와 안에 있는 모든 세트·문제를 삭제할까요? 되돌릴 수 없어요.`
       : `"${name}" 세트와 안에 있는 모든 문제를 삭제할까요? 되돌릴 수 없어요.`
-    if (!confirm(msg)) return
+    if (!await showConfirm(msg, { destructive: true })) return
     const token = await getToken()
     if (!token) return
     await fetch(`/api/question-bank?type=${type}&id=${id}`, {
@@ -386,7 +388,7 @@ export default function QuestionBank() {
       setSavedSet(true)
       setSets(prev => prev.map(s => s.id === editingSetId ? { ...s, questionCount: questions.length } : s))
     } else {
-      alert('저장에 실패했어요.')
+      void showAlert('저장에 실패했어요.')
     }
   }
 
@@ -422,10 +424,10 @@ export default function QuestionBank() {
 
   async function doCreateExam() {
     if (!editingSetId || !selectedClassId || !examTitle.trim()) {
-      alert('반과 시험 이름을 입력해주세요.'); return
+      void showAlert('반과 시험 이름을 입력해주세요.'); return
     }
     const selectedQs = questions.filter(q => selectedQClientIds.has(q.clientId))
-    if (!selectedQs.length) { alert('문제를 1개 이상 선택해주세요.'); return }
+    if (!selectedQs.length) { void showAlert('문제를 1개 이상 선택해주세요.'); return }
 
     setCreatingExam(true)
     const token = await getToken()
@@ -466,10 +468,10 @@ export default function QuestionBank() {
     setCreatingExam(false)
     if (res.ok) {
       setShowCreateExamModal(false)
-      alert(`✅ "${examTitle.trim()}" 시험이 생성됐어요!\n시험 관리 탭 → 반별 시험에서 확인해보세요.`)
+      void showAlert(`✅ "${examTitle.trim()}" 시험이 생성됐어요!\n시험 관리 탭 → 반별 시험에서 확인해보세요.`)
     } else {
       const err = await res.json().catch(() => ({}))
-      alert('시험 생성 실패: ' + (err.error ?? `HTTP ${res.status}`))
+      void showAlert('시험 생성 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
   }
 
@@ -690,6 +692,7 @@ export default function QuestionBank() {
 
   return (
     <div className="space-y-4">
+      {dialog}
       {/* 브레드크럼 */}
       <div className="flex items-center gap-1 flex-wrap">
         {breadcrumbs.map((b, i) => (

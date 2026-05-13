@@ -9,6 +9,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import QuestionBank from './QuestionBank'
+import { useDialog } from '@/components/AppDialog'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -802,6 +803,7 @@ function AutoMonitorView({
 // ── Main Component ──────────────────────────────────────────────────────────
 
 function GradesContent() {
+  const { showAlert, showConfirm, dialog } = useDialog()
   const ctx = useAcademy()
   const searchParams = useSearchParams()
   const autoOpenDone = useRef(false)
@@ -1063,7 +1065,7 @@ function GradesContent() {
     if (endPartial) {
       const endErrs = dtValErrors(autoEnd)
       if (Object.keys(endErrs).length > 0) {
-        alert('마감 시간에 올바르지 않은 값이 있어요.\n' +
+        void showAlert('마감 시간에 올바르지 않은 값이 있어요.\n' +
           (endErrs.month  ? `• 월: ${endErrs.month} 사이여야 해요\n` : '') +
           (endErrs.day    ? `• 일: ${endErrs.day} 사이여야 해요\n` : '') +
           (endErrs.hour   ? `• 시: ${endErrs.hour} 사이여야 해요\n` : '') +
@@ -1071,11 +1073,11 @@ function GradesContent() {
         return
       }
       if (!endIso) {
-        alert('마감 시간의 월·일·시·분을 모두 입력해주세요.')
+        void showAlert('마감 시간의 월·일·시·분을 모두 입력해주세요.')
         return
       }
       if (new Date(endIso) <= new Date()) {
-        alert('마감 시간은 현재 시각 이후로 설정해 주세요.')
+        void showAlert('마감 시간은 현재 시각 이후로 설정해 주세요.')
         return
       }
     }
@@ -1084,7 +1086,7 @@ function GradesContent() {
     if (wizardCustomLabels) {
       const empty = wizardQs.findIndex(q => !q.customLabel.trim())
       if (empty !== -1) {
-        alert(`⚠️ ${empty + 1}번째 문제의 번호를 입력해주세요.`)
+        void showAlert(`⚠️ ${empty + 1}번째 문제의 번호를 입력해주세요.`)
         return
       }
     }
@@ -1139,14 +1141,14 @@ function GradesContent() {
       await loadExams(selectedClass.id)
     } else {
       const err = await res.json().catch(() => ({}))
-      alert('시험 관리 실패: ' + (err.error ?? `HTTP ${res.status}`))
+      void showAlert('시험 관리 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
     setAddingAuto(false)
   }
 
   async function deleteExam(examId: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm('이 시험을 삭제할까요? 모든 데이터가 삭제돼요.')) return
+    if (!await showConfirm('이 시험을 삭제할까요? 모든 데이터가 삭제돼요.', { destructive: true })) return
     const token = await getToken()
     if (!token) return
     await fetch(`/api/exams/${examId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
@@ -1156,7 +1158,7 @@ function GradesContent() {
 
   async function startExam() {
     if (!selectedExam) return
-    if (!confirm('시험을 시작할까요? 학생들이 바로 응시할 수 있게 돼요.')) return
+    if (!await showConfirm('시험을 시작할까요? 학생들이 바로 응시할 수 있게 돼요.', { confirmText: '시작' })) return
     setStarting(true)
     const token = await getToken()
     if (!token) { setStarting(false); return }
@@ -1171,14 +1173,14 @@ function GradesContent() {
       setExams(prev => prev.map(e => e.id === selectedExam.id ? { ...e, status: 'active', start_at: now } : e))
     } else {
       const json = await res.json().catch(() => ({}))
-      alert(json.error ?? '시험 시작에 실패했어요. 다시 시도해주세요.')
+      void showAlert(json.error ?? '시험 시작에 실패했어요. 다시 시도해주세요.')
     }
     setStarting(false)
   }
 
   async function closeExam() {
     if (!selectedExam) return
-    if (!confirm('시험을 마감할까요? 미제출 학생은 현재 저장된 답안으로 자동 채점돼요.')) return
+    if (!await showConfirm('시험을 마감할까요? 미제출 학생은 현재 저장된 답안으로 자동 채점돼요.', { confirmText: '마감' })) return
     setClosing(true)
     const token = await getToken()
     if (!token) { setClosing(false); return }
@@ -1197,7 +1199,7 @@ function GradesContent() {
 
   async function revealAnswers() {
     if (!selectedExam) return
-    if (!confirm('정답을 공개할까요? 학생들이 성적 탭에서 정답을 확인할 수 있게 돼요.')) return
+    if (!await showConfirm('정답을 공개할까요? 학생들이 성적 탭에서 정답을 확인할 수 있게 돼요.', { confirmText: '공개' })) return
     const token = await getToken()
     if (!token) return
     const res = await fetch(`/api/exams/${selectedExam.id}`, {
@@ -1275,10 +1277,10 @@ function GradesContent() {
 
   async function saveEditExam() {
     if (!selectedExam) return
-    if (!editTitle.trim()) { alert('시험 이름을 입력해주세요.'); return }
+    if (!editTitle.trim()) { void showAlert('시험 이름을 입력해주세요.'); return }
     if (editCustomLabels) {
       const empty = editWizardQs.findIndex(q => !q.customLabel.trim())
-      if (empty !== -1) { alert(`⚠️ ${empty + 1}번째 문제의 번호를 입력해주세요.`); return }
+      if (empty !== -1) { void showAlert(`⚠️ ${empty + 1}번째 문제의 번호를 입력해주세요.`); return }
     }
     setSavingEdit(true)
     const token = await getToken()
@@ -1286,7 +1288,7 @@ function GradesContent() {
 
     const endIso = dtValToISO(editEnd)
     const endPartial = isDTValPartial(editEnd)
-    if (endPartial && !endIso) { alert('마감 시간의 월·일·시·분을 모두 입력해주세요.'); setSavingEdit(false); return }
+    if (endPartial && !endIso) { void showAlert('마감 시간의 월·일·시·분을 모두 입력해주세요.'); setSavingEdit(false); return }
 
     const questions = editWizardQs.map((q, idx) => {
       const score = parseFloat(q.score) || 0
@@ -1333,7 +1335,7 @@ function GradesContent() {
       await selectExam({ ...selectedExam, title: editTitle.trim() })
     } else {
       const err = await res.json().catch(() => ({}))
-      alert('수정 실패: ' + (err.error ?? `HTTP ${res.status}`))
+      void showAlert('수정 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
   }
 
@@ -1403,6 +1405,7 @@ function GradesContent() {
 
   if (view === 'classes') return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {dialog}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">시험 관리</h1>
         <p className="text-sm text-slate-500 mt-0.5">문제은행에서 문제를 관리하고, 반별 시험을 만들어요</p>
@@ -1459,6 +1462,7 @@ function GradesContent() {
 
   if (view === 'exams') return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {dialog}
       <div className="flex items-center gap-3">
         <button onClick={() => { setView('classes'); setSelectedClass(null) }}
           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
@@ -1751,7 +1755,7 @@ function GradesContent() {
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={() => {
                   if (!autoTitle.trim()) {
-                    alert('시험 이름을 입력해주세요.')
+                    void showAlert('시험 이름을 입력해주세요.')
                     return
                   }
                   setAddModal('auto_2')
@@ -1832,6 +1836,7 @@ function GradesContent() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {dialog}
       <div className="flex items-center gap-3">
         <button onClick={() => { setView('exams'); setSelectedExam(null); setExamDetail(null); setSubmissions([]) }}
           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
@@ -2021,7 +2026,7 @@ function GradesContent() {
                   <div className="flex gap-2 pt-1">
                     <button onClick={() => setShowEditModal(false)}
                       className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
-                    <button onClick={() => { if (!editTitle.trim()) { alert('시험 이름을 입력해주세요.'); return }; setEditStep(2) }}
+                    <button onClick={() => { if (!editTitle.trim()) { void showAlert('시험 이름을 입력해주세요.'); return }; setEditStep(2) }}
                       className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
                       다음: 문제 수정 →
                     </button>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, X, Pencil, Trash2, ChevronRight, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
+import { useDialog } from '@/components/AppDialog'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -17,6 +18,7 @@ type Class = {
 }
 
 export default function ClassesPage() {
+  const { showConfirm, dialog } = useDialog()
   const router = useRouter()
   const [classes, setClasses] = useState<Class[]>([])
   const [academyId, setAcademyId] = useState<string | null>(null)
@@ -87,7 +89,7 @@ export default function ClassesPage() {
 
   async function handleDelete(id: string, className: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm(`"${className}" 반을 삭제할까요?\n소속 학생의 반 배정 정보와 수업 세션이 모두 삭제돼요.`)) return
+    if (!await showConfirm(`"${className}" 반을 삭제할까요?\n소속 학생의 반 배정 정보와 수업 세션이 모두 삭제돼요.`, { destructive: true })) return
     await supabase.from('classes').delete().eq('id', id)
     await loadData(academyId!)
   }
@@ -101,6 +103,7 @@ export default function ClassesPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {dialog}
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>

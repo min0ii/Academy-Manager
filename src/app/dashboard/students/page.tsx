@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
+import { useDialog } from '@/components/AppDialog'
 import { formatPhone } from '@/lib/auth'
 
 type PageTab = 'list' | 'accounts'
@@ -59,6 +60,7 @@ type AccountStatus = {
 }
 
 export default function StudentsPage() {
+  const { showAlert, showConfirm, dialog } = useDialog()
   const router = useRouter()
   const [pageTab, setPageTab] = useState<PageTab>('list')
 
@@ -212,7 +214,7 @@ export default function StudentsPage() {
     const result = await res.json()
 
     if (!res.ok && res.status !== 409) {
-      alert(result.error ?? '오류가 발생했어요.')
+      void showAlert(result.error ?? '오류가 발생했어요.')
     }
 
     // 결과 반영
@@ -230,7 +232,7 @@ export default function StudentsPage() {
   // 비밀번호 초기화
   async function resetPassword(studentId: string, target: 'student' | 'parent') {
     const student = students.find(s => s.id === studentId)
-    if (!confirm(`${student?.name ?? ''} ${target === 'parent' ? '학부모' : '학생'} 계정의 비밀번호를 초기화할까요?\n(전화번호 뒤 8자리로 재설정돼요)`)) return
+    if (!await showConfirm(`${student?.name ?? ''} ${target === 'parent' ? '학부모' : '학생'} 계정의 비밀번호를 초기화할까요?\n(전화번호 뒤 8자리로 재설정돼요)`, { confirmText: '초기화' })) return
 
     setAccountStatuses(prev => prev.map(s =>
       s.studentId === studentId ? { ...s, resetting: target } : s
@@ -243,8 +245,8 @@ export default function StudentsPage() {
       body: JSON.stringify({ student_id: studentId, target }),
     })
     const result = await res.json()
-    if (!res.ok) alert(result.error ?? '초기화 중 오류가 발생했어요.')
-    else alert('비밀번호가 초기화됐어요.\n학생/학부모에게 전화번호 뒤 8자리를 알려주세요.')
+    if (!res.ok) void showAlert(result.error ?? '초기화 중 오류가 발생했어요.')
+    else void showAlert('비밀번호가 초기화됐어요.\n학생/학부모에게 전화번호 뒤 8자리를 알려주세요.')
 
     setAccountStatuses(prev => prev.map(s =>
       s.studentId === studentId ? { ...s, resetting: null } : s
@@ -254,7 +256,7 @@ export default function StudentsPage() {
   // 개별 계정 삭제
   async function deleteAccount(studentId: string, target: 'student' | 'parent') {
     const student = students.find(s => s.id === studentId)
-    if (!confirm(`${student?.name ?? ''} ${target === 'parent' ? '학부모' : '학생'} 계정을 삭제할까요?\n삭제 후 다시 생성할 수 있어요.`)) return
+    if (!await showConfirm(`${student?.name ?? ''} ${target === 'parent' ? '학부모' : '학생'} 계정을 삭제할까요?\n삭제 후 다시 생성할 수 있어요.`, { destructive: true })) return
 
     setAccountStatuses(prev => prev.map(s =>
       s.studentId === studentId ? { ...s, deleting: target } : s
@@ -267,7 +269,7 @@ export default function StudentsPage() {
       body: JSON.stringify({ student_id: studentId, target }),
     })
     const result = await res.json()
-    if (!res.ok) { alert(result.error ?? '삭제 중 오류가 발생했어요.') }
+    if (!res.ok) { void showAlert(result.error ?? '삭제 중 오류가 발생했어요.') }
 
     setAccountStatuses(prev => prev.map(s => {
       if (s.studentId !== studentId) return s
@@ -283,7 +285,7 @@ export default function StudentsPage() {
   // 선택 계정 일괄 삭제
   async function deleteBulkAccounts() {
     if (selectedAccountIds.size === 0) return
-    if (!confirm(`선택한 ${selectedAccountIds.size}명의 학생+학부모 계정을 모두 삭제할까요?\n삭제 후 다시 생성할 수 있어요.`)) return
+    if (!await showConfirm(`선택한 ${selectedAccountIds.size}명의 학생+학부모 계정을 모두 삭제할까요?\n삭제 후 다시 생성할 수 있어요.`, { destructive: true })) return
 
     setBulkDeleting(true)
     const { data: { session } } = await supabase.auth.getSession()
@@ -293,7 +295,7 @@ export default function StudentsPage() {
       body: JSON.stringify({ student_ids: [...selectedAccountIds], target: 'both' }),
     })
     const result = await res.json()
-    if (!res.ok) alert(result.error ?? '삭제 중 오류가 발생했어요.')
+    if (!res.ok) void showAlert(result.error ?? '삭제 중 오류가 발생했어요.')
 
     setBulkDeleting(false)
     setSelectedAccountIds(new Set())
@@ -302,7 +304,7 @@ export default function StudentsPage() {
 
   // 일괄 계정 생성
   async function createAllAccounts() {
-    if (!confirm('재원 중인 모든 학생과 학부모 계정을 일괄 생성할까요?\n이미 계정이 있는 경우는 건너뜁니다.')) return
+    if (!await showConfirm('재원 중인 모든 학생과 학부모 계정을 일괄 생성할까요?\n이미 계정이 있는 경우는 건너뜁니다.', { confirmText: '생성' })) return
     setBulkCreating(true)
     setBulkResult(null)
 
@@ -314,7 +316,7 @@ export default function StudentsPage() {
     const result = await res.json()
     setBulkCreating(false)
 
-    if (!res.ok) { alert(result.error ?? '오류가 발생했어요.'); return }
+    if (!res.ok) { void showAlert(result.error ?? '오류가 발생했어요.'); return }
     setBulkResult(result)
     // 계정 목록 새로고침
     await loadAccountStatuses(true)
@@ -379,7 +381,7 @@ export default function StudentsPage() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`${name} 학생을 삭제할까요?`)) return
+    if (!await showConfirm(`${name} 학생을 삭제할까요?`, { destructive: true })) return
     await supabase.from('students').delete().eq('id', id)
     await loadData(academyId!)
   }
@@ -399,7 +401,7 @@ export default function StudentsPage() {
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0) return
-    if (!confirm(`선택한 ${selectedIds.size}명의 학생을 삭제할까요?\n출결·성적 등 모든 데이터가 함께 삭제돼요.`)) return
+    if (!await showConfirm(`선택한 ${selectedIds.size}명의 학생을 삭제할까요?\n출결·성적 등 모든 데이터가 함께 삭제돼요.`, { destructive: true })) return
     await supabase.from('students').delete().in('id', [...selectedIds])
     setSelectedIds(new Set())
     setSelectMode(false)
@@ -556,6 +558,7 @@ export default function StudentsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
+      {dialog}
       {/* 페이지 제목 */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">학생 관리</h1>

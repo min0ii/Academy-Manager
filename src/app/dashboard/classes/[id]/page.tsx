@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
+import { useDialog } from '@/components/AppDialog'
 
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
 
@@ -65,6 +66,7 @@ const HW_ACTIVE = {
 } as const
 
 export default function ClassDetailPage() {
+  const { showAlert, showConfirm, dialog } = useDialog()
   const params   = useParams()
   const router   = useRouter()
   const classId  = params.id as string
@@ -279,7 +281,7 @@ export default function ClassDetailPage() {
   }
 
   async function deleteSchedule(id: string) {
-    if (!confirm('이 시간표를 삭제할까요?\n오늘 이후 예정된 해당 요일 수업도 함께 삭제돼요.')) return
+    if (!await showConfirm('이 시간표를 삭제할까요?\n오늘 이후 예정된 해당 요일 수업도 함께 삭제돼요.', { destructive: true })) return
     const schedule = schedules.find(s => s.id === id)
     if (schedule) {
       const td = new Date().toISOString().split('T')[0]
@@ -312,7 +314,7 @@ export default function ClassDetailPage() {
 
   async function saveClinicScheduleTime(id: string, start: string, end: string) {
     if (end <= start) {
-      alert('종료 시간은 시작 시간보다 늦어야 해요.')
+      void showAlert('종료 시간은 시작 시간보다 늦어야 해요.')
       return
     }
     const thisSchedule = clinicSchedules.find(s => s.id === id)
@@ -320,7 +322,7 @@ export default function ClassDetailPage() {
       const sameDay = clinicSchedules.filter(s => s.day_of_week === thisSchedule.day_of_week && s.id !== id)
       const overlap = sameDay.some(s => start < s.end_time && end > s.start_time)
       if (overlap) {
-        alert('같은 요일에 겹치는 클리닉 일정이 이미 있어요.')
+        void showAlert('같은 요일에 겹치는 클리닉 일정이 이미 있어요.')
         return
       }
     }
@@ -359,7 +361,7 @@ export default function ClassDetailPage() {
   }
 
   async function deleteClinicSchedule(id: string) {
-    if (!confirm('이 클리닉 일정을 삭제할까요?')) return
+    if (!await showConfirm('이 클리닉 일정을 삭제할까요?', { destructive: true })) return
     await supabase.from('clinic_schedules').delete().eq('id', id)
     await loadData()
     if (tab === 'calendar') loadMonthSessions()
@@ -378,7 +380,7 @@ export default function ClassDetailPage() {
   }
 
   async function removeStudent(studentId: string, name: string) {
-    if (!confirm(`${name} 학생을 이 반에서 빼시겠어요?`)) return
+    if (!await showConfirm(`${name} 학생을 이 반에서 빼시겠어요?`, { destructive: true, confirmText: '제외' })) return
     await supabase.from('class_students').delete().eq('class_id', classId).eq('student_id', studentId)
     await loadData()
   }
@@ -538,7 +540,7 @@ export default function ClassDetailPage() {
   async function deleteSession() {
     if (!selectedSession) return
     const hasAtt = attendanceList.some(a => a.status !== null)
-    if (!confirm(hasAtt ? '이 수업을 삭제할까요?\n출석 기록도 함께 삭제돼요.' : '이 수업을 삭제할까요?')) return
+    if (!await showConfirm(hasAtt ? '이 수업을 삭제할까요?\n출석 기록도 함께 삭제돼요.' : '이 수업을 삭제할까요?', { destructive: true })) return
     await supabase.from('attendance').delete().eq('session_id', selectedSession.id)
     await supabase.from('sessions').delete().eq('id', selectedSession.id)
     setSelectedSession(null)
@@ -635,7 +637,7 @@ export default function ClassDetailPage() {
 
   async function deleteClinicSession() {
     if (!selectedClinicSession) return
-    if (!confirm('이 클리닉 세션을 삭제할까요?\n기록도 함께 삭제돼요.')) return
+    if (!await showConfirm('이 클리닉 세션을 삭제할까요?\n기록도 함께 삭제돼요.', { destructive: true })) return
     await supabase.from('clinic_attendance').delete().eq('clinic_session_id', selectedClinicSession.id)
     await supabase.from('clinic_sessions').delete().eq('id', selectedClinicSession.id)
     setSelectedClinicSession(null)
@@ -721,7 +723,7 @@ export default function ClassDetailPage() {
   async function addHomework(e: React.FormEvent) {
     e.preventDefault()
     if (homeworkForm.due_date && homeworkForm.due_date < homeworkForm.assigned_date) {
-      alert('마감일은 출제일보다 늦어야 해요.')
+      void showAlert('마감일은 출제일보다 늦어야 해요.')
       return
     }
     setSavingHomework(true)
@@ -734,7 +736,7 @@ export default function ClassDetailPage() {
       due_date: homeworkForm.due_date || null,
     })
     setSavingHomework(false)
-    if (error) { alert('저장 오류: ' + error.message); return }
+    if (error) { void showAlert('저장 오류: ' + error.message); return }
     setShowAddHomework(false)
     setHomeworkForm({ title: '', assigned_date: selectedDate ?? '', due_date: '', description: '' })
     // DB에서 다시 불러와서 목록 갱신
@@ -746,7 +748,7 @@ export default function ClassDetailPage() {
   }
 
   async function deleteHomework(hwId: string) {
-    if (!confirm('이 과제를 삭제할까요?')) return
+    if (!await showConfirm('이 과제를 삭제할까요?', { destructive: true })) return
     await supabase.from('homework_status').delete().eq('homework_id', hwId)
     await supabase.from('homework').delete().eq('id', hwId)
     setDateHomeworks(prev => prev.filter(h => h.id !== hwId))
@@ -756,7 +758,7 @@ export default function ClassDetailPage() {
   async function saveHomeworkDueDate(hwId: string, dueDate: string) {
     const hw = dateHomeworks.find(h => h.id === hwId)
     if (dueDate && hw && dueDate < hw.assigned_date) {
-      alert('마감일은 출제일보다 늦어야 해요.')
+      void showAlert('마감일은 출제일보다 늦어야 해요.')
       setHwDueDateEdits(prev => ({ ...prev, [hwId]: hw.due_date ?? '' }))
       return
     }
@@ -848,12 +850,12 @@ export default function ClassDetailPage() {
       setShowResetModal(false)
       setResetConfirmText('')
       setShowDangerZone(false)
-      alert('✅ 초기화가 완료됐어요.')
+      void showAlert('✅ 초기화가 완료됐어요.')
       // 캘린더 새로고침
       loadMonthSessions()
     } else {
       const err = await res.json()
-      alert('오류: ' + (err.error ?? '초기화 실패'))
+      void showAlert('오류: ' + (err.error ?? '초기화 실패'))
     }
   }
 
@@ -861,7 +863,7 @@ export default function ClassDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-
+      {dialog}
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <button onClick={() => router.push('/dashboard/classes')}

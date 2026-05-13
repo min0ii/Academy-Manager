@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings, ShieldQuestion,
+  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings, ShieldQuestion, Clock,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
@@ -95,6 +95,7 @@ export default function ParentPage() {
   // 과제·클리닉
   const [hwClinicSub, setHwClinicSub]   = useState<HwClinicSub>('homework')
   const [homeworks, setHomeworks]       = useState<HomeworkRecord[]>([])
+  const [expandedHwId, setExpandedHwId] = useState<string | null>(null)
   const [hwLoaded, setHwLoaded]         = useState(false)
   const [hwLoading, setHwLoading]       = useState(false)
   const [clinics, setClinics]           = useState<ClinicRecord[]>([])
@@ -419,6 +420,28 @@ export default function ParentPage() {
               <p className="text-violet-200 text-xs mt-2">환영합니다!</p>
             </div>
 
+            {/* 오늘 수업 카드 */}
+            {classInfo && (() => {
+              const todayDow = new Date().getDay()
+              const todaySchedules = classInfo.schedules.filter(s => s.day_of_week === todayDow)
+              if (todaySchedules.length === 0) return null
+              return (
+                <div className="bg-violet-50 border border-violet-100 rounded-2xl px-4 py-3.5 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center flex-shrink-0">
+                    <Clock size={16} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-violet-500 font-semibold mb-0.5">오늘 수업</p>
+                    {todaySchedules.map((s, i) => (
+                      <p key={i} className="text-sm font-bold text-violet-800">
+                        {classInfo.name} · {s.start_time.slice(0,5)}~{s.end_time.slice(0,5)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             {student ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
                 <h2 className="font-bold text-slate-800 text-sm">자녀 정보</h2>
@@ -736,19 +759,31 @@ export default function ParentPage() {
                         <div className="divide-y divide-slate-100">
                           {homeworks.map(h => {
                             const style = h.status ? HW_STYLE[h.status] : null
+                            const isExpanded = expandedHwId === h.id
                             return (
-                              <div key={h.id} className="flex items-center gap-3 px-5 py-3.5">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-slate-800 truncate">{h.title}</p>
-                                  <p className="text-xs text-slate-400 mt-0.5">
-                                    {h.assigned_date.replace(/-/g,'. ')}
-                                    {h.due_date && ` · 마감 ${h.due_date.replace(/-/g,'.')}`}
-                                  </p>
+                              <div key={h.id}
+                                className={`px-5 py-3.5 ${h.description ? 'cursor-pointer hover:bg-slate-50' : ''} transition-colors`}
+                                onClick={() => h.description && setExpandedHwId(isExpanded ? null : h.id)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800">{h.title}</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      {h.assigned_date.replace(/-/g,'. ')}
+                                      {h.due_date && ` · 마감 ${h.due_date.replace(/-/g,'.')}`}
+                                    </p>
+                                  </div>
+                                  {style ? (
+                                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">미기록</span>
+                                  )}
                                 </div>
-                                {style ? (
-                                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>
-                                ) : (
-                                  <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">미기록</span>
+                                {h.description && isExpanded && (
+                                  <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{h.description}</p>
+                                )}
+                                {h.description && !isExpanded && (
+                                  <p className="mt-1 text-xs text-slate-400 truncate">{h.description}</p>
                                 )}
                               </div>
                             )

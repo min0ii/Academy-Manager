@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { formatPhone } from '@/lib/auth'
+import { useDialog } from '@/components/AppDialog'
 import {
   User, Plus, X,
   Crown, Shield, GraduationCap, Loader2,
@@ -22,6 +23,7 @@ type TeamMember = {
 const SELECTABLE_TITLES: Title[] = ['관리자', '강사', '조교']
 
 export default function TeamPage() {
+  const { showConfirm, dialog } = useDialog()
   const [myId, setMyId] = useState('')
   const [myTitle, setMyTitle] = useState<Title>('강사')
   const [academyId, setAcademyId] = useState('')
@@ -110,7 +112,7 @@ export default function TeamPage() {
 
   async function removeTeacher(member: TeamMember) {
     if (member.teacher_id === myId) return
-    if (!confirm(`${member.name} 선생님을 팀에서 제거할까요?\n로그인은 불가능해지지만 계정은 유지돼요.`)) return
+    if (!await showConfirm(`${member.name} 선생님을 팀에서 제거할까요?\n로그인은 불가능해지지만 계정은 유지돼요.`, { destructive: true, confirmText: '제거' })) return
     setTeamError('')
     const { error } = await supabase
       .from('academy_teachers')
@@ -126,6 +128,7 @@ export default function TeamPage() {
 
   return (
     <div className="max-w-xl mx-auto space-y-5">
+      {dialog}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">팀 관리</h1>
         {isAdmin && !showAddForm && (
