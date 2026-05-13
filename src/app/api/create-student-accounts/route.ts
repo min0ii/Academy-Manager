@@ -54,6 +54,16 @@ export async function POST(req: NextRequest) {
     let parentSkipped = 0
     const errors: string[] = []
 
+    // parent_students 링크를 안전하게 추가하는 헬퍼
+    async function linkParentStudent(parentId: string, studentId: string) {
+      const { data: existing } = await supabaseAdmin
+        .from('parent_students').select('parent_id')
+        .eq('parent_id', parentId).eq('student_id', studentId).maybeSingle()
+      if (!existing) {
+        await supabaseAdmin.from('parent_students').insert({ parent_id: parentId, student_id: studentId })
+      }
+    }
+
     for (const student of students ?? []) {
       // ── 학생 계정 생성 ──
       if (student.user_id) {
@@ -63,7 +73,7 @@ export async function POST(req: NextRequest) {
         const digits = String(student.phone).replace(/\D/g, '')
         if (digits.length >= 6) {
           const email = `${digits}@academy.local`
-          const password = digits.slice(-8) // 010 제외 뒤 8자리
+          const password = digits.slice(-8)
 
           const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email,
@@ -75,15 +85,9 @@ export async function POST(req: NextRequest) {
             if (createError.message.toLowerCase().includes('already')) {
               // Auth에는 있지만 students.user_id가 없는 경우 → profile 조회해서 연결
               const { data: existingProfile } = await supabaseAdmin
-                .from('profiles')
-                .select('id')
-                .eq('phone', digits)
-                .single()
+                .from('profiles').select('id').eq('phone', digits).single()
               if (existingProfile) {
-                await supabaseAdmin
-                  .from('students')
-                  .update({ user_id: existingProfile.id })
-                  .eq('id', student.id)
+                await supabaseAdmin.from('students').update({ user_id: existingProfile.id }).eq('id', student.id)
                 studentSkipped++
               } else {
                 errors.push(`${student.name}: 이미 등록된 전화번호`)
@@ -95,23 +99,15 @@ export async function POST(req: NextRequest) {
             }
           } else {
             const userId = authData.user.id
-            // 프로필 생성
             const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-              id: userId,
-              phone: digits,
-              name: student.name,
-              role: 'student',
+              id: userId, phone: digits, name: student.name, role: 'student',
             })
             if (profileError) {
               await supabaseAdmin.auth.admin.deleteUser(userId)
               errors.push(`${student.name}: 프로필 생성 실패`)
               studentSkipped++
             } else {
-              // students 테이블에 user_id 연결
-              await supabaseAdmin
-                .from('students')
-                .update({ user_id: userId })
-                .eq('id', student.id)
+              await supabaseAdmin.from('students').update({ user_id: userId }).eq('id', student.id)
               studentCreated++
             }
           }
@@ -130,12 +126,11 @@ export async function POST(req: NextRequest) {
 
       // 이미 profile이 있는지 확인
       const { data: existingParent } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('phone', parentDigits)
-        .single()
+        .from('profiles').select('id').eq('phone', parentDigits).single()
 
       if (existingParent) {
+        // 이미 계정 있음 → parent_students 링크만 추가하고 건너뜀
+        await linkParentStudent(existingParent.id, student.id)
         parentSkipped++
         continue
       }
@@ -161,10 +156,8 @@ export async function POST(req: NextRequest) {
 
       const parentUserId = parentAuthData.user.id
       const { error: parentProfileError } = await supabaseAdmin.from('profiles').insert({
-        id: parentUserId,
-        phone: parentDigits,
-        name: `${student.name} 학부모`,
-        role: 'parent',
+        id: parentUserId, phone: parentDigits,
+        name: `${student.name} 학부모`, role: 'parent',
       })
 
       if (parentProfileError) {
@@ -172,17 +165,14 @@ export async function POST(req: NextRequest) {
         errors.push(`${student.name} 학부모: 프로필 생성 실패`)
         parentSkipped++
       } else {
+        // parent_students 링크 생성
+        await linkParentStudent(parentUserId, student.id)
         parentCreated++
       }
     }
 
     return NextResponse.json({
-      success: true,
-      studentCreated,
-      studentSkipped,
-      parentCreated,
-      parentSkipped,
-      errors,
+      success: true, studentCreated, studentSkipped, parentCreated, parentSkipped, errors,
     })
   } catch {
     return NextResponse.json({ error: '서버 오류가 발생했어요.' }, { status: 500 })

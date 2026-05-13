@@ -53,6 +53,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '학생을 찾을 수 없어요.' }, { status: 404 })
     }
 
+    // parent_students 링크를 안전하게 추가하는 헬퍼
+    async function linkParentStudent(parentId: string) {
+      const { data: existing } = await supabaseAdmin
+        .from('parent_students').select('parent_id')
+        .eq('parent_id', parentId).eq('student_id', student_id).maybeSingle()
+      if (!existing) {
+        await supabaseAdmin.from('parent_students').insert({ parent_id: parentId, student_id })
+      }
+    }
+
     // ── 학생 계정 생성 ──
     if (target === 'student') {
       if (student.user_id) {
@@ -71,9 +81,7 @@ export async function POST(req: NextRequest) {
       const password = digits.slice(-8)
 
       const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
+        email, password, email_confirm: true,
       })
 
       if (createError) {
@@ -118,6 +126,8 @@ export async function POST(req: NextRequest) {
       const { data: existing } = await supabaseAdmin
         .from('profiles').select('id').eq('phone', digits).single()
       if (existing) {
+        // 계정은 있지만 parent_students 링크가 없을 수 있으니 추가
+        await linkParentStudent(existing.id)
         return NextResponse.json({ error: '이미 계정이 있어요.' }, { status: 409 })
       }
 
@@ -125,9 +135,7 @@ export async function POST(req: NextRequest) {
       const password = digits.slice(-8)
 
       const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
+        email, password, email_confirm: true,
       })
 
       if (createError) {
@@ -136,10 +144,8 @@ export async function POST(req: NextRequest) {
 
       const userId = authData.user.id
       const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-        id: userId,
-        phone: digits,
-        name: `${student.name} 학부모`,
-        role: 'parent',
+        id: userId, phone: digits,
+        name: `${student.name} 학부모`, role: 'parent',
       })
 
       if (profileError) {
@@ -147,6 +153,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: profileError.message }, { status: 400 })
       }
 
+      // parent_students 링크 생성
+      await linkParentStudent(userId)
       return NextResponse.json({ success: true })
     }
 

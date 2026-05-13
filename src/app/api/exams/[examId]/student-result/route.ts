@@ -39,8 +39,18 @@ export async function GET(
     if (!student || student.id !== studentId)
       return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
   } else if (profile.role === 'parent') {
-    const { data: rel } = await db.from('parent_students').select('student_id').eq('parent_id', user.id).eq('student_id', studentId).single()
-    if (!rel) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    // 방법 1: parent_students 테이블 (계정 생성 시 채워지는 정상 경로)
+    const { data: rel } = await db.from('parent_students')
+      .select('student_id').eq('parent_id', user.id).eq('student_id', studentId).maybeSingle()
+
+    if (!rel) {
+      // 방법 2: parent_phone 기반 fallback (레거시 데이터 또는 parent_students 미사용 케이스)
+      const { data: parentProf } = await db.from('profiles').select('phone').eq('id', user.id).single()
+      const { data: linkedStudent } = parentProf?.phone
+        ? await db.from('students').select('id').eq('id', studentId).eq('parent_phone', parentProf.phone).maybeSingle()
+        : { data: null }
+      if (!linkedStudent) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    }
   } else {
     return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
   }
