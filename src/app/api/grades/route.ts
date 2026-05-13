@@ -67,11 +67,14 @@ export async function GET(req: NextRequest) {
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const { data: _sr1 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt1 = _sr1?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     const records: Record<string, unknown>[] = []
 
     // 구시스템
     const { data: tests } = await db.from('tests')
-      .select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true })
+      .select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt1).order('date', { ascending: true })
     if (tests?.length) {
       const testIds = tests.map(t => t.id)
       const [{ data: myScores }, { data: allScores }] = await Promise.all([
@@ -107,7 +110,10 @@ export async function GET(req: NextRequest) {
       db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
     ])
-    const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? [])]
+    const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? [])].filter((e: any) => {
+      const d = e.start_at ? e.start_at.slice(0, 10) : e.created_at?.slice(0, 10) ?? '2000-01-01'
+      return d >= enrolledAt1
+    })
     if (allExams.length) {
       const examIds = allExams.map(e => e.id)
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
@@ -184,9 +190,13 @@ export async function GET(req: NextRequest) {
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const { data: _sr2 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt2 = _sr2?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     const { data: hwList } = await db.from('homework')
       .select('id, title, assigned_date, due_date, description')
       .eq('class_id', classId)
+      .gte('assigned_date', enrolledAt2)
       .order('assigned_date', { ascending: false })
 
     if (!hwList?.length) return NextResponse.json({ records: [] })
@@ -221,8 +231,11 @@ export async function GET(req: NextRequest) {
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const { data: _sr3 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt3 = _sr3?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     const [{ data: sessions }, { data: myAtt }] = await Promise.all([
-      db.from('clinic_sessions').select('id, name, date, note').eq('class_id', classId).order('date', { ascending: false }),
+      db.from('clinic_sessions').select('id, name, date, note').eq('class_id', classId).gte('date', enrolledAt3).order('date', { ascending: false }),
       db.from('clinic_attendance').select('clinic_session_id, status').eq('student_id', studentId),
     ])
 
@@ -249,9 +262,13 @@ export async function GET(req: NextRequest) {
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const { data: _sr4 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt4 = _sr4?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     const { data: hwList } = await db.from('homework')
       .select('id, title, assigned_date, due_date, description')
       .eq('class_id', classId)
+      .gte('assigned_date', enrolledAt4)
       .order('assigned_date', { ascending: false })
 
     if (!hwList?.length) return NextResponse.json({ records: [] })
@@ -335,21 +352,27 @@ export async function GET(req: NextRequest) {
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const { data: _sr5 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt5 = _sr5?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     // 구시스템(tests) + 신시스템(exams) 병렬 조회
     // exams: 마감된 시험 OR 마감없는 시험(active 상태, 학생이 제출했을 경우 표시)
     const [{ data: tests }, { data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
-      db.from('tests').select('id, name, max_score, date').eq('class_id', classId).order('date', { ascending: true }),
+      db.from('tests').select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt5).order('date', { ascending: true }),
       db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
       db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('no_deadline', true).eq('status', 'active').order('start_at', { ascending: true }),
     ])
-    // 중복 제거: 마감없는 시험이 closed 됐을 경우 closedExams에도 포함될 수 있으니 합쳐서 dedup
+    // 중복 제거 + 등록일 이전 시험 제외
     const closedIds = new Set((closedExams ?? []).map((e: any) => e.id))
     const exams = [
       ...(closedExams ?? []),
       ...(noDeadlineExams ?? []).filter((e: any) => !closedIds.has(e.id)),
-    ] as any[]
+    ].filter((e: any) => {
+      const d = e.start_at ? e.start_at.slice(0, 10) : e.created_at?.slice(0, 10) ?? '2000-01-01'
+      return d >= enrolledAt5
+    }) as any[]
 
     const records: Record<string, unknown>[] = []
 
@@ -482,8 +505,11 @@ export async function GET(req: NextRequest) {
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
+    const { data: _sr6 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt6 = _sr6?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     const [{ data: sessions }, { data: myAtt }] = await Promise.all([
-      db.from('clinic_sessions').select('id, name, date, note').eq('class_id', classId).order('date', { ascending: false }),
+      db.from('clinic_sessions').select('id, name, date, note').eq('class_id', classId).gte('date', enrolledAt6).order('date', { ascending: false }),
       db.from('clinic_attendance').select('clinic_session_id, status').eq('student_id', studentId),
     ])
 
