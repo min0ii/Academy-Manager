@@ -876,7 +876,7 @@ export default function ClassDetailPage() {
           { key: 'calendar' as Tab, label: '캘린더',       Icon: CalendarDays },
           { key: 'stats'    as Tab, label: '출결 현황',    Icon: TrendingUp },
           { key: 'students' as Tab, label: '학생',          Icon: Users },
-          { key: 'schedule' as Tab, label: '수업·클리닉 일정', Icon: Clock },
+          { key: 'schedule' as Tab, label: '수업 설정', Icon: Clock },
         ]).map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 min-w-max flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
