@@ -288,7 +288,12 @@ export async function GET(req: NextRequest) {
 
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    const fromDate = sixMonthsAgo.toISOString().slice(0, 10)
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10)
+
+    // 등록일 조회 — 6개월 전 vs 등록일 중 더 늦은 날짜부터 표시
+    const { data: studentRow } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const enrolledAt = studentRow?.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
+    const fromDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
 
     const { data: sessions } = await db.from('sessions')
       .select('id, date, status')

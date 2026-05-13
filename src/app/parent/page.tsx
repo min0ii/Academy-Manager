@@ -16,6 +16,7 @@ type HwClinicSub = 'homework' | 'clinic'
 
 type StudentInfo = {
   id: string; name: string; school_name: string | null; grade: string | null; phone: string | null
+  enrolled_at: string | null
 }
 type ClassInfo = {
   id: string; name: string; teacher_name: string | null
@@ -169,7 +170,7 @@ export default function ParentPage() {
     const parentPhone = profile?.phone ?? ''
     // maybeSingle 대신 배열로 조회 — 자녀가 여럿이거나 한 자녀가 여러 학원에 다닐 수 있음
     const { data: allStudents } = await supabase
-      .from('students').select('id, name, school_name, grade, phone')
+      .from('students').select('id, name, school_name, grade, phone, enrolled_at')
       .eq('parent_phone', parentPhone)
 
     if (allStudents && allStudents.length > 0) {
@@ -233,10 +234,13 @@ export default function ParentPage() {
     if (!student || !classInfo) return
     setAttendLoaded(true)
     const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10)
+    const enrolledAt = student.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
+    const fromDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
     const { data: sessions } = await supabase
       .from('sessions')
       .select('id, date, status, attendance(student_id, status, late_minutes, early_leave_minutes)')
-      .eq('class_id', classInfo.id).gte('date', sixMonthsAgo.toISOString().slice(0, 10))
+      .eq('class_id', classInfo.id).gte('date', fromDate)
       .order('date', { ascending: false })
 
     setAttendance((sessions ?? []).map((s: any) => {
