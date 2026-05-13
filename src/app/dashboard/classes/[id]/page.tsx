@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -149,6 +149,12 @@ export default function ClassDetailPage() {
   const [showAddHomework, setShowAddHomework]   = useState(false)
   const [homeworkForm, setHomeworkForm]         = useState({ title: '', assigned_date: '', due_date: '', description: '' })
   const [savingHomework, setSavingHomework]     = useState(false)
+
+  // ── 초기화
+  const [showDangerZone, setShowDangerZone]   = useState(false)
+  const [showResetModal, setShowResetModal]   = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState('')
+  const [resetting, setResetting]             = useState(false)
 
   useEffect(() => { loadData() }, [classId])
   useEffect(() => { if (tab === 'stats' && !statsLoaded) loadAttendanceStats() }, [tab])
@@ -824,6 +830,29 @@ export default function ClassDetailPage() {
   function prevMonth() { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11) } else setCalMonth(m => m - 1); setSelectedDate(null) }
   function nextMonth() { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0) } else setCalMonth(m => m + 1); setSelectedDate(null) }
 
+  async function resetClass() {
+    setResetting(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setResetting(false); return }
+    const res = await fetch(`/api/classes/${classId}/reset`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    setResetting(false)
+    if (res.ok) {
+      setShowResetModal(false)
+      setResetConfirmText('')
+      setShowDangerZone(false)
+      alert('✅ 초기화가 완료됐어요.')
+      // 캘린더 새로고침
+      loadMonthSessions()
+    } else {
+      const err = await res.json()
+      alert('오류: ' + (err.error ?? '초기화 실패'))
+    }
+  }
+
   if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
 
   return (
@@ -1087,6 +1116,32 @@ export default function ClassDetailPage() {
                     </button>
                   </div>
                 )})}
+              </div>
+            )}
+          </div>
+
+          {/* ── 위험 구역 ── */}
+          <div className="border border-red-200 rounded-2xl overflow-hidden">
+            <button
+              onClick={() => setShowDangerZone(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 bg-red-50 hover:bg-red-100 transition-colors text-left">
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertTriangle size={16} />
+                <span className="font-semibold text-sm">위험 구역</span>
+              </div>
+              <ChevronDown size={16} className={`text-red-400 transition-transform ${showDangerZone ? 'rotate-180' : ''}`} />
+            </button>
+            {showDangerZone && (
+              <div className="px-5 py-4 bg-white space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">반 기록 전체 초기화</p>
+                  <p className="text-xs text-slate-500 mt-1">출결, 시험, 숙제, 클리닉, 성적 기록이 모두 삭제돼요.<br />학생 명단과 시간표는 유지됩니다. 새 학기 시작 시 사용하세요.</p>
+                </div>
+                <button
+                  onClick={() => { setResetConfirmText(''); setShowResetModal(true) }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition-colors">
+                  <AlertTriangle size={14} /> 기록 초기화
+                </button>
               </div>
             )}
           </div>
@@ -1968,6 +2023,53 @@ export default function ClassDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── 초기화 확인 모달 ── */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={18} className="text-red-600" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800">정말 초기화할까요?</p>
+                <p className="text-xs text-slate-500 mt-0.5">이 작업은 되돌릴 수 없어요</p>
+              </div>
+            </div>
+            <div className="bg-red-50 rounded-xl p-3 text-xs text-red-700 space-y-1">
+              <p className="font-semibold mb-1">삭제되는 항목:</p>
+              <p>• 출결 기록 (수업 세션 포함)</p>
+              <p>• 클리닉 기록</p>
+              <p>• 숙제 및 숙제 현황</p>
+              <p>• 시험 전체 (문제·제출·결과)</p>
+              <p>• 성적 기록</p>
+              <p className="font-semibold text-emerald-700 mt-2">✓ 학생 명단·시간표는 유지됩니다</p>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs text-slate-600">확인을 위해 반 이름 <span className="font-bold text-slate-800">"{className}"</span>을 입력해 주세요</p>
+              <input
+                value={resetConfirmText}
+                onChange={e => setResetConfirmText(e.target.value)}
+                placeholder={className}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setShowResetModal(false); setResetConfirmText('') }}
+                className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm">
+                취소
+              </button>
+              <button
+                onClick={resetClass}
+                disabled={resetConfirmText !== className || resetting}
+                className="flex-1 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-40 text-sm">
+                {resetting ? '초기화 중...' : '초기화'}
+              </button>
+            </div>
           </div>
         </div>
       )}
