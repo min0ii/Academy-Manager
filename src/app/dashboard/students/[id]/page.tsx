@@ -173,6 +173,9 @@ function StudentReportContent() {
 
     const token = await getToken()
 
+    // 등록일 이후 세션만 표시 (등록 전 수업은 "기록 없음"으로 표시되지 않도록)
+    const enrolledAt = student?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
     // ── 1단계: 출결·과제·클리닉 메타 + 성적 그래프 전부 동시에 조회
     const [
       { data: sessions },
@@ -181,9 +184,9 @@ function StudentReportContent() {
       { data: clinicScheds },
       gradesJson,
     ] = await Promise.all([
-      supabase.from('sessions').select('id, date').eq('class_id', classId).order('date', { ascending: false }),
+      supabase.from('sessions').select('id, date').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
       supabase.from('homework').select('id, title, assigned_date, due_date').eq('class_id', classId).order('assigned_date'),
-      supabase.from('clinic_sessions').select('id, date').eq('class_id', classId).order('date', { ascending: false }),
+      supabase.from('clinic_sessions').select('id, date').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
       supabase.from('clinic_schedules').select('day_of_week, name').eq('class_id', classId),
       // test_scores RLS 우회 — 서비스 롤 API로 직접 호출
       token
