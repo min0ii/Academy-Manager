@@ -1,28 +1,16 @@
 import { ImageResponse } from 'next/og'
 
+export const size = { width: 180, height: 180 }
 export const contentType = 'image/png'
 
-// 여러 사이즈 한 번에 생성
-export function generateImageMetadata() {
-  return [
-    { id: 'small',  size: { width: 32,  height: 32  }, contentType },
-    { id: 'medium', size: { width: 192, height: 192 }, contentType },
-    { id: 'large',  size: { width: 512, height: 512 }, contentType },
-  ]
-}
-
-export default function Icon({ id }: { id: string }) {
-  const dim = id === 'large' ? 512 : id === 'medium' ? 192 : 32
-  const radius = id === 'large' ? 114 : id === 'medium' ? 44 : 8
-  const iconSize = id === 'large' ? 310 : id === 'medium' ? 120 : 20
-
+export default function AppleIcon() {
   return new ImageResponse(
     (
       <div
         style={{
-          width: dim,
-          height: dim,
-          borderRadius: radius,
+          width: 180,
+          height: 180,
+          borderRadius: 40,
           background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
           display: 'flex',
           alignItems: 'center',
@@ -30,8 +18,8 @@ export default function Icon({ id }: { id: string }) {
         }}
       >
         <svg
-          width={iconSize}
-          height={iconSize}
+          width="110"
+          height="110"
           viewBox="0 0 24 24"
           fill="none"
           stroke="white"
@@ -44,6 +32,6 @@ export default function Icon({ id }: { id: string }) {
         </svg>
       </div>
     ),
-    { width: dim, height: dim }
+    { ...size }
   )
 }
