@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart,
+  KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart, Skull,
 } from 'lucide-react'
 import ExamTab from './ExamTab'
 import {
@@ -486,33 +486,48 @@ export default function StudentPage() {
         {/* ── 홈 ── */}
         {tab === 'home' && (
           <>
-            <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 text-white">
-              <p className="text-blue-200 text-sm">안녕하세요 👋</p>
-              <h1 className="text-xl font-bold mt-1">{student ? `${student.name}님` : '학생님'}</h1>
-              <p className="text-blue-200 text-xs mt-2">오늘도 열심히 해봐요!</p>
-              {livesEnabled && (
-                <div className="mt-3 pt-3 border-t border-blue-500/40">
-                  <p className="text-blue-300 text-xs mb-1.5">내 목숨</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {Array.from({ length: Math.min(Math.max(myLives, livesDefault), 10) }).map((_, i) => (
-                      <Heart
-                        key={i}
-                        size={16}
-                        className={i < myLives
-                          ? 'text-red-400 fill-red-400 drop-shadow-sm'
-                          : 'text-blue-500/50 fill-blue-500/20'}
-                      />
-                    ))}
-                    {myLives > 10 && (
-                      <span className="text-xs font-bold text-red-400 ml-0.5">+{myLives - 10}</span>
-                    )}
-                    {myLives === 0 && (
-                      <span className="text-blue-300 text-xs ml-1">목숨이 없어요 😢</span>
-                    )}
-                  </div>
+            {(() => {
+              const isNeg = livesEnabled && myLives < 0
+              const filledCount  = isNeg ? 0 : Math.min(myLives, Math.min(livesDefault, 10))
+              const emptyCount   = Math.min(livesDefault, 10) - filledCount
+              const skullCount   = isNeg ? Math.min(Math.abs(myLives), 10) : 0
+              const skullOverflow = isNeg && Math.abs(myLives) > 10 ? Math.abs(myLives) - 10 : 0
+              return (
+                <div className={`bg-gradient-to-br rounded-2xl p-5 text-white transition-colors ${
+                  isNeg ? 'from-red-700 to-red-950' : 'from-blue-600 to-blue-800'
+                }`}>
+                  <p className={`text-sm ${isNeg ? 'text-red-300' : 'text-blue-200'}`}>
+                    {isNeg ? '💀 정신 차리세요!' : '안녕하세요 👋'}
+                  </p>
+                  <h1 className="text-xl font-bold mt-1">{student ? `${student.name}님` : '학생님'}</h1>
+                  <p className={`text-xs mt-2 ${isNeg ? 'text-red-300' : 'text-blue-200'}`}>
+                    {isNeg ? '더 열심히 해야 해요...' : '오늘도 열심히 해봐요!'}
+                  </p>
+                  {livesEnabled && (
+                    <div className={`mt-3 pt-3 border-t ${isNeg ? 'border-red-600/40' : 'border-blue-500/40'}`}>
+                      <p className={`text-xs mb-1.5 ${isNeg ? 'text-red-300' : 'text-blue-300'}`}>내 목숨</p>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {Array.from({ length: filledCount }).map((_, i) => (
+                          <Heart key={`f${i}`} size={16} className="text-red-400 fill-red-400 drop-shadow-sm" />
+                        ))}
+                        {Array.from({ length: emptyCount }).map((_, i) => (
+                          <Heart key={`e${i}`} size={16} className={isNeg ? 'text-red-900/60 fill-red-900/30' : 'text-blue-500/50 fill-blue-500/20'} />
+                        ))}
+                        {Array.from({ length: skullCount }).map((_, i) => (
+                          <Skull key={`s${i}`} size={16} className="text-gray-950 fill-gray-950 drop-shadow" />
+                        ))}
+                        {skullOverflow > 0 && (
+                          <span className="text-xs font-bold text-gray-950 ml-0.5">+{skullOverflow}</span>
+                        )}
+                        {myLives === 0 && (
+                          <span className={`text-xs ml-1 ${isNeg ? 'text-red-300' : 'text-blue-300'}`}>목숨이 없어요 😢</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })()}
 
             {/* 학원 선택기 (여러 학원에 다닐 때만 표시) */}
             {allContexts.length > 1 && (

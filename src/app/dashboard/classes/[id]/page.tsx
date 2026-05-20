@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -687,7 +687,7 @@ export default function ClassDetailPage() {
 
   async function updateStudentLives(studentId: string, delta: number) {
     const current = studentLives[studentId] ?? livesDefault
-    const next = Math.max(0, current + delta)
+    const next = current + delta
     setStudentLives(prev => ({ ...prev, [studentId]: next }))
     setSavingLivesId(studentId)
     await supabase.from('student_lives').upsert(
@@ -2114,34 +2114,44 @@ export default function ClassDetailPage() {
           ) : (
             <div className="space-y-2">
               {students.map(s => {
-                const lives = studentLives[s.id] ?? livesDefault
+                const lives    = studentLives[s.id] ?? livesDefault
                 const isSaving = savingLivesId === s.id
+                const isNeg    = lives < 0
+                const filledCount   = isNeg ? 0 : Math.min(lives, Math.min(livesDefault, 10))
+                const emptyCount    = Math.min(livesDefault, 10) - filledCount
+                const skullCount    = isNeg ? Math.min(Math.abs(lives), 10) : 0
+                const skullOverflow = isNeg && Math.abs(lives) > 10 ? Math.abs(lives) - 10 : 0
+                const bonusOverflow = !isNeg && lives > 10 ? lives - 10 : 0
                 return (
-                  <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
+                  <div key={s.id} className={`rounded-2xl border p-4 flex items-center gap-3 transition-colors ${
+                    isNeg ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'
+                  }`}>
                     {/* 아바타 */}
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-red-600 font-bold text-sm">{s.name[0]}</span>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      isNeg ? 'bg-red-200' : 'bg-red-100'
+                    }`}>
+                      {isNeg
+                        ? <Skull size={18} className="text-red-700" />
+                        : <span className="text-red-600 font-bold text-sm">{s.name[0]}</span>
+                      }
                     </div>
 
-                    {/* 이름 + 하트 */}
+                    {/* 이름 + 하트/해골 */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm">{s.name}</p>
+                      <p className={`font-semibold text-sm ${isNeg ? 'text-red-800' : 'text-slate-800'}`}>{s.name}</p>
                       <div className="flex items-center gap-0.5 mt-1 flex-wrap">
-                        {Array.from({ length: Math.min(Math.max(lives, livesDefault), 10) }).map((_, i) => (
-                          <Heart
-                            key={i}
-                            size={13}
-                            className={i < lives
-                              ? 'text-red-500 fill-red-500'
-                              : 'text-slate-200 fill-slate-200'}
-                          />
+                        {Array.from({ length: filledCount }).map((_, i) => (
+                          <Heart key={`f${i}`} size={13} className="text-red-500 fill-red-500" />
                         ))}
-                        {lives > 10 && (
-                          <span className="text-xs font-bold text-red-500 ml-0.5">+{lives - 10}</span>
-                        )}
-                        {lives === 0 && (
-                          <span className="text-xs text-slate-400 ml-1">목숨 없음</span>
-                        )}
+                        {Array.from({ length: emptyCount }).map((_, i) => (
+                          <Heart key={`e${i}`} size={13} className={isNeg ? 'text-red-200 fill-red-200' : 'text-slate-200 fill-slate-200'} />
+                        ))}
+                        {Array.from({ length: skullCount }).map((_, i) => (
+                          <Skull key={`s${i}`} size={13} className="text-gray-900 fill-gray-900" />
+                        ))}
+                        {skullOverflow > 0 && <span className="text-xs font-bold text-gray-900 ml-0.5">+{skullOverflow}</span>}
+                        {bonusOverflow > 0 && <span className="text-xs font-bold text-red-500 ml-0.5">+{bonusOverflow}</span>}
+                        {lives === 0 && <span className="text-xs text-slate-400 ml-1">목숨 없음</span>}
                       </div>
                     </div>
 
@@ -2149,10 +2159,12 @@ export default function ClassDetailPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => updateStudentLives(s.id, -1)}
-                        disabled={lives <= 0 || isSaving}
+                        disabled={isSaving}
                         className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
                       >−</button>
-                      <span className={`text-base font-bold min-w-[24px] text-center ${lives === 0 ? 'text-slate-300' : 'text-slate-800'}`}>
+                      <span className={`text-base font-bold min-w-[28px] text-center ${
+                        isNeg ? 'text-red-600' : lives === 0 ? 'text-slate-300' : 'text-slate-800'
+                      }`}>
                         {isSaving ? '…' : lives}
                       </span>
                       <button
