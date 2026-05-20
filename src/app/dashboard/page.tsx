@@ -11,6 +11,13 @@ type Stats = {
   classCount: number
 }
 
+type ActiveClass = {
+  id: string
+  name: string
+  start_time: string
+  end_time: string
+}
+
 const QUICK_LINKS = [
   { href: '/dashboard/students', label: '학생 관리', desc: '학생 등록·수정·명부', icon: Users, color: 'blue' },
   { href: '/dashboard/classes', label: '수업 관리', desc: '반·시간표 설정', icon: LayoutGrid, color: 'violet' },
@@ -31,16 +38,58 @@ const colorMap: Record<string, string> = {
 export default function DashboardPage() {
   const ctx = useAcademy()
   const [stats, setStats] = useState<Stats>({ studentCount: 0, classCount: 0 })
+  const [activeClasses, setActiveClasses] = useState<ActiveClass[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!ctx) return
     ;(async () => {
-      const [{ count: studentCount }, { count: classCount }] = await Promise.all([
+      const now = new Date()
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`
+      const dayOfWeek = now.getDay()
+
+      const [{ count: studentCount }, { count: classCount }, { data: classData }] = await Promise.all([
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('academy_id', ctx.academyId),
         supabase.from('classes').select('*', { count: 'exact', head: true }).eq('academy_id', ctx.academyId),
+        supabase.from('classes').select('id, name').eq('academy_id', ctx.academyId),
       ])
       setStats({ studentCount: studentCount ?? 0, classCount: classCount ?? 0 })
+
+      const classIds = (classData ?? []).map(c => c.id)
+      const classMap: Record<string, string> = {}
+      ;(classData ?? []).forEach(c => { classMap[c.id] = c.name })
+
+      if (classIds.length > 0) {
+        const todayStr = now.toISOString().split('T')[0]
+
+        const [{ data: scheduleData }, { data: sessionData }] = await Promise.all([
+          supabase
+            .from('class_schedules')
+            .select('class_id, start_time, end_time')
+            .in('class_id', classIds)
+            .eq('day_of_week', dayOfWeek)
+            .lte('start_time', currentTime)
+            .gte('end_time', currentTime),
+          supabase
+            .from('sessions')
+            .select('class_id, start_time, end_time')
+            .in('class_id', classIds)
+            .eq('date', todayStr)
+            .lte('start_time', currentTime)
+            .gte('end_time', currentTime),
+        ])
+
+        const seen = new Set<string>()
+        const active: ActiveClass[] = []
+        for (const s of [...(scheduleData ?? []), ...(sessionData ?? [])]) {
+          if (!seen.has(s.class_id)) {
+            seen.add(s.class_id)
+            active.push({ id: s.class_id, name: classMap[s.class_id], start_time: s.start_time, end_time: s.end_time })
+          }
+        }
+        setActiveClasses(active)
+      }
+
       setLoading(false)
     })()
   }, [ctx])
@@ -65,6 +114,32 @@ export default function DashboardPage() {
         </h1>
         <p className="text-slate-500 mt-1">{ctx?.academyName}의 오늘도 화이팅이에요!</p>
       </div>
+
+      {/* 진행 중인 수업 배너 */}
+      {activeClasses.length > 0 && (
+        <div className="space-y-2">
+          {activeClasses.map(cls => (
+            <Link
+              key={cls.id}
+              href={`/dashboard/classes/${cls.id}`}
+              className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl p-4 hover:bg-green-100 transition-colors group"
+            >
+              <div className="relative flex-shrink-0 w-3 h-3">
+                <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-500" />
+                <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-400 animate-ping" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-green-600 mb-0.5">지금 수업 진행 중</p>
+                <p className="font-bold text-green-900 truncate">{cls.name}</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  {cls.start_time.slice(0, 5)} ~ {cls.end_time.slice(0, 5)}
+                </p>
+              </div>
+              <ChevronRight size={18} className="text-green-400 group-hover:text-green-600 transition-colors flex-shrink-0" />
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-4">
