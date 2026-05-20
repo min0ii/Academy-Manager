@@ -2152,7 +2152,7 @@ export default function ClassDetailPage() {
                         disabled={lives <= 0 || isSaving}
                         className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
                       >−</button>
-                      <span className={`text-base font-bold w-5 text-center ${lives === 0 ? 'text-slate-300' : 'text-slate-800'}`}>
+                      <span className={`text-base font-bold min-w-[24px] text-center ${lives === 0 ? 'text-slate-300' : 'text-slate-800'}`}>
                         {isSaving ? '…' : lives}
                       </span>
                       <button

@@ -62,7 +62,7 @@ export default function SettingsPage() {
   const [sqError, setSqError]         = useState('')
 
   // 설정 변경 시 '저장됨' 상태 초기화
-  useEffect(() => { if (livesSaved) setLivesSaved(false) }, [livesEnabled, livesDefault])
+  useEffect(() => { setLivesSaved(false) }, [livesEnabled, livesDefault])
 
   const ctx = useAcademy()
   useEffect(() => {
@@ -428,28 +428,26 @@ export default function SettingsPage() {
                   <p className="text-sm font-semibold text-slate-700">기본 목숨 수</p>
                   <p className="text-xs text-slate-400 mt-0.5">신규 학생 또는 초기화 시 기준이 되는 목숨 수예요</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-2.5">
-                    <button
-                      onClick={() => isAdmin && setLivesDefault(v => Math.max(1, v - 1))}
-                      disabled={!isAdmin || livesDefault <= 1}
-                      className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
-                    >−</button>
-                    <div className="flex items-center gap-0.5">
-                      {Array.from({ length: Math.min(livesDefault, 10) }).map((_, i) => (
-                        <Heart key={i} size={18} className="text-red-500 fill-red-500" />
-                      ))}
-                      {livesDefault > 10 && (
-                        <span className="text-sm font-bold text-red-500 ml-1">+{livesDefault - 10}</span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => isAdmin && setLivesDefault(v => v + 1)}
-                      disabled={!isAdmin}
-                      className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
-                    >+</button>
+                <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-2.5 self-start">
+                  <button
+                    onClick={() => isAdmin && setLivesDefault(v => Math.max(1, v - 1))}
+                    disabled={!isAdmin || livesDefault <= 1}
+                    className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none flex-shrink-0"
+                  >−</button>
+                  <div className="flex items-center gap-0.5 flex-wrap">
+                    {Array.from({ length: Math.min(livesDefault, 10) }).map((_, i) => (
+                      <Heart key={i} size={16} className="text-red-500 fill-red-500" />
+                    ))}
+                    {livesDefault > 10 && (
+                      <span className="text-sm font-bold text-red-500 ml-1">+{livesDefault - 10}</span>
+                    )}
                   </div>
-                  <span className="text-xl font-bold text-slate-800">{livesDefault}개</span>
+                  <span className="text-base font-bold text-slate-800 flex-shrink-0">{livesDefault}개</span>
+                  <button
+                    onClick={() => isAdmin && setLivesDefault(v => v + 1)}
+                    disabled={!isAdmin}
+                    className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 text-lg font-bold leading-none flex-shrink-0"
+                  >+</button>
                 </div>
               </div>
             )}

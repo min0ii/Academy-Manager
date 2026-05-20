@@ -494,15 +494,18 @@ export default function StudentPage() {
                 <div className="mt-3 pt-3 border-t border-blue-500/40">
                   <p className="text-blue-300 text-xs mb-1.5">내 목숨</p>
                   <div className="flex items-center gap-1 flex-wrap">
-                    {Array.from({ length: livesDefault }).map((_, i) => (
+                    {Array.from({ length: Math.min(Math.max(myLives, livesDefault), 10) }).map((_, i) => (
                       <Heart
                         key={i}
-                        size={18}
+                        size={16}
                         className={i < myLives
                           ? 'text-red-400 fill-red-400 drop-shadow-sm'
                           : 'text-blue-500/50 fill-blue-500/20'}
                       />
                     ))}
+                    {myLives > 10 && (
+                      <span className="text-xs font-bold text-red-400 ml-0.5">+{myLives - 10}</span>
+                    )}
                     {myLives === 0 && (
                       <span className="text-blue-300 text-xs ml-1">목숨이 없어요 😢</span>
                     )}
