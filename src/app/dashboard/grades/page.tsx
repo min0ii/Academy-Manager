@@ -729,7 +729,7 @@ function AutoMonitorView({
                               const ok = ans?.is_correct
                               return (
                                 <tr key={q.id} className="border-t border-slate-100">
-                                  <td className="px-2 py-1.5 font-medium text-slate-500">{q.question_label ? `${q.question_label}번` : `${qi + 1}번`}</td>
+                                  <td className="px-2 py-1.5 font-medium text-slate-500 whitespace-nowrap">{q.question_label ? `${q.question_label}번` : `${qi + 1}번`}</td>
                                   <td className={`px-2 py-1.5 text-center font-bold ${ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
                                     {ans?.student_answer ?? '—'}
                                   </td>
