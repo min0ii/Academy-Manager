@@ -61,6 +61,9 @@ export default function SettingsPage() {
   const [sqSaved, setSqSaved]         = useState(false)
   const [sqError, setSqError]         = useState('')
 
+  // 설정 변경 시 '저장됨' 상태 초기화
+  useEffect(() => { if (livesSaved) setLivesSaved(false) }, [livesEnabled, livesDefault])
+
   const ctx = useAcademy()
   useEffect(() => {
     if (!ctx) return

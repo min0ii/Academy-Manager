@@ -687,7 +687,7 @@ export default function ClassDetailPage() {
 
   async function updateStudentLives(studentId: string, delta: number) {
     const current = studentLives[studentId] ?? livesDefault
-    const next = Math.max(0, current + delta)
+    const next = Math.max(0, Math.min(livesDefault, current + delta))
     setStudentLives(prev => ({ ...prev, [studentId]: next }))
     setSavingLivesId(studentId)
     await supabase.from('student_lives').upsert(
@@ -2154,8 +2154,8 @@ export default function ClassDetailPage() {
                       </span>
                       <button
                         onClick={() => updateStudentLives(s.id, 1)}
-                        disabled={isSaving}
-                        className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors font-bold text-lg leading-none"
+                        disabled={isSaving || lives >= livesDefault}
+                        className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 font-bold text-lg leading-none"
                       >+</button>
                     </div>
                   </div>
