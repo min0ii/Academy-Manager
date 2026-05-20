@@ -113,6 +113,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     await db.from('exam_student_answers').upsert(gradedAnswers, { onConflict: 'submission_id,question_id' })
   }
 
+  totalScore = Math.round(totalScore * 100) / 100
+
   // 제출 완료
   await db.from('exam_submissions').update({
     is_submitted: true,
@@ -120,7 +122,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     auto_score: totalScore,
   }).eq('id', submissionId)
 
-  const calcMaxScore = (questions ?? []).reduce((acc, q) => acc + Number(q.score), 0)
+  const calcMaxScore = Math.round((questions ?? []).reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
 
   // 마감 없는 시험이면 실시간 반 통계 포함
   let classStats: { classAvg: number | null; classHigh: number | null; classLow: number | null; classCount: number } | null = null

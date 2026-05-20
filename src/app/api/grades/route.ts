@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
       const maxScoreByExam: Record<string, number> = {}
-      for (const q of (examQuestions ?? [])) maxScoreByExam[q.exam_id] = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)
+      for (const q of (examQuestions ?? [])) { const acc = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score); maxScoreByExam[q.exam_id] = Math.round(acc * 100) / 100 }
       const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean }> = {}
       for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
       const allScoresByExam: Record<string, number[]> = {}
@@ -428,7 +428,7 @@ export async function GET(req: NextRequest) {
       // 시험별 만점 계산
       const maxScoreByExam: Record<string, number> = {}
       for (const q of (examQuestions ?? [])) {
-        maxScoreByExam[q.exam_id] = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)
+        maxScoreByExam[q.exam_id] = Math.round(((maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)) * 100) / 100
       }
 
       // 내 제출 맵
@@ -648,7 +648,7 @@ export async function GET(req: NextRequest) {
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
       const maxScoreByExam: Record<string, number> = {}
-      for (const q of (examQuestions ?? [])) maxScoreByExam[q.exam_id] = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)
+      for (const q of (examQuestions ?? [])) { const acc = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score); maxScoreByExam[q.exam_id] = Math.round(acc * 100) / 100 }
       const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean }> = {}
       for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
       const allScoresByExam: Record<string, number[]> = {}

@@ -602,7 +602,7 @@ function AutoMonitorView({
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center">
           <p className="text-xs text-slate-400 mb-1">만점</p>
-          <p className="text-2xl font-bold text-slate-800">{maxScore}<span className="text-sm font-normal text-slate-400">점</span></p>
+          <p className="text-2xl font-bold text-slate-800">{fmt(maxScore)}<span className="text-sm font-normal text-slate-400">점</span></p>
         </div>
       </div>
 
@@ -662,7 +662,7 @@ function AutoMonitorView({
                       <>
                         <div className="text-right">
                           <p className="text-base font-bold text-slate-800">{fmt(s.finalScore)}</p>
-                          <p className="text-xs text-slate-400">/ {maxScore}점</p>
+                          <p className="text-xs text-slate-400">/ {fmt(maxScore)}점</p>
                         </div>
                         {(status === 'closed' || status === 'active') && s.submissionId && s.isSubmitted && (
                           <div className="flex items-center gap-1">
@@ -1392,7 +1392,7 @@ function GradesContent() {
     setWizardQs(prev => prev.map(q => ({ ...q, score: String(per) })))
   }
 
-  const maxScore = (examDetail?.questions ?? []).reduce((acc, q) => acc + Number(q.score), 0)
+  const maxScore = Math.round((examDetail?.questions ?? []).reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
   const submittedCount = submissions.filter(s => s.isSubmitted).length
   const submittedWithScore = submissions.filter(s => s.isSubmitted && s.finalScore !== null)
   const avgScore = submittedWithScore.length > 0
