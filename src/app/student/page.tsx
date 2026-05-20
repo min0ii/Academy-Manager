@@ -487,41 +487,66 @@ export default function StudentPage() {
         {tab === 'home' && (
           <>
             {(() => {
-              const isNeg = livesEnabled && myLives < 0
-              const filledCount  = isNeg ? 0 : Math.min(myLives, Math.min(livesDefault, 10))
-              const emptyCount   = Math.min(livesDefault, 10) - filledCount
-              const skullCount   = isNeg ? Math.min(Math.abs(myLives), 10) : 0
+              // 목숨 상태 4단계 분류
+              const livesState = !livesEnabled
+                ? 'normal'
+                : myLives < 0
+                ? 'danger'
+                : myLives === 0
+                ? 'warning'
+                : myLives >= livesDefault
+                ? 'perfect'
+                : 'normal'
+
+              const CARD = {
+                perfect: { bg: 'from-emerald-500 to-emerald-700', muted: 'text-emerald-100',    border: 'border-emerald-400/40', label: 'text-emerald-200' },
+                normal:  { bg: 'from-blue-600 to-blue-800',       muted: 'text-blue-200',        border: 'border-blue-500/40',    label: 'text-blue-300'    },
+                warning: { bg: 'from-amber-500 to-amber-700',     muted: 'text-amber-100',       border: 'border-amber-400/40',   label: 'text-amber-200'   },
+                danger:  { bg: 'from-red-700 to-red-950',         muted: 'text-red-300',         border: 'border-red-600/40',     label: 'text-red-300'     },
+              }
+              const GREETING = {
+                perfect: { sub: '오늘도 최고예요! 🌟', main: '정말 잘하고 있어요 ✨' },
+                normal:  { sub: '안녕하세요 👋',       main: '오늘도 열심히 해봐요!' },
+                warning: { sub: '⚠️ 위험해요!',        main: '목숨을 회복하세요!' },
+                danger:  { sub: '💀 정신 차리세요!',   main: '더 열심히 해야 해요...' },
+              }
+              const c = CARD[livesState]
+              const g = GREETING[livesState]
+
+              const isNeg = livesState === 'danger'
+              const filledCount   = isNeg ? 0 : Math.min(myLives, Math.min(livesDefault, 10))
+              const emptyCount    = Math.min(livesDefault, 10) - filledCount
+              const skullCount    = isNeg ? Math.min(Math.abs(myLives), 10) : 0
               const skullOverflow = isNeg && Math.abs(myLives) > 10 ? Math.abs(myLives) - 10 : 0
+              const bonusOverflow = !isNeg && myLives > 10 ? myLives - 10 : 0
+
+              const emptyHeartColor =
+                livesState === 'danger'  ? 'text-red-900/60 fill-red-900/30' :
+                livesState === 'warning' ? 'text-amber-300/50 fill-amber-300/20' :
+                livesState === 'perfect' ? 'text-emerald-300/50 fill-emerald-300/20' :
+                'text-blue-500/50 fill-blue-500/20'
+
               return (
-                <div className={`bg-gradient-to-br rounded-2xl p-5 text-white transition-colors ${
-                  isNeg ? 'from-red-700 to-red-950' : 'from-blue-600 to-blue-800'
-                }`}>
-                  <p className={`text-sm ${isNeg ? 'text-red-300' : 'text-blue-200'}`}>
-                    {isNeg ? '💀 정신 차리세요!' : '안녕하세요 👋'}
-                  </p>
+                <div className={`bg-gradient-to-br ${c.bg} rounded-2xl p-5 text-white transition-all`}>
+                  <p className={`text-sm ${c.muted}`}>{g.sub}</p>
                   <h1 className="text-xl font-bold mt-1">{student ? `${student.name}님` : '학생님'}</h1>
-                  <p className={`text-xs mt-2 ${isNeg ? 'text-red-300' : 'text-blue-200'}`}>
-                    {isNeg ? '더 열심히 해야 해요...' : '오늘도 열심히 해봐요!'}
-                  </p>
+                  <p className={`text-xs mt-2 ${c.muted}`}>{g.main}</p>
                   {livesEnabled && (
-                    <div className={`mt-3 pt-3 border-t ${isNeg ? 'border-red-600/40' : 'border-blue-500/40'}`}>
-                      <p className={`text-xs mb-1.5 ${isNeg ? 'text-red-300' : 'text-blue-300'}`}>내 목숨</p>
+                    <div className={`mt-3 pt-3 border-t ${c.border}`}>
+                      <p className={`text-xs mb-1.5 ${c.label}`}>내 목숨</p>
                       <div className="flex items-center gap-1 flex-wrap">
                         {Array.from({ length: filledCount }).map((_, i) => (
                           <Heart key={`f${i}`} size={16} className="text-red-400 fill-red-400 drop-shadow-sm" />
                         ))}
                         {Array.from({ length: emptyCount }).map((_, i) => (
-                          <Heart key={`e${i}`} size={16} className={isNeg ? 'text-red-900/60 fill-red-900/30' : 'text-blue-500/50 fill-blue-500/20'} />
+                          <Heart key={`e${i}`} size={16} className={emptyHeartColor} />
                         ))}
                         {Array.from({ length: skullCount }).map((_, i) => (
                           <Skull key={`s${i}`} size={16} className="text-gray-950 fill-gray-950 drop-shadow" />
                         ))}
-                        {skullOverflow > 0 && (
-                          <span className="text-xs font-bold text-gray-950 ml-0.5">+{skullOverflow}</span>
-                        )}
-                        {myLives === 0 && (
-                          <span className={`text-xs ml-1 ${isNeg ? 'text-red-300' : 'text-blue-300'}`}>목숨이 없어요 😢</span>
-                        )}
+                        {skullOverflow > 0 && <span className="text-xs font-bold text-gray-950 ml-0.5">+{skullOverflow}</span>}
+                        {bonusOverflow > 0 && <span className="text-xs font-bold text-red-300 ml-0.5">+{bonusOverflow}</span>}
+                        {myLives === 0 && <span className={`text-xs ml-1 ${c.label}`}>목숨이 없어요 😢</span>}
                       </div>
                     </div>
                   )}
