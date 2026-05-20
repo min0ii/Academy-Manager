@@ -687,7 +687,7 @@ export default function ClassDetailPage() {
 
   async function updateStudentLives(studentId: string, delta: number) {
     const current = studentLives[studentId] ?? livesDefault
-    const next = Math.max(0, Math.min(livesDefault, current + delta))
+    const next = Math.max(0, current + delta)
     setStudentLives(prev => ({ ...prev, [studentId]: next }))
     setSavingLivesId(studentId)
     await supabase.from('student_lives').upsert(
@@ -2127,7 +2127,7 @@ export default function ClassDetailPage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-800 text-sm">{s.name}</p>
                       <div className="flex items-center gap-0.5 mt-1 flex-wrap">
-                        {Array.from({ length: livesDefault }).map((_, i) => (
+                        {Array.from({ length: Math.min(Math.max(lives, livesDefault), 10) }).map((_, i) => (
                           <Heart
                             key={i}
                             size={13}
@@ -2136,6 +2136,9 @@ export default function ClassDetailPage() {
                               : 'text-slate-200 fill-slate-200'}
                           />
                         ))}
+                        {lives > 10 && (
+                          <span className="text-xs font-bold text-red-500 ml-0.5">+{lives - 10}</span>
+                        )}
                         {lives === 0 && (
                           <span className="text-xs text-slate-400 ml-1">목숨 없음</span>
                         )}
@@ -2154,7 +2157,7 @@ export default function ClassDetailPage() {
                       </span>
                       <button
                         onClick={() => updateStudentLives(s.id, 1)}
-                        disabled={isSaving || lives >= livesDefault}
+                        disabled={isSaving}
                         className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 font-bold text-lg leading-none"
                       >+</button>
                     </div>

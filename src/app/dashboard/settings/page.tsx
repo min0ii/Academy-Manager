@@ -436,13 +436,16 @@ export default function SettingsPage() {
                       className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
                     >−</button>
                     <div className="flex items-center gap-0.5">
-                      {Array.from({ length: livesDefault }).map((_, i) => (
+                      {Array.from({ length: Math.min(livesDefault, 10) }).map((_, i) => (
                         <Heart key={i} size={18} className="text-red-500 fill-red-500" />
                       ))}
+                      {livesDefault > 10 && (
+                        <span className="text-sm font-bold text-red-500 ml-1">+{livesDefault - 10}</span>
+                      )}
                     </div>
                     <button
-                      onClick={() => isAdmin && setLivesDefault(v => Math.min(10, v + 1))}
-                      disabled={!isAdmin || livesDefault >= 10}
+                      onClick={() => isAdmin && setLivesDefault(v => v + 1)}
+                      disabled={!isAdmin}
                       className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
                     >+</button>
                   </div>
