@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -39,7 +39,7 @@ type HomeworkStatusRecord = {
   id: string | null; student_id: string; status: 'done' | 'partial' | 'none' | null
 }
 
-type Tab      = 'schedule' | 'students' | 'calendar' | 'stats'
+type Tab      = 'schedule' | 'students' | 'calendar' | 'stats' | 'lives'
 
 type StatSession = {
   id: string; date: string; start_time: string; end_time: string
@@ -152,6 +152,14 @@ export default function ClassDetailPage() {
   const [homeworkForm, setHomeworkForm]         = useState({ title: '', assigned_date: '', due_date: '', description: '' })
   const [savingHomework, setSavingHomework]     = useState(false)
 
+  // ── 목숨
+  const [academyId, setAcademyId]           = useState('')
+  const [livesEnabled, setLivesEnabled]     = useState(false)
+  const [livesDefault, setLivesDefault]     = useState(3)
+  const [studentLives, setStudentLives]     = useState<Record<string, number>>({})
+  const [livesLoading, setLivesLoading]     = useState(false)
+  const [savingLivesId, setSavingLivesId]   = useState<string | null>(null)
+
   // ── 초기화
   const [showDangerZone, setShowDangerZone]   = useState(false)
   const [showResetModal, setShowResetModal]   = useState(false)
@@ -160,6 +168,8 @@ export default function ClassDetailPage() {
 
   useEffect(() => { loadData() }, [classId])
   useEffect(() => { if (tab === 'stats' && !statsLoaded) loadAttendanceStats() }, [tab])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === 'lives' && academyId) loadLives() }, [tab])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -218,17 +228,22 @@ export default function ClassDetailPage() {
         .eq('class_id', classId),
     ])
     if (!classData) { router.push('/dashboard/classes'); return }
+    const aId = (classData as any).academy_id
     setClassName(classData.name)
+    setAcademyId(aId)
     setSchedules(scheduleData ?? [])
     setClinicSchedules(clinicScheduleData ?? [])
     setStudents(((csData ?? []) as any[]).map(r => r.students).filter(Boolean))
 
-    const { data: allData } = await supabase
-      .from('students')
-      .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at')
-      .eq('academy_id', (classData as any).academy_id)
-      .order('name')
+    const [{ data: allData }, { data: academyData }] = await Promise.all([
+      supabase.from('students')
+        .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at')
+        .eq('academy_id', aId).order('name'),
+      supabase.from('academies').select('lives_enabled, lives_default').eq('id', aId).single(),
+    ])
     setAllStudents(allData ?? [])
+    setLivesEnabled(academyData?.lives_enabled ?? false)
+    setLivesDefault(academyData?.lives_default ?? 3)
     setLoading(false)
   }
 
@@ -656,6 +671,45 @@ export default function ClassDetailPage() {
     await loadMonthSessions()
   }
 
+  // ── 목숨
+  async function loadLives() {
+    if (!academyId || students.length === 0) return
+    setLivesLoading(true)
+    const { data } = await supabase.from('student_lives')
+      .select('student_id, lives')
+      .eq('academy_id', academyId)
+      .in('student_id', students.map(s => s.id))
+    const map: Record<string, number> = {}
+    for (const r of data ?? []) map[r.student_id] = r.lives
+    setStudentLives(map)
+    setLivesLoading(false)
+  }
+
+  async function updateStudentLives(studentId: string, delta: number) {
+    const current = studentLives[studentId] ?? livesDefault
+    const next = Math.max(0, current + delta)
+    setStudentLives(prev => ({ ...prev, [studentId]: next }))
+    setSavingLivesId(studentId)
+    await supabase.from('student_lives').upsert(
+      { academy_id: academyId, student_id: studentId, lives: next, updated_at: new Date().toISOString() },
+      { onConflict: 'academy_id,student_id' }
+    )
+    setSavingLivesId(null)
+  }
+
+  async function resetAllLives() {
+    const ok = await showConfirm(`모든 학생의 목숨을 기본값(${livesDefault}개)으로 초기화할까요?`)
+    if (!ok) return
+    const upserts = students.map(s => ({
+      academy_id: academyId, student_id: s.id,
+      lives: livesDefault, updated_at: new Date().toISOString(),
+    }))
+    await supabase.from('student_lives').upsert(upserts, { onConflict: 'academy_id,student_id' })
+    const map: Record<string, number> = {}
+    for (const s of students) map[s.id] = livesDefault
+    setStudentLives(map)
+  }
+
   // ── 출결 현황 통계
   async function loadAttendanceStats() {
     setStatsLoading(true)
@@ -879,10 +933,11 @@ export default function ClassDetailPage() {
       {/* 탭 */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto">
         {([
-          { key: 'calendar' as Tab, label: '캘린더',       Icon: CalendarDays },
-          { key: 'stats'    as Tab, label: '출결 현황',    Icon: TrendingUp },
-          { key: 'students' as Tab, label: '학생',          Icon: Users },
+          { key: 'calendar' as Tab, label: '캘린더',    Icon: CalendarDays },
+          { key: 'stats'    as Tab, label: '출결 현황', Icon: TrendingUp },
+          { key: 'students' as Tab, label: '학생',       Icon: Users },
           { key: 'schedule' as Tab, label: '수업 설정', Icon: Clock },
+          ...(livesEnabled ? [{ key: 'lives' as Tab, label: '목숨', Icon: Heart }] : []),
         ]).map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 min-w-max flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
@@ -2030,6 +2085,84 @@ export default function ClassDetailPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ════════ 목숨 탭 ════════ */}
+      {tab === 'lives' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-slate-700">학생 목숨</h2>
+              <p className="text-xs text-slate-400 mt-0.5">기본 목숨 {livesDefault}개 · 하트를 조정해 주세요</p>
+            </div>
+            <button
+              onClick={resetAllLives}
+              className="text-xs px-3 py-1.5 border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              전체 초기화
+            </button>
+          </div>
+
+          {livesLoading ? (
+            <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+          ) : students.length === 0 ? (
+            <div className="text-center py-14 text-slate-400">
+              <Heart size={32} className="mx-auto mb-2 opacity-20" />
+              <p className="text-sm">배정된 학생이 없어요</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {students.map(s => {
+                const lives = studentLives[s.id] ?? livesDefault
+                const isSaving = savingLivesId === s.id
+                return (
+                  <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
+                    {/* 아바타 */}
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-red-600 font-bold text-sm">{s.name[0]}</span>
+                    </div>
+
+                    {/* 이름 + 하트 */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-800 text-sm">{s.name}</p>
+                      <div className="flex items-center gap-0.5 mt-1 flex-wrap">
+                        {Array.from({ length: livesDefault }).map((_, i) => (
+                          <Heart
+                            key={i}
+                            size={13}
+                            className={i < lives
+                              ? 'text-red-500 fill-red-500'
+                              : 'text-slate-200 fill-slate-200'}
+                          />
+                        ))}
+                        {lives === 0 && (
+                          <span className="text-xs text-slate-400 ml-1">목숨 없음</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 조정 버튼 */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => updateStudentLives(s.id, -1)}
+                        disabled={lives <= 0 || isSaving}
+                        className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
+                      >−</button>
+                      <span className={`text-base font-bold w-5 text-center ${lives === 0 ? 'text-slate-300' : 'text-slate-800'}`}>
+                        {isSaving ? '…' : lives}
+                      </span>
+                      <button
+                        onClick={() => updateStudentLives(s.id, 1)}
+                        disabled={isSaving}
+                        className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors font-bold text-lg leading-none"
+                      >+</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

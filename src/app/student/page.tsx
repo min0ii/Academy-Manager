@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock,
+  KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart,
 } from 'lucide-react'
 import ExamTab from './ExamTab'
 import {
@@ -143,6 +143,11 @@ export default function StudentPage() {
   const [sqSaved, setSqSaved]             = useState(false)
   const [sqError, setSqError]             = useState('')
 
+  // 목숨
+  const [livesEnabled, setLivesEnabled] = useState(false)
+  const [myLives, setMyLives]           = useState(0)
+  const [livesDefault, setLivesDefault] = useState(3)
+
   // 과제·클리닉
   const [hwClinicSub, setHwClinicSub]   = useState<HwClinicSub>('homework')
   const [homeworks, setHomeworks]       = useState<HomeworkRecord[]>([])
@@ -206,12 +211,26 @@ export default function StudentPage() {
       setClassInfo(ctx.classInfo)
       setAcademyName(ctx.academyName)
       setAcademyLogo(ctx.academyLogo)
+      loadLives(ctx.student.id, token)
     }
 
     setLoading(false)
   }
 
-  function switchContext(idx: number) {
+  async function loadLives(studentId: string, token: string) {
+    const res = await fetch(`/api/lives?action=my-lives&studentId=${studentId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return
+    const json = await res.json()
+    if (json.enabled) {
+      setLivesEnabled(true)
+      setMyLives(json.lives)
+      setLivesDefault(json.livesDefault)
+    }
+  }
+
+  async function switchContext(idx: number) {
     if (idx === selectedCtxIdx) return
     const ctx = allContexts[idx]
     setSelectedCtxIdx(idx)
@@ -225,7 +244,10 @@ export default function StudentPage() {
     setHwLoaded(false); setHomeworks([])
     setClinicLoaded(false); setClinics([])
     setExpandedHwId(null)
+    setLivesEnabled(false); setMyLives(0)
     setTab('home')
+    const token = await getToken()
+    if (token) loadLives(ctx.student.id, token)
   }
 
   async function loadAttendance() {
@@ -468,6 +490,25 @@ export default function StudentPage() {
               <p className="text-blue-200 text-sm">안녕하세요 👋</p>
               <h1 className="text-xl font-bold mt-1">{student ? `${student.name}님` : '학생님'}</h1>
               <p className="text-blue-200 text-xs mt-2">오늘도 열심히 해봐요!</p>
+              {livesEnabled && (
+                <div className="mt-3 pt-3 border-t border-blue-500/40">
+                  <p className="text-blue-300 text-xs mb-1.5">내 목숨</p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {Array.from({ length: livesDefault }).map((_, i) => (
+                      <Heart
+                        key={i}
+                        size={18}
+                        className={i < myLives
+                          ? 'text-red-400 fill-red-400 drop-shadow-sm'
+                          : 'text-blue-500/50 fill-blue-500/20'}
+                      />
+                    ))}
+                    {myLives === 0 && (
+                      <span className="text-blue-300 text-xs ml-1">목숨이 없어요 😢</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 학원 선택기 (여러 학원에 다닐 때만 표시) */}

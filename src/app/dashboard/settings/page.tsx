@@ -5,10 +5,10 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
-  Eye, EyeOff, Loader2, Camera, ShieldQuestion,
+  Eye, EyeOff, Loader2, Camera, ShieldQuestion, Sparkles, Heart,
 } from 'lucide-react'
 
-type Tab = 'academy' | 'profile'
+type Tab = 'academy' | 'profile' | 'fun'
 type Title = '원장' | '관리자' | '강사' | '조교'
 
 export default function SettingsPage() {
@@ -44,6 +44,13 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState('')
   const [pwSaved, setPwSaved] = useState(false)
 
+  // 재밌는 기능 — 목숨
+  const [livesEnabled, setLivesEnabled] = useState(false)
+  const [livesDefault, setLivesDefault] = useState(3)
+  const [livesLoaded, setLivesLoaded]   = useState(false)
+  const [savingLives, setSavingLives]   = useState(false)
+  const [livesSaved, setLivesSaved]     = useState(false)
+
   // 보안 질문
   const [currentSQ, setCurrentSQ]     = useState<string | null>(null)
   const [sqLoaded, setSqLoaded]       = useState(false)
@@ -65,9 +72,28 @@ export default function SettingsPage() {
     setAcademyName(ctx.academyName)
     setAcademyLogoUrl(ctx.academyLogoUrl)
     setLoading(false)
-    // 보안 질문 로드
     loadSecurityQuestion(ctx.userId)
+    loadLivesSettings(ctx.academyId)
   }, [ctx])
+
+  async function loadLivesSettings(aId: string) {
+    const { data } = await supabase.from('academies')
+      .select('lives_enabled, lives_default').eq('id', aId).single()
+    setLivesEnabled(data?.lives_enabled ?? false)
+    setLivesDefault(data?.lives_default ?? 3)
+    setLivesLoaded(true)
+  }
+
+  async function saveLivesSettings() {
+    setSavingLives(true)
+    await supabase.from('academies').update({
+      lives_enabled: livesEnabled,
+      lives_default: livesDefault,
+    }).eq('id', academyId)
+    setSavingLives(false)
+    setLivesSaved(true)
+    setTimeout(() => setLivesSaved(false), 2000)
+  }
 
   async function loadSecurityQuestion(userId: string) {
     const { data } = await supabase
@@ -168,7 +194,8 @@ export default function SettingsPage() {
 
   const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
     { key: 'academy', label: '학원 정보', Icon: Building2 },
-    { key: 'profile', label: '내 정보', Icon: User },
+    { key: 'profile', label: '내 정보',   Icon: User },
+    { key: 'fun',     label: '재밌는 기능', Icon: Sparkles },
   ]
 
   return (
@@ -357,6 +384,98 @@ export default function SettingsPage() {
       )}
 
       {/* ── 내 정보 탭 ── */}
+      {/* ── 재밌는 기능 탭 ── */}
+      {tab === 'fun' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+            {/* 헤더 */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center">
+                <Heart size={16} className="text-red-500 fill-red-500" />
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-800">목숨 시스템</h2>
+                <p className="text-xs text-slate-400">학생에게 목숨을 부여하고 수업에서 활용해 보세요</p>
+              </div>
+            </div>
+
+            {/* 활성화 토글 */}
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">목숨 시스템 활성화</p>
+                <p className="text-xs text-slate-400 mt-0.5">켜면 학생 앱 홈에 목숨이 표시돼요</p>
+              </div>
+              <button
+                onClick={() => isAdmin && setLivesEnabled(v => !v)}
+                disabled={!isAdmin}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  livesEnabled ? 'bg-red-500' : 'bg-slate-200'
+                } disabled:opacity-60`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  livesEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+
+            {/* 기본 목숨 수 */}
+            {livesEnabled && (
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">기본 목숨 수</p>
+                  <p className="text-xs text-slate-400 mt-0.5">신규 학생 또는 초기화 시 기준이 되는 목숨 수예요</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-2.5">
+                    <button
+                      onClick={() => isAdmin && setLivesDefault(v => Math.max(1, v - 1))}
+                      disabled={!isAdmin || livesDefault <= 1}
+                      className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
+                    >−</button>
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: livesDefault }).map((_, i) => (
+                        <Heart key={i} size={18} className="text-red-500 fill-red-500" />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => isAdmin && setLivesDefault(v => Math.min(10, v + 1))}
+                      disabled={!isAdmin || livesDefault >= 10}
+                      className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
+                    >+</button>
+                  </div>
+                  <span className="text-xl font-bold text-slate-800">{livesDefault}개</span>
+                </div>
+              </div>
+            )}
+
+            {/* 저장 버튼 */}
+            {isAdmin && livesLoaded && (
+              <button
+                onClick={saveLivesSettings}
+                disabled={savingLives}
+                className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  livesSaved
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {livesSaved
+                  ? <><Check size={14} /> 저장됨</>
+                  : savingLives
+                  ? <><Loader2 size={14} className="animate-spin" /> 저장 중...</>
+                  : '저장'}
+              </button>
+            )}
+          </div>
+
+          {/* 앞으로 추가될 기능 안내 */}
+          <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-4 text-center">
+            <Sparkles size={20} className="mx-auto mb-2 text-slate-300" />
+            <p className="text-xs text-slate-400">앞으로 더 재밌는 기능들이 추가될 예정이에요!</p>
+          </div>
+        </div>
+      )}
+
       {tab === 'profile' && (
         <div className="space-y-4">
           {/* 이름 변경 */}
