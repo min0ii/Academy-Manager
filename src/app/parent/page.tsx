@@ -848,11 +848,17 @@ export default function ParentPage() {
                                     <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">미기록</span>
                                   )}
                                 </div>
-                                {h.description && isExpanded && (
-                                  <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{h.description}</p>
-                                )}
-                                {h.description && !isExpanded && (
-                                  <p className="mt-1 text-xs text-slate-400 truncate">{h.description}</p>
+                                {h.description && (
+                                  <>
+                                    {!isExpanded && (
+                                      <p className="mt-1 text-xs text-slate-400 truncate">{h.description}</p>
+                                    )}
+                                    <div className={`grid transition-all duration-200 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                      <div className="overflow-hidden">
+                                        <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{h.description}</p>
+                                      </div>
+                                    </div>
+                                  </>
                                 )}
                               </div>
                             )

@@ -959,7 +959,7 @@ export default function StudentPage() {
                         return (
                           <div key={q.id} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xs font-bold ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
+                              <span className={`text-xs font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
                                 {q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
                               </span>
                               <span className="text-xs text-slate-400 ml-auto">{q.score}점</span>
@@ -1016,10 +1016,10 @@ export default function StudentPage() {
                         return (
                           <div key={q.id} className={`rounded-xl border p-4 space-y-2 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
                             <div className="flex items-center gap-2">
-                              <span className={`text-sm font-bold ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
+                              <span className={`text-sm font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
                                 {q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
                               </span>
-                              <span className="text-xs text-slate-400 ml-auto">{myAns?.score_earned ?? 0} / {q.score}점</span>
+                              <span className="text-xs text-slate-400 ml-auto whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
                             </div>
                             {q.question_text && <p className="text-sm text-slate-700">{q.question_text}</p>}
                             {/* 객관식 선택지 */}
@@ -1124,11 +1124,17 @@ export default function StudentPage() {
                                     <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">미기록</span>
                                   )}
                                 </div>
-                                {h.description && isExpanded && (
-                                  <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{h.description}</p>
-                                )}
-                                {h.description && !isExpanded && (
-                                  <p className="mt-1 text-xs text-slate-400 truncate">{h.description}</p>
+                                {h.description && (
+                                  <>
+                                    {!isExpanded && (
+                                      <p className="mt-1 text-xs text-slate-400 truncate">{h.description}</p>
+                                    )}
+                                    <div className={`grid transition-all duration-200 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                      <div className="overflow-hidden">
+                                        <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{h.description}</p>
+                                      </div>
+                                    </div>
+                                  </>
                                 )}
                               </div>
                             )
