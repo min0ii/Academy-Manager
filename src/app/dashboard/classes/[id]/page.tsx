@@ -1447,7 +1447,7 @@ export default function ClassDetailPage() {
                         defaultValue={selectedClinicSession.name ?? ''}
                         onBlur={e => saveClinicName(e.target.value)}
                         placeholder="클리닉 이름 (예: 오답 클리닉)"
-                        className="text-sm text-violet-600 font-medium mt-0.5 bg-transparent border-b border-transparent hover:border-violet-300 focus:border-violet-500 focus:outline-none w-full max-w-[200px] placeholder:text-slate-300"
+                        className="text-sm text-violet-600 font-medium mt-0.5 bg-transparent border-b border-transparent hover:border-violet-300 focus:border-violet-500 focus:outline-none w-full placeholder:text-slate-300"
                       />
                     )}
                     {selectedClinicSession && panelTab === 'clinic' && selectedClinicSession.start_time && (
