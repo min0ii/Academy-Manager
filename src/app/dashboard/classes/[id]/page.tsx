@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -142,6 +142,10 @@ export default function ClassDetailPage() {
   // ── 시험
   const [dateTests, setDateTests] = useState<{ id: string; name: string; max_score: number }[]>([])
   const [dayExams, setDayExams]   = useState<{ id: string; title: string; status: string; exam_type: string }[]>([])
+
+  // ── 코멘트 입력창 토글
+  const [openAttNotes, setOpenAttNotes] = useState<Set<string>>(new Set())
+  const [openHwNotes, setOpenHwNotes]   = useState<Set<string>>(new Set())
 
   // ── 과제
   const [dateHomeworks, setDateHomeworks]       = useState<Homework[]>([])
@@ -1568,7 +1572,7 @@ export default function ClassDetailPage() {
                                 const student  = students.find(s => s.id === att.student_id)
                                 if (!student) return null
                                 const isDetail = detailStudent?.id === student.id
-                                const needsNote = att.status !== null
+                                const showAttNote = !!att.note || openAttNotes.has(att.student_id)
                                 return (
                                   <div key={att.student_id}>
                                     <div className="flex items-center gap-3 px-4 py-3">
@@ -1587,11 +1591,10 @@ export default function ClassDetailPage() {
                                           <p className="font-medium text-slate-800 text-sm truncate">{student.name}</p>
                                           <p className="text-xs text-slate-400">
                                             {student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}
-                                            {att.note && <span className="ml-1 text-slate-500">· {att.note}</span>}
                                           </p>
                                         </div>
                                       </button>
-                                      <div className="flex gap-1 flex-shrink-0">
+                                      <div className="flex gap-1 flex-shrink-0 items-center">
                                         {(['present', 'late', 'early_leave', 'absent'] as const).map(s => (
                                           <button key={s} onClick={() => markAttendance(att.student_id, s)}
                                             className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
@@ -1600,14 +1603,26 @@ export default function ClassDetailPage() {
                                             {ATT_LABEL[s]}
                                           </button>
                                         ))}
+                                        {att.status !== null && (
+                                          <button onClick={() => setOpenAttNotes(prev => {
+                                            const next = new Set(prev)
+                                            next.has(att.student_id) ? next.delete(att.student_id) : next.add(att.student_id)
+                                            return next
+                                          })}
+                                            className={`p-1.5 rounded-lg border transition-colors ${
+                                              att.note ? 'border-blue-300 text-blue-500 bg-blue-50' : showAttNote ? 'border-blue-300 text-blue-500 bg-blue-50' : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:bg-slate-50'
+                                            }`}>
+                                            <MessageSquare size={13} />
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
-                                    {needsNote && (
+                                    {showAttNote && att.status !== null && (
                                       <div className="px-4 pb-3">
                                         <input type="text" value={att.note ?? ''}
                                           onChange={e => handleNoteChange(att.student_id, e.target.value)}
                                           onBlur={e => saveNote(att.student_id, e.target.value)}
-                                          placeholder="사유 입력 (선택)"
+                                          placeholder="코멘트 입력 (선택)"
                                           className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-slate-50" />
                                       </div>
                                     )}
@@ -1707,6 +1722,8 @@ export default function ClassDetailPage() {
                                 ) : statuses.map(rec => {
                                   const student = students.find(s => s.id === rec.student_id)
                                   if (!student) return null
+                                  const hwNoteKey = `${hw.id}-${rec.student_id}`
+                                  const showHwNote = !!rec.note || openHwNotes.has(hwNoteKey)
                                   return (
                                     <div key={rec.student_id}>
                                       <div className="flex items-center gap-3 px-4 py-2.5">
@@ -1714,10 +1731,9 @@ export default function ClassDetailPage() {
                                           <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
                                           <p className="text-xs text-slate-400">
                                             {student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}
-                                            {rec.note && <span className="ml-1 text-slate-500">· {rec.note}</span>}
                                           </p>
                                         </div>
-                                        <div className="flex gap-1 flex-shrink-0">
+                                        <div className="flex gap-1 flex-shrink-0 items-center">
                                           {(['partial', 'done', 'none'] as const).map(s => (
                                             <button key={s} onClick={() => setHomeworkStatus(hw.id, rec.student_id, s)}
                                               className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
@@ -1726,9 +1742,21 @@ export default function ClassDetailPage() {
                                               {HW_LABEL[s]}
                                             </button>
                                           ))}
+                                          {rec.status !== null && (
+                                            <button onClick={() => setOpenHwNotes(prev => {
+                                              const next = new Set(prev)
+                                              next.has(hwNoteKey) ? next.delete(hwNoteKey) : next.add(hwNoteKey)
+                                              return next
+                                            })}
+                                              className={`p-1.5 rounded-lg border transition-colors ${
+                                                rec.note ? 'border-orange-300 text-orange-500 bg-orange-50' : showHwNote ? 'border-orange-300 text-orange-500 bg-orange-50' : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:bg-slate-50'
+                                              }`}>
+                                              <MessageSquare size={13} />
+                                            </button>
+                                          )}
                                         </div>
                                       </div>
-                                      {rec.status !== null && (
+                                      {showHwNote && rec.status !== null && (
                                         <div className="px-4 pb-2.5">
                                           <input type="text" value={rec.note ?? ''}
                                             onChange={e => handleHwNoteChange(hw.id, rec.student_id, e.target.value)}
