@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, LayoutGrid, BarChart2, BookOpen, MessageSquare, ChevronRight, ClipboardCheck, Activity } from 'lucide-react'
+import { Users, LayoutGrid, BarChart2, BookOpen, MessageSquare, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { todayKST } from '@/lib/date'
