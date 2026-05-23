@@ -26,7 +26,7 @@ type ClassInfo = {
 type AttendanceRecord = {
   date: string
   status: 'present' | 'absent' | 'late' | 'early_leave' | 'cancelled'
-  late_minutes?: number; early_leave_minutes?: number
+  note?: string | null; late_minutes?: number; early_leave_minutes?: number
 }
 type TestRecord = {
   name: string; date: string; maxScore: number | null
@@ -66,7 +66,7 @@ type ClinicRecord = {
 type HomeworkRecord = {
   id: string; title: string; assigned_date: string
   due_date: string | null; description: string | null
-  status: 'done' | 'partial' | 'none' | null
+  status: 'done' | 'partial' | 'none' | null; note?: string | null
 }
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
@@ -261,7 +261,7 @@ export default function StudentPage() {
     const json = await res.json()
     setAttendance((json.records ?? []).map((r: any) => ({
       date: r.date, status: r.status as AttendanceRecord['status'],
-      late_minutes: r.late_minutes ?? undefined, early_leave_minutes: r.early_leave_minutes ?? undefined,
+      note: r.note ?? null, late_minutes: r.late_minutes ?? undefined, early_leave_minutes: r.early_leave_minutes ?? undefined,
     })))
   }
 
@@ -731,8 +731,11 @@ export default function StudentPage() {
                         return (
                           <div key={i} className="flex items-center gap-3 px-5 py-3">
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
-                            <span className="text-sm text-slate-700 flex-1">{a.date.replace(/-/g,'. ')}</span>
-                            <span className={`text-xs font-semibold ${style.color}`}>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm text-slate-700">{a.date.replace(/-/g,'. ')}</span>
+                              {a.note && <p className="text-xs text-slate-400 mt-0.5 truncate">{a.note}</p>}
+                            </div>
+                            <span className={`text-xs font-semibold flex-shrink-0 ${style.color}`}>
                               {style.label}
                               {a.status==='late' && a.late_minutes ? ` ${a.late_minutes}분` : ''}
                               {a.status==='early_leave' && a.early_leave_minutes ? ` ${a.early_leave_minutes}분` : ''}
@@ -1117,6 +1120,7 @@ export default function StudentPage() {
                                       {h.assigned_date.replace(/-/g,'. ')}
                                       {h.due_date && ` · 마감 ${h.due_date.replace(/-/g,'.')}`}
                                     </p>
+                                    {h.note && <p className="text-xs text-slate-500 mt-0.5 truncate">💬 {h.note}</p>}
                                   </div>
                                   {style ? (
                                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>

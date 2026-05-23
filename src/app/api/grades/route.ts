@@ -203,12 +203,12 @@ export async function GET(req: NextRequest) {
 
     const hwIds = hwList.map((h: any) => h.id)
     const { data: statuses } = await db.from('homework_status')
-      .select('homework_id, status')
+      .select('homework_id, status, note')
       .eq('student_id', studentId)
       .in('homework_id', hwIds)
 
-    const statusMap: Record<string, string> = {}
-    for (const s of (statuses ?? [])) statusMap[s.homework_id] = s.status
+    const statusMap: Record<string, { status: string; note: string | null }> = {}
+    for (const s of (statuses ?? [])) statusMap[s.homework_id] = { status: s.status, note: s.note ?? null }
 
     const records = hwList.map((h: any) => ({
       id:            h.id,
@@ -216,7 +216,8 @@ export async function GET(req: NextRequest) {
       assigned_date: h.assigned_date,
       due_date:      h.due_date ?? null,
       description:   h.description ?? null,
-      status:        statusMap[h.id] ?? null,
+      status:        statusMap[h.id]?.status ?? null,
+      note:          statusMap[h.id]?.note ?? null,
     }))
 
     return NextResponse.json({ records })
@@ -275,12 +276,12 @@ export async function GET(req: NextRequest) {
 
     const hwIds = hwList.map((h: any) => h.id)
     const { data: statuses } = await db.from('homework_status')
-      .select('homework_id, status')
+      .select('homework_id, status, note')
       .eq('student_id', studentId)
       .in('homework_id', hwIds)
 
-    const statusMap: Record<string, string> = {}
-    for (const s of (statuses ?? [])) statusMap[s.homework_id] = s.status
+    const statusMap: Record<string, { status: string; note: string | null }> = {}
+    for (const s of (statuses ?? [])) statusMap[s.homework_id] = { status: s.status, note: s.note ?? null }
 
     const records = hwList.map((h: any) => ({
       id:            h.id,
@@ -288,7 +289,8 @@ export async function GET(req: NextRequest) {
       assigned_date: h.assigned_date,
       due_date:      h.due_date ?? null,
       description:   h.description ?? null,
-      status:        statusMap[h.id] ?? null,
+      status:        statusMap[h.id]?.status ?? null,
+      note:          statusMap[h.id]?.note ?? null,
     }))
 
     return NextResponse.json({ records })
@@ -322,7 +324,7 @@ export async function GET(req: NextRequest) {
 
     const sessionIds = sessions.map((s: any) => s.id)
     const { data: attRows } = await db.from('attendance')
-      .select('session_id, status, late_minutes, early_leave_minutes')
+      .select('session_id, status, note, late_minutes, early_leave_minutes')
       .eq('student_id', studentId)
       .in('session_id', sessionIds)
 
@@ -335,6 +337,7 @@ export async function GET(req: NextRequest) {
       return {
         date: s.date,
         status: a?.status ?? 'absent',
+        note: a?.note ?? null,
         late_minutes: a?.late_minutes ?? null,
         early_leave_minutes: a?.early_leave_minutes ?? null,
       }

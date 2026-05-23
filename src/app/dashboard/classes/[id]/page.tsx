@@ -36,7 +36,7 @@ type Homework = {
   assigned_date: string; due_date: string | null
 }
 type HomeworkStatusRecord = {
-  id: string | null; student_id: string; status: 'done' | 'partial' | 'none' | null
+  id: string | null; student_id: string; status: 'done' | 'partial' | 'none' | null; note: string | null
 }
 
 type Tab      = 'schedule' | 'students' | 'calendar' | 'stats' | 'lives'
@@ -509,10 +509,9 @@ export default function ClassDetailPage() {
         setAttendanceList(prev => prev.map(a =>
           a.student_id === studentId ? { ...a, id: null, status: null, note: null } : a))
       } else {
-        const noteToSave = status === 'present' ? null : rec.note
-        await supabase.from('attendance').update({ status, note: noteToSave }).eq('id', rec.id)
+        await supabase.from('attendance').update({ status }).eq('id', rec.id)
         setAttendanceList(prev => prev.map(a =>
-          a.student_id === studentId ? { ...a, status, note: noteToSave } : a))
+          a.student_id === studentId ? { ...a, status } : a))
       }
     } else {
       const { data: na } = await supabase.from('attendance').insert({
@@ -823,12 +822,12 @@ export default function ClassDetailPage() {
 
   async function loadHomeworkStatuses(hwId: string) {
     if (homeworkStatuses[hwId]) return
-    const { data } = await supabase.from('homework_status').select('id, student_id, status').eq('homework_id', hwId)
+    const { data } = await supabase.from('homework_status').select('id, student_id, status, note').eq('homework_id', hwId)
     const sm: Record<string, any> = {}
     for (const s of (data ?? [])) sm[s.student_id] = s
     setHomeworkStatuses(prev => ({
       ...prev,
-      [hwId]: students.map(s => ({ id: sm[s.id]?.id ?? null, student_id: s.id, status: sm[s.id]?.status ?? null })),
+      [hwId]: students.map(s => ({ id: sm[s.id]?.id ?? null, student_id: s.id, status: sm[s.id]?.status ?? null, note: sm[s.id]?.note ?? null })),
     }))
   }
 
@@ -840,7 +839,7 @@ export default function ClassDetailPage() {
         await supabase.from('homework_status').delete().eq('id', rec.id)
         setHomeworkStatuses(prev => ({
           ...prev,
-          [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, id: null, status: null } : r),
+          [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, id: null, status: null, note: null } : r),
         }))
       } else {
         await supabase.from('homework_status').update({ status }).eq('id', rec.id)
@@ -855,11 +854,23 @@ export default function ClassDetailPage() {
       }).select().single()
       setHomeworkStatuses(prev => ({
         ...prev,
-        [hwId]: (prev[hwId] ?? students.map(s => ({ id: null, student_id: s.id, status: null }))).map(r =>
+        [hwId]: (prev[hwId] ?? students.map(s => ({ id: null, student_id: s.id, status: null, note: null }))).map(r =>
           r.student_id === studentId ? { ...r, id: nr?.id ?? null, status } : r
         ),
       }))
     }
+  }
+
+  function handleHwNoteChange(hwId: string, studentId: string, note: string) {
+    setHomeworkStatuses(prev => ({
+      ...prev,
+      [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, note } : r),
+    }))
+  }
+  async function saveHwNote(hwId: string, studentId: string, note: string) {
+    const rec = (homeworkStatuses[hwId] ?? []).find(r => r.student_id === studentId)
+    if (!rec?.id) return
+    await supabase.from('homework_status').update({ note: note || null }).eq('id', rec.id)
   }
 
   // ── 캘린더 계산
@@ -1557,7 +1568,7 @@ export default function ClassDetailPage() {
                                 const student  = students.find(s => s.id === att.student_id)
                                 if (!student) return null
                                 const isDetail = detailStudent?.id === student.id
-                                const needsNote = att.status && att.status !== 'present'
+                                const needsNote = att.status !== null
                                 return (
                                   <div key={att.student_id}>
                                     <div className="flex items-center gap-3 px-4 py-3">
@@ -1576,7 +1587,7 @@ export default function ClassDetailPage() {
                                           <p className="font-medium text-slate-800 text-sm truncate">{student.name}</p>
                                           <p className="text-xs text-slate-400">
                                             {student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}
-                                            {att.note && att.status !== 'present' && <span className="ml-1 text-slate-500">· {att.note}</span>}
+                                            {att.note && <span className="ml-1 text-slate-500">· {att.note}</span>}
                                           </p>
                                         </div>
                                       </button>
@@ -1697,21 +1708,35 @@ export default function ClassDetailPage() {
                                   const student = students.find(s => s.id === rec.student_id)
                                   if (!student) return null
                                   return (
-                                    <div key={rec.student_id} className="flex items-center gap-3 px-4 py-2.5">
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
-                                        <p className="text-xs text-slate-400">{student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}</p>
+                                    <div key={rec.student_id}>
+                                      <div className="flex items-center gap-3 px-4 py-2.5">
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
+                                          <p className="text-xs text-slate-400">
+                                            {student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}
+                                            {rec.note && <span className="ml-1 text-slate-500">· {rec.note}</span>}
+                                          </p>
+                                        </div>
+                                        <div className="flex gap-1 flex-shrink-0">
+                                          {(['partial', 'done', 'none'] as const).map(s => (
+                                            <button key={s} onClick={() => setHomeworkStatus(hw.id, rec.student_id, s)}
+                                              className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                                rec.status === s ? HW_ACTIVE[s] : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                              }`}>
+                                              {HW_LABEL[s]}
+                                            </button>
+                                          ))}
+                                        </div>
                                       </div>
-                                      <div className="flex gap-1 flex-shrink-0">
-                                        {(['partial', 'done', 'none'] as const).map(s => (
-                                          <button key={s} onClick={() => setHomeworkStatus(hw.id, rec.student_id, s)}
-                                            className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                              rec.status === s ? HW_ACTIVE[s] : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                                            }`}>
-                                            {HW_LABEL[s]}
-                                          </button>
-                                        ))}
-                                      </div>
+                                      {rec.status !== null && (
+                                        <div className="px-4 pb-2.5">
+                                          <input type="text" value={rec.note ?? ''}
+                                            onChange={e => handleHwNoteChange(hw.id, rec.student_id, e.target.value)}
+                                            onBlur={e => saveHwNote(hw.id, rec.student_id, e.target.value)}
+                                            placeholder="코멘트 입력 (선택)"
+                                            className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-400 bg-slate-50" />
+                                        </div>
+                                      )}
                                     </div>
                                   )
                                 })}
