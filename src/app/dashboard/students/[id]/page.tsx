@@ -186,7 +186,7 @@ function StudentReportContent() {
     ] = await Promise.all([
       supabase.from('sessions').select('id, date').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
       supabase.from('homework').select('id, title, assigned_date, due_date').eq('class_id', classId).gte('assigned_date', enrolledAt).order('assigned_date'),
-      supabase.from('clinic_sessions').select('id, date').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
+      supabase.from('clinic_sessions').select('id, date, name').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
       supabase.from('clinic_schedules').select('day_of_week, name').eq('class_id', classId),
       // test_scores RLS 우회 — 서비스 롤 API로 직접 호출
       token
@@ -238,7 +238,7 @@ function StudentReportContent() {
     for (const sc of (clinicScheds ?? [])) schedNameMap[sc.day_of_week] = sc.name
     setClinicData((clinicSessions ?? []).map(s => {
       const dow = new Date(s.date + 'T00:00:00').getDay()
-      return { id: s.id, date: s.date, clinic_name: schedNameMap[dow] ?? `${DAYS[dow]}요일 클리닉`, status: (clinicAttMap[s.id] as any) ?? null }
+      return { id: s.id, date: s.date, clinic_name: s.name || schedNameMap[dow] || `${DAYS[dow]}요일 클리닉`, status: (clinicAttMap[s.id] as any) ?? null }
     }))
 
     setLoadingDetail(false)
