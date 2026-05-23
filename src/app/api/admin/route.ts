@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const db = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function admin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 // 관리자 확인
 async function isAdmin(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
   if (!token) return false
+  const db = admin()
   const { data: { user } } = await db.auth.getUser(token)
   if (!user) return false
   const { data } = await db.from('profiles').select('is_admin').eq('id', user.id).single()
@@ -20,7 +24,7 @@ async function isAdmin(req: NextRequest) {
 export async function GET(req: NextRequest) {
   if (!await isAdmin(req)) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
-  const { data } = await db
+  const { data } = await admin()
     .from('academies')
     .select('id, name, status, created_at, teacher_id, profiles(name, phone)')
     .order('created_at', { ascending: false })
@@ -36,6 +40,6 @@ export async function PATCH(req: NextRequest) {
   if (!academyId || !['approved', 'rejected'].includes(status))
     return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
-  await db.from('academies').update({ status }).eq('id', academyId)
+  await admin().from('academies').update({ status }).eq('id', academyId)
   return NextResponse.json({ ok: true })
 }
