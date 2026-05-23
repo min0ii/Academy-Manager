@@ -111,6 +111,12 @@ export default function StudentPage() {
   const [pwError, setPwError]   = useState('')
   const [pwSaving, setPwSaving] = useState(false)
 
+  // 노트 펼치기
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set())
+  function toggleNote(key: string) {
+    setExpandedNotes(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+
   // 출석
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [calMonth, setCalMonth]     = useState(() => new Date())
@@ -733,7 +739,21 @@ export default function StudentPage() {
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
                             <div className="flex-1 min-w-0">
                               <span className="text-sm text-slate-700">{a.date.replace(/-/g,'. ')}</span>
-                              {a.note && <p className="text-xs text-slate-400 mt-0.5 truncate">{a.note}</p>}
+                              {a.note && (() => {
+                                const key = `att-${a.date}`
+                                const isLong = a.note.length > 40
+                                const expanded = expandedNotes.has(key)
+                                return (
+                                  <div>
+                                    <p className={`text-xs text-slate-400 mt-0.5 break-words ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{a.note}</p>
+                                    {isLong && (
+                                      <button onClick={() => toggleNote(key)} className="text-xs text-slate-400 underline underline-offset-2 mt-0.5">
+                                        {expanded ? '접기' : '자세히 보기'}
+                                      </button>
+                                    )}
+                                  </div>
+                                )
+                              })()}
                             </div>
                             <span className={`text-xs font-semibold flex-shrink-0 ${style.color}`}>
                               {style.label}
@@ -1120,7 +1140,21 @@ export default function StudentPage() {
                                       {h.assigned_date.replace(/-/g,'. ')}
                                       {h.due_date && ` · 마감 ${h.due_date.replace(/-/g,'.')}`}
                                     </p>
-                                    {h.note && <p className="text-xs text-slate-500 mt-0.5 truncate">💬 {h.note}</p>}
+                                    {h.note && (() => {
+                                      const key = `hw-${h.id}`
+                                      const isLong = h.note!.length > 40
+                                      const expanded = expandedNotes.has(key)
+                                      return (
+                                        <div>
+                                          <p className={`text-xs text-slate-500 mt-0.5 break-words ${!expanded && isLong ? 'line-clamp-2' : ''}`}>💬 {h.note}</p>
+                                          {isLong && (
+                                            <button onClick={e => { e.stopPropagation(); toggleNote(key) }} className="text-xs text-slate-400 underline underline-offset-2 mt-0.5">
+                                              {expanded ? '접기' : '자세히 보기'}
+                                            </button>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
                                   </div>
                                   {style ? (
                                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>
