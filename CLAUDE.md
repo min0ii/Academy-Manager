@@ -1,4 +1,57 @@
-# Linkademy — 프로젝트 컨텍스트
+# Linkademy — Claude 행동 원칙 + 프로젝트 컨텍스트
+
+---
+
+## 🧠 Claude 행동 원칙
+
+> 이 원칙들은 불필요한 변경, 과도한 복잡성, 실수 후 뒤늦은 질문을 줄이기 위한 지침입니다.
+
+### 1. 코딩 전에 먼저 생각하기
+
+**가정하지 말고, 불확실하면 물어본다.**
+
+- 가정이 있으면 먼저 명시적으로 말한다.
+- 해석이 여러 가지라면 조용히 하나를 고르지 말고 선택지를 제시한다.
+- 더 단순한 방법이 있으면 말한다. 필요하면 반대 의견도 낸다.
+- 뭔가 불명확하면 멈추고, 어디가 불명확한지 짚어서 질문한다.
+
+### 2. 단순함 우선
+
+**요청한 것만 해결하는 최소한의 코드. 추측성 기능 없음.**
+
+- 요청하지 않은 기능은 추가하지 않는다.
+- 한 곳에서만 쓰이는 코드에 추상화 레이어를 만들지 않는다.
+- 요청하지 않은 "유연성"이나 "확장성"을 위한 코드는 넣지 않는다.
+- 200줄로 쓴 코드가 50줄이 될 수 있다면 다시 쓴다.
+
+스스로 물어보기: "시니어 개발자가 보면 과하다고 할까?" → 그렇다면 단순하게.
+
+### 3. 최소 범위 수정 (Surgical Changes)
+
+**반드시 필요한 곳만 건드린다. 내가 만든 문제만 정리한다.**
+
+기존 코드를 수정할 때:
+- 관련 없는 코드·주석·포매팅을 "개선"하지 않는다.
+- 안 망가진 건 리팩터링하지 않는다.
+- 내 취향이 달라도 기존 코드 스타일에 맞춘다.
+- 관련 없는 데드코드를 발견하면 → 삭제 말고 언급만 한다.
+
+내 변경으로 생긴 고아(orphan)는 정리:
+- **내 변경으로 인해** 쓰이지 않게 된 import/변수/함수는 제거한다.
+- 원래부터 있던 데드코드는 요청 없으면 건드리지 않는다.
+
+기준: 변경된 모든 줄이 사용자 요청으로 직접 이어질 수 있어야 한다.
+
+### 4. 목표 기반 실행
+
+**성공 기준을 먼저 정의하고, 확인될 때까지 반복한다.**
+
+- 변경 후 반드시 `npm run build`로 빌드 검증 → 성공 확인 후 push.
+- 여러 단계 작업은 간단한 계획을 먼저 제시한다.
+- Push 전 빌드 실패 → 수정 후 재확인, 그 다음 push.
+- "일단 해보자" 식의 push는 하지 않는다.
+
+---
 
 ## 기본 정보
 - **브랜드명**: Linkademy (링카데미) — 학원과 학생을 잇다.
@@ -31,10 +84,11 @@
 ### 선생님 앱 (`/dashboard/*`)
 - **로그인/가입**: `/login`, `/signup`, `/onboarding` (학원 최초 설정)
 - **승인 대기**: `/pending` — 승인 대기 중 / 거부됨 상태 표시
-- **대시보드**: `/dashboard` — 학생 수, 반 수 요약
+- **대시보드**: `/dashboard` — 학생 수, 반 수 요약, 진행 중 수업 배너
 - **학생 관리**: `/dashboard/students` — 목록/추가/수정/삭제/CSV가져오기/검색, 동일 전화번호 멀티 학원 지원
 - **학생 리포트**: `/dashboard/students/[id]` — 출결·성적·숙제 개인 리포트, 퇴원(계정삭제)
   - 성적 차트: LineChart (scrollable), enrolled_at 이전 데이터 제외
+  - 시험 점수 내역 더보기/접기 (5개 초과 시)
 - **반 관리**: `/dashboard/classes` — 반 목록
 - **반 상세**: `/dashboard/classes/[id]` — 캘린더, 출결/숙제/클리닉 기록, 수업 설정(시간표), 학생 배정
   - 미래 수업일 사전 기록 허용 (출결·숙제·클리닉)
@@ -79,6 +133,15 @@
 
 ## 파일 구조 및 핵심 함수
 
+### 날짜/시간 유틸
+**`src/lib/date.ts`** — 한국 시간(KST) 전용 유틸
+```typescript
+export function todayKST(): string  // 오늘 날짜 'YYYY-MM-DD' (KST)
+export function monthsAgoKST(months: number): string  // n개월 전 날짜 (KST)
+```
+- **반드시 이 함수를 사용할 것.** `new Date().toISOString().slice(0,10)`은 UTC 기준이라 한국 자정~오전 9시 사이에 날짜가 틀릴 수 있음.
+- DB 타임스탬프(`submitted_at`, `updated_at` 등)는 UTC 그대로 저장 (정상).
+
 ### 선생님 — 시험 관리
 **`src/app/dashboard/grades/page.tsx`** (2115줄)
 - 컴포넌트: `ManualScoreView` (수동채점), `AutoMonitorView` (자동채점 모니터링)
@@ -105,12 +168,18 @@
 - `markClinicAttendance()` — 클리닉 기록 (세션 없으면 자동 생성)
 - `markAllPresent()`, `markAllClinicDone()` — 전체 처리
 - `addHomework()`, `deleteHomework()`, `setHomeworkStatus()` — 과제 관리
+- `saveHwNote()` — 숙제 코멘트 저장
 - `addExtraSession()`, `addExtraClinicSession()` — 비정기 수업/클리닉 추가
 - `deleteSession()`, `deleteClinicSession()` — 삭제
 - `loadAttendanceStats()` — 출결 통계 (enrolled_at 기준 필터)
 - PanelTab: `'attendance' | 'homework' | 'clinic'`
 - 클리닉 탭: `clinicAttList.length === 0`이면 "클리닉 추가" 버튼, `> 0`이면 학생 목록
 - 반 기록 초기화: `POST /api/classes/[classId]/reset` (sessions, attendance, homework, clinic 전체 삭제)
+
+**출결/숙제 코멘트 UX:**
+- 코멘트 입력란은 기본적으로 숨김. 내용이 있으면 자동으로 표시.
+- 버튼(MessageSquare 아이콘)으로 토글. 내용 있으면 아이콘 색상으로 표시.
+- **출석 포함 모든 출결 상태**(present/late/early_leave/absent)에서 코멘트 입력 가능.
 
 ### 선생님 — 과제 탭
 **`src/app/dashboard/homework/page.tsx`** (621줄)
@@ -121,6 +190,7 @@
 **`src/app/dashboard/students/[id]/page.tsx`** (760줄)
 - `withdrawStudent()` — 퇴원 처리 + `/api/delete-account` 호출로 학생·학부모 계정 삭제
 - `loadClassDetail()` — 성적/출결/숙제 데이터 로드 (enrolled_at 이전 제외)
+- 시험 점수 내역: 5개 초과 시 더보기/접기 (`showAllGrades` state)
 
 ### 학생 앱
 **`src/app/student/page.tsx`** (1434줄)
@@ -130,6 +200,7 @@
 - 시험 등수: `t.rank`, `t.totalSubmitted` → `n명 중 n위` 형식
 - HW_STYLE: `none → '미완료'` (과제 상태 표시)
 - `academyLogo` state: 헤더 로고 표시, 홈 탭 이동
+- 출결/과제 코멘트: 40자 초과 시 2줄 clamp + "자세히 보기" 언더라인 토글 (`expandedNotes: Set<string>`)
 
 **`src/app/student/ExamTab.tsx`** — 시험 탭 컴포넌트
 - 진행 중인 시험 목록, 답안 제출, 시험 이탈 경고 다이얼로그, 포기 처리
@@ -140,10 +211,12 @@
 - 성적 차트: BarChart 보라색 (`#7c3aed`), scrollable, 카테고리 필터
 - 과제 상태: `none → '미완료'`
 - `academyLogo` state: 헤더 로고 표시
+- 출결/과제 코멘트: 학생 앱과 동일한 "자세히 보기" 토글 UX
 
 ### 공통 컴포넌트
 **`src/components/AppDialog.tsx`** — 커스텀 다이얼로그
 - `useDialog()` 훅: `alert(msg)`, `confirm(msg) → Promise<boolean>` 반환
+- **반드시 이 훅을 사용할 것.** 브라우저 기본 `alert()`/`confirm()` 사용 금지.
 
 ## API 라우트 전체 목록
 
@@ -175,13 +248,13 @@
 | 경로 | action | 설명 |
 |---|---|---|
 | `/api/grades` | GET `parent-chart` | 학부모 성적 차트 (enrolled_at 필터) |
-| `/api/grades` | GET `parent-homework` | 학부모 과제 현황 (enrolled_at 필터) |
+| `/api/grades` | GET `parent-homework` | 학부모 과제 현황 + note (enrolled_at 필터) |
 | `/api/grades` | GET `parent-clinic` | 학부모 클리닉 현황 (enrolled_at 필터) |
 | `/api/grades` | GET `parent-comments` | 학부모 코멘트 |
 | `/api/grades` | GET `my-grades` | 학생 성적 (avgPct, rank 포함, enrolled_at 필터) |
-| `/api/grades` | GET `my-homework` | 학생 과제 (enrolled_at 필터) |
+| `/api/grades` | GET `my-homework` | 학생 과제 + note (enrolled_at 필터) |
 | `/api/grades` | GET `my-clinic` | 학생 클리닉 (enrolled_at 필터) |
-| `/api/grades` | GET `my-attendance` | 학생 출결 (enrolled_at 필터) |
+| `/api/grades` | GET `my-attendance` | 학생 출결 + note (enrolled_at 필터) |
 | `/api/grades` | GET `tests` | 선생님 시험 목록+통계 |
 | `/api/grades` | GET `scores` | 특정 시험 점수 |
 | `/api/grades` | GET `student-chart` | 학생 리포트 성적 (enrolled_at 필터) |
@@ -221,7 +294,7 @@ tests (id, class_id, name, date, max_score) — 구형 성적 시스템
 test_scores (id, test_id, student_id, score, absent)
 grades (id, session_id, student_id, type, score, max_score, note)
 homework (id, class_id, title, description, assigned_date, due_date)
-homework_status (id, homework_id, student_id, status 'done'|'partial'|'none')
+homework_status (id, homework_id, student_id, status 'done'|'partial'|'none', note text)
 clinic_schedules (id, class_id, name, day_of_week, start_time, end_time)
 clinic_sessions (id, class_id, date, name, start_time, end_time, note)
 clinic_attendance (id, clinic_session_id, student_id, status 'done'|'not_done')
@@ -290,6 +363,21 @@ qb_questions (id, set_id, order_num, customLabel, question_text, question_type, 
 ### 등수 표시
 - `n명 중 n위` 형식 (학생 성적 탭, 시험 결과 상세)
 - grades API `my-grades` action에서 rank 계산 후 반환
+
+### Supabase 서버 클라이언트 사용 시 주의
+```typescript
+// ❌ 금지: 모듈 레벨에서 createClient 호출 → Vercel 빌드 실패
+const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, ...)
+
+// ✅ 올바른 방법: 함수 안에서 생성
+function admin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+```
 
 ### API 인증 패턴
 ```typescript
