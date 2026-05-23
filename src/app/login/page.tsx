@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signIn, getProfile, formatPhone } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { LinkademyLogo } from '@/components/LinkademyLogo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -78,9 +79,7 @@ export default function LoginPage() {
           </div>
 
           {/* 로고 텍스트 */}
-          <h1 className="text-4xl font-black tracking-tight">
-            <span style={{ color: '#7c3aed' }}>Link</span><span className="text-slate-800">ademy</span>
-          </h1>
+          <LinkademyLogo className="h-12 w-auto" />
 
           {/* 태그라인 */}
           <p className="text-slate-400 text-sm mt-2 tracking-widest font-medium">학원과 학생을 잇다.</p>
