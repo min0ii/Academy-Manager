@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
+import { todayKST } from '@/lib/date'
 import { useDialog } from '@/components/AppDialog'
 
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
@@ -100,10 +101,9 @@ export default function ClassDetailPage() {
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null)
 
   // ── 캘린더
-  const today    = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const [calYear, setCalYear]   = useState(today.getFullYear())
-  const [calMonth, setCalMonth] = useState(today.getMonth())
+  const todayStr = todayKST()
+  const [calYear, setCalYear]   = useState(() => Number(todayKST().slice(0, 4)))
+  const [calMonth, setCalMonth] = useState(() => Number(todayKST().slice(5, 7)) - 1)
 
   const [sessionsInMonth, setSessionsInMonth]             = useState<Record<string, Session>>({})
   const [clinicSessionsInMonth, setClinicSessionsInMonth] = useState<Record<string, ClinicSession>>({})
@@ -303,7 +303,7 @@ export default function ClassDetailPage() {
     if (!await showConfirm('이 시간표를 삭제할까요?\n오늘 이후 예정된 해당 요일 수업도 함께 삭제돼요.', { destructive: true })) return
     const schedule = schedules.find(s => s.id === id)
     if (schedule) {
-      const td = new Date().toISOString().split('T')[0]
+      const td = todayKST()
       const { data: futureSessions } = await supabase
         .from('sessions').select('id, date').eq('class_id', classId).gt('date', td)
       const toDelete = (futureSessions ?? [])

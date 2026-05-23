@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { monthsAgoKST } from '@/lib/date'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
@@ -239,8 +240,7 @@ export default function ParentPage() {
   async function loadAttendance() {
     if (!student || !classInfo) return
     setAttendLoaded(true)
-    const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10)
+    const sixMonthsAgoStr = monthsAgoKST(6)
     const enrolledAt = student.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
     const fromDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
     const { data: sessions } = await supabase

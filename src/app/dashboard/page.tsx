@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Users, LayoutGrid, BarChart2, BookOpen, MessageSquare, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
+import { todayKST } from '@/lib/date'
 
 type Stats = {
   studentCount: number
@@ -60,7 +61,7 @@ export default function DashboardPage() {
       ;(classData ?? []).forEach(c => { classMap[c.id] = c.name })
 
       if (classIds.length > 0) {
-        const todayStr = now.toISOString().split('T')[0]
+        const todayStr = todayKST()
 
         const [{ data: scheduleData }, { data: sessionData }] = await Promise.all([
           supabase

@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import QuestionBank from './QuestionBank'
 import { useDialog } from '@/components/AppDialog'
+import { todayKST } from '@/lib/date'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -849,7 +850,7 @@ function GradesContent() {
 
   // Manual form
   const [manualTitle, setManualTitle] = useState('')
-  const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10))
+  const [manualDate, setManualDate] = useState(todayKST())
   const [manualFormMaxScore, setManualFormMaxScore] = useState('100')
   const [manualCategory, setManualCategory] = useState('')
   const [autoCategory, setAutoCategory] = useState('')
@@ -1049,7 +1050,7 @@ function GradesContent() {
       }),
     })
     if (res.ok) {
-      setManualTitle(''); setManualDate(new Date().toISOString().slice(0, 10)); setManualFormMaxScore('100'); setManualCategory('')
+      setManualTitle(''); setManualDate(todayKST()); setManualFormMaxScore('100'); setManualCategory('')
       setAddModal('none')
       await loadExams(selectedClass.id)
     }

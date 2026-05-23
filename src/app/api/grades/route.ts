@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { monthsAgoKST } from '@/lib/date'
 
 function admin() {
   return createClient(
@@ -305,9 +306,7 @@ export async function GET(req: NextRequest) {
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10)
+    const sixMonthsAgoStr = monthsAgoKST(6)
 
     // 등록일 조회 — 6개월 전 vs 등록일 중 더 늦은 날짜부터 표시
     const { data: studentRow } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
