@@ -72,6 +72,7 @@ function StudentReportContent() {
   const [clinicData, setClinicData]     = useState<ClinicRow[]>([])
   const [showAllHomework, setShowAllHomework] = useState(false)
   const [showAllClinic, setShowAllClinic]     = useState(false)
+  const [showAllGrades, setShowAllGrades]     = useState(false)
   const [allClasses, setAllClasses]           = useState<AllClass[]>([])
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferClassIds, setTransferClassIds]   = useState<string[]>([])
@@ -513,55 +514,68 @@ function StudentReportContent() {
                     </div>
                   </div>
                   <div className="divide-y divide-slate-100">
-                    {gradeRecords.filter(r => !gradeCategoryFilter || r.category === gradeCategoryFilter).map((r, i) => {
-                      const myColor = r.myPct === null ? 'text-slate-400'
-                        : r.myPct >= 80 ? 'text-emerald-600'
-                        : r.myPct >= 60 ? 'text-amber-600'
-                        : 'text-red-500'
-                      const diff = (r.myPct !== null && r.avgPct !== null) ? r.myPct - r.avgPct : null
+                    {(() => {
+                      const filtered = gradeRecords.filter(r => !gradeCategoryFilter || r.category === gradeCategoryFilter)
+                      const visible  = showAllGrades ? filtered : filtered.slice(0, 5)
+                      const hidden   = filtered.length - 5
                       return (
-                        <div key={i} className="flex items-center gap-3 px-4 py-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate" title={r.name}>
-                              {duplicateGradeNames.has(r.name) ? `${r.name} (${r.date.slice(5).replace('-', '/')})` : r.name}
-                            </p>
-                            <p className="text-xs text-slate-400 mt-0.5">{r.date}</p>
-                          </div>
-                          {r.absent ? (
-                            <span className="text-xs px-2.5 py-1 bg-slate-100 text-slate-400 rounded-lg font-medium flex-shrink-0">미응시</span>
-                          ) : r.myScore === null ? (
-                            <span className="text-xs text-slate-300 flex-shrink-0">미입력</span>
-                          ) : (
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              {/* 반평균 */}
-                              <div className="text-right hidden sm:block">
-                                <p className="text-xs text-slate-400">반평균</p>
-                                <p className="text-sm font-medium text-slate-500">
-                                  {r.avgScore ?? '-'}{r.maxScore !== null && <span className="text-xs text-slate-300">/{r.maxScore}</span>}
-                                </p>
-                              </div>
-                              {/* 내 점수 */}
-                              <div className="text-right">
-                                <p className="text-xs text-slate-400">내 점수</p>
-                                <p className={`text-base font-bold ${myColor}`}>
-                                  {r.myScore}{r.maxScore !== null && <span className="text-xs font-normal text-slate-300">/{r.maxScore}</span>}
-                                </p>
-                              </div>
-                              {/* 반평균 대비 */}
-                              {diff !== null && (
-                                <div className={`text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0 ${
-                                  diff > 0 ? 'bg-emerald-50 text-emerald-600' :
-                                  diff < 0 ? 'bg-red-50 text-red-500' :
-                                  'bg-slate-100 text-slate-400'
-                                }`}>
-                                  {diff > 0 ? `+${diff}%` : diff < 0 ? `${diff}%` : '평균'}
+                        <>
+                          {visible.map((r, i) => {
+                            const myColor = r.myPct === null ? 'text-slate-400'
+                              : r.myPct >= 80 ? 'text-emerald-600'
+                              : r.myPct >= 60 ? 'text-amber-600'
+                              : 'text-red-500'
+                            const diff = (r.myPct !== null && r.avgPct !== null) ? r.myPct - r.avgPct : null
+                            return (
+                              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 truncate" title={r.name}>
+                                    {duplicateGradeNames.has(r.name) ? `${r.name} (${r.date.slice(5).replace('-', '/')})` : r.name}
+                                  </p>
+                                  <p className="text-xs text-slate-400 mt-0.5">{r.date}</p>
                                 </div>
-                              )}
-                            </div>
+                                {r.absent ? (
+                                  <span className="text-xs px-2.5 py-1 bg-slate-100 text-slate-400 rounded-lg font-medium flex-shrink-0">미응시</span>
+                                ) : r.myScore === null ? (
+                                  <span className="text-xs text-slate-300 flex-shrink-0">미입력</span>
+                                ) : (
+                                  <div className="flex items-center gap-3 flex-shrink-0">
+                                    <div className="text-right hidden sm:block">
+                                      <p className="text-xs text-slate-400">반평균</p>
+                                      <p className="text-sm font-medium text-slate-500">
+                                        {r.avgScore ?? '-'}{r.maxScore !== null && <span className="text-xs text-slate-300">/{r.maxScore}</span>}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs text-slate-400">내 점수</p>
+                                      <p className={`text-base font-bold ${myColor}`}>
+                                        {r.myScore}{r.maxScore !== null && <span className="text-xs font-normal text-slate-300">/{r.maxScore}</span>}
+                                      </p>
+                                    </div>
+                                    {diff !== null && (
+                                      <div className={`text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0 ${
+                                        diff > 0 ? 'bg-emerald-50 text-emerald-600' :
+                                        diff < 0 ? 'bg-red-50 text-red-500' :
+                                        'bg-slate-100 text-slate-400'
+                                      }`}>
+                                        {diff > 0 ? `+${diff}%` : diff < 0 ? `${diff}%` : '평균'}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                          {filtered.length > 5 && (
+                            <button
+                              onClick={() => setShowAllGrades(v => !v)}
+                              className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors font-medium">
+                              {showAllGrades ? '접기 ▲' : `더보기 (${hidden}개 더) ▼`}
+                            </button>
                           )}
-                        </div>
+                        </>
                       )
-                    })}
+                    })()}
                   </div>
                 </div>
               )}
