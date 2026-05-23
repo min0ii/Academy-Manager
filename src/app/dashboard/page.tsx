@@ -22,7 +22,7 @@ type ActiveClass = {
 const QUICK_LINKS = [
   { href: '/dashboard/students', label: '학생 관리', desc: '학생 등록·수정·명부', icon: Users, color: 'blue' },
   { href: '/dashboard/classes', label: '수업 관리', desc: '반·시간표 설정', icon: LayoutGrid, color: 'violet' },
-  { href: '/dashboard/grades', label: '성적 관리', desc: '예제·복습·시험 점수', icon: BarChart2, color: 'emerald' },
+  { href: '/dashboard/grades', label: '성적 관리', desc: '시험 출제·점수 관리', icon: BarChart2, color: 'emerald' },
   { href: '/dashboard/homework', label: '과제·클리닉', desc: '과제 배부 및 이행 현황', icon: BookOpen, color: 'rose' },
   { href: '/dashboard/comments', label: '코멘트', desc: '학부모에게 전달할 메시지 작성', icon: MessageSquare, color: 'cyan' },
 ]
