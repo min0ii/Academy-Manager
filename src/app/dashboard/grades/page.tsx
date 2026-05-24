@@ -625,6 +625,7 @@ function AutoMonitorView({
   const totalStudents = submissions.length
   const avgP = pct(avgScore, maxScore)
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set())
+  const [showQuestions, setShowQuestions] = useState(false)
 
   // Per-question wrong rate analysis
   const questionAnalysis = (examDetail?.questions ?? []).map(q => {
@@ -651,6 +652,67 @@ function AutoMonitorView({
           <p className="text-2xl font-bold text-slate-800">{fmt(maxScore)}<span className="text-sm font-normal text-slate-400">점</span></p>
         </div>
       </div>
+
+      {/* 문제 목록 */}
+      {examDetail && examDetail.questions.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <button
+            onClick={() => setShowQuestions(v => !v)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
+          >
+            <span className="text-sm font-semibold text-slate-700">문제 목록 ({examDetail.questions.length}문제 · {maxScore}점)</span>
+            <ChevronRight size={16} className={`text-slate-400 transition-transform ${showQuestions ? 'rotate-90' : ''}`} />
+          </button>
+          {showQuestions && (
+            <div className="divide-y divide-slate-100 border-t border-slate-100">
+              {examDetail.questions.map((q, qi) => {
+                const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
+                const qAnswers = examDetail.answers.filter(a => a.question_id === q.id).sort((a, b) => a.order_num - b.order_num)
+                return (
+                  <div key={q.id} className="px-4 py-4 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {q.question_label ?? qi + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                            {q.question_type === 'multiple_choice' ? '객관식' : '주관식'}
+                          </span>
+                          <span className="text-xs text-slate-400">{q.score}점</span>
+                        </div>
+                        {q.question_text && (
+                          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{q.question_text}</p>
+                        )}
+                      </div>
+                    </div>
+                    {q.question_type === 'multiple_choice' && qChoices.length > 0 && (
+                      <div className="pl-9 space-y-1">
+                        {qChoices.map(c => {
+                          const isCorrect = qAnswers.some(a => a.answer_text === String(c.choice_num))
+                          return (
+                            <div key={c.id} className={`flex items-start gap-2 text-sm rounded-lg px-2 py-1.5 ${isCorrect ? 'bg-emerald-50' : ''}`}>
+                              <span className={`font-semibold flex-shrink-0 w-4 text-right ${isCorrect ? 'text-emerald-600' : 'text-slate-400'}`}>{c.choice_num}.</span>
+                              <span className={`flex-1 ${isCorrect ? 'text-emerald-700 font-medium' : 'text-slate-600'}`}>{c.choice_text ?? ''}</span>
+                              {isCorrect && <span className="text-xs text-emerald-500 font-semibold flex-shrink-0">정답</span>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {q.question_type === 'short_answer' && qAnswers.length > 0 && (
+                      <div className="pl-9 flex items-center gap-1.5">
+                        <span className="text-xs text-slate-400">정답:</span>
+                        <span className="text-sm font-medium text-emerald-700">{qAnswers.map(a => a.answer_text).join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Refresh */}
       <div className="flex items-center justify-between">
