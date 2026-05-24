@@ -443,7 +443,7 @@ export default function ClassDetailPage() {
 
     const nextDay = new Date(dateStr + 'T00:00:00')
     nextDay.setDate(nextDay.getDate() + 1)
-    const nextDayStr = nextDay.toISOString().slice(0, 10)
+    const nextDayStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}`
 
     const [{ data: testsOnDate }, { data: hwData }, { data: examsOnDate }] = await Promise.all([
       supabase.from('tests').select('id, name, max_score').eq('class_id', classId).eq('date', dateStr),
