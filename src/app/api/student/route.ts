@@ -32,18 +32,20 @@ export async function GET(req: NextRequest) {
   if (!profile || profile.role !== 'student')
     return NextResponse.json({ error: '학생 계정이 아니에요.' }, { status: 403 })
 
-  // 이 user_id에 연결된 모든 학생 행 조회 (여러 학원 가능)
+  // 이 user_id에 연결된 재원 중인 학생 행만 조회 (퇴원 학생 제외)
   const { data: students } = await db.from('students')
-    .select('id, name, school_name, grade, phone')
+    .select('id, name, school_name, grade, phone, status')
     .eq('user_id', user.id)
 
-  if (!students || students.length === 0)
+  const activeStudents = (students ?? []).filter(s => s.status !== 'inactive')
+
+  if (activeStudents.length === 0)
     return NextResponse.json({ contexts: [] })
 
   // 각 학생 행에 대해 반·학원 정보 조회
   const contexts = []
 
-  for (const student of students) {
+  for (const student of activeStudents) {
     const { data: classStudents } = await db.from('class_students')
       .select('classes(id, name, academy_id, teacher_id, academies(name, logo_url), class_schedules(day_of_week, start_time, end_time))')
       .eq('student_id', student.id)

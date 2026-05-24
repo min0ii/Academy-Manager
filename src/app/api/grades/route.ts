@@ -17,24 +17,33 @@ async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
   return m?.academy_id ?? null
 }
 
-// 학부모 인증: 토큰 → profiles.phone → students.parent_phone 매칭
+// 학부모 인증: 토큰 → profiles.phone → students.parent_phone 매칭 (재원 학생만)
 async function verifyParent(db: ReturnType<typeof admin>, token: string, studentId: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return false
   const { data: profile } = await db.from('profiles').select('phone').eq('id', user.id).single()
   if (!profile?.phone) return false
-  const { data: linked } = await db.from('students').select('id')
+  const { data: linked } = await db.from('students').select('id, status')
     .eq('id', studentId).eq('parent_phone', profile.phone).maybeSingle()
-  return !!linked
+  if (!linked || linked.status === 'inactive') return false
+  return true
 }
 
-// 학생 인증: 토큰 → students.user_id 매칭
+// 학생 인증: 토큰 → students.user_id 매칭 (재원 학생만)
 async function verifyStudent(db: ReturnType<typeof admin>, token: string, studentId: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return false
-  const { data: linked } = await db.from('students').select('id')
+  const { data: linked } = await db.from('students').select('id, status')
     .eq('id', studentId).eq('user_id', user.id).maybeSingle()
-  return !!linked
+  if (!linked || linked.status === 'inactive') return false
+  return true
+}
+
+// classId 소속 검증: 해당 학생이 실제로 그 반에 있는지 확인
+async function verifyClassAccess(db: ReturnType<typeof admin>, studentId: string, classId: string) {
+  const { data } = await db.from('class_students')
+    .select('class_id').eq('class_id', classId).eq('student_id', studentId).maybeSingle()
+  return !!data
 }
 
 // GET ?action=tests&classId=xxx              → 시험 목록 + 통계
@@ -67,6 +76,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr1 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt1 = _sr1?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
@@ -190,6 +200,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr2 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt2 = _sr2?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
@@ -232,6 +243,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyParent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr3 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt3 = _sr3?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
@@ -263,6 +275,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr4 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt4 = _sr4?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
@@ -305,6 +318,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const sixMonthsAgoStr = monthsAgoKST(6)
 
@@ -353,6 +367,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr5 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt5 = _sr5?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
@@ -506,6 +521,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await verifyStudent(db, token, studentId)
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr6 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt6 = _sr6?.enrolled_at?.slice(0, 10) ?? '2000-01-01'

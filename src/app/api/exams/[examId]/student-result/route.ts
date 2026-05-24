@@ -35,8 +35,10 @@ export async function GET(
   if (!profile) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   if (profile.role === 'student') {
-    const { data: student } = await db.from('students').select('id').eq('user_id', user.id).single()
-    if (!student || student.id !== studentId)
+    // 본인 소유 + 재원 중인 학생인지 확인 (multi-academy 지원: maybeSingle + id 직접 비교)
+    const { data: student } = await db.from('students').select('id, status')
+      .eq('user_id', user.id).eq('id', studentId).maybeSingle()
+    if (!student || student.status === 'inactive')
       return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
   } else if (profile.role === 'parent') {
     // 방법 1: parent_students 테이블 (계정 생성 시 채워지는 정상 경로)

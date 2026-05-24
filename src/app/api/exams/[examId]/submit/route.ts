@@ -12,8 +12,9 @@ function admin() {
 async function verifyStudent(db: ReturnType<typeof admin>, token: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return null
-  const { data: student } = await db.from('students').select('id').eq('user_id', user.id).maybeSingle()
-  return student?.id ?? null
+  const { data: student } = await db.from('students').select('id, status').eq('user_id', user.id).maybeSingle()
+  if (!student || student.status === 'inactive') return null
+  return student.id
 }
 
 function gradeAnswer(studentAns: string, correctList: string[]): boolean {
