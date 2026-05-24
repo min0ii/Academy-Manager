@@ -604,7 +604,7 @@ function ManualScoreView({
 function AutoMonitorView({
   examDetail, submissions, maxScore, submittedCount, avgScore,
   onRefresh, refreshing, lastRefresh, editAdjusted, setEditAdjusted,
-  onSaveAdj, savingAdj, adjSaved, setAdjSaved, status,
+  onSaveAdj, savingAdj, adjSaved, setAdjSaved, status, onToggleOverride,
 }: {
   examDetail: ExamDetail | null
   submissions: StudentSubmission[]
@@ -621,6 +621,7 @@ function AutoMonitorView({
   adjSaved: boolean
   setAdjSaved: React.Dispatch<React.SetStateAction<boolean>>
   status: 'scheduled' | 'active' | 'closed'
+  onToggleOverride?: (submissionId: string, questionId: string, override: boolean) => void
 }) {
   const totalStudents = submissions.length
   const avgP = pct(avgScore, maxScore)
@@ -800,10 +801,11 @@ function AutoMonitorView({
                       {examDetail.questions.map((q, qi) => {
                         const ans = s.answers.find(a => a.question_id === q.id)
                         const ok = ans?.is_correct
+                        const overridden = ans?.manually_overridden
                         return (
                           <div key={q.id}
-                            title={`${q.question_label ?? (qi + 1)}번: ${ans?.student_answer ?? '미답'}`}
-                            className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-default ${ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
+                            title={`${q.question_label ?? (qi + 1)}번: ${ans?.student_answer ?? '미답'}${overridden ? ' (정답처리됨)' : ''}`}
+                            className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-default ${overridden ? 'bg-violet-100 text-violet-600' : ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
                             {q.question_label ?? (qi + 1)}
                           </div>
                         )
@@ -827,7 +829,10 @@ function AutoMonitorView({
                             <tr>
                               <th className="px-2 py-1.5 text-left font-semibold text-slate-400 bg-slate-50 rounded-l-lg w-10">문항</th>
                               <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">제출</th>
-                              <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50 rounded-r-lg">정답</th>
+                              <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50">정답</th>
+                              {onToggleOverride && s.submissionId && (
+                                <th className="px-2 py-1.5 text-center font-semibold text-slate-400 bg-slate-50 rounded-r-lg">처리</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody>
@@ -835,15 +840,34 @@ function AutoMonitorView({
                               const ans = s.answers.find(a => a.question_id === q.id)
                               const correctAns = examDetail.answers.find(a => a.question_id === q.id)
                               const ok = ans?.is_correct
+                              const overridden = ans?.manually_overridden
                               return (
-                                <tr key={q.id} className="border-t border-slate-100">
+                                <tr key={q.id} className={`border-t border-slate-100 ${overridden ? 'bg-violet-50/50' : ''}`}>
                                   <td className="px-2 py-1.5 font-medium text-slate-500 whitespace-nowrap">{q.question_label ? `${q.question_label}번` : `${qi + 1}번`}</td>
-                                  <td className={`px-2 py-1.5 text-center font-bold ${ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                  <td className={`px-2 py-1.5 text-center font-bold ${overridden ? 'text-violet-600' : ok === false ? 'text-red-500' : ok === true ? 'text-emerald-600' : 'text-slate-300'}`}>
                                     {ans?.student_answer ?? '—'}
+                                    {overridden && <span className="ml-1 text-violet-400 font-normal">(처리)</span>}
                                   </td>
                                   <td className="px-2 py-1.5 text-center font-bold text-slate-700">
                                     {correctAns?.answer_text ?? '—'}
                                   </td>
+                                  {onToggleOverride && s.submissionId && (
+                                    <td className="px-2 py-1.5 text-center">
+                                      {ok === false && !overridden ? (
+                                        <button
+                                          onClick={() => onToggleOverride(s.submissionId!, q.id, true)}
+                                          className="px-2 py-0.5 rounded bg-violet-100 text-violet-600 font-semibold hover:bg-violet-200 transition-colors whitespace-nowrap">
+                                          정답처리
+                                        </button>
+                                      ) : overridden ? (
+                                        <button
+                                          onClick={() => onToggleOverride(s.submissionId!, q.id, false)}
+                                          className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold hover:bg-slate-200 transition-colors whitespace-nowrap">
+                                          되돌리기
+                                        </button>
+                                      ) : null}
+                                    </td>
+                                  )}
                                 </tr>
                               )
                             })}
@@ -1497,6 +1521,21 @@ function GradesContent() {
     }
   }
 
+  async function overrideAnswer(submissionId: string, questionId: string, override: boolean) {
+    if (!selectedExam) return
+    const token = await getToken()
+    if (!token) return
+    const payload = override
+      ? { overrideAnswer: { submissionId, questionId } }
+      : { undoOverride: { submissionId, questionId } }
+    await fetch(`/api/exams/${selectedExam.id}/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    })
+    await refreshSubmissions()
+  }
+
   async function saveAdjustments() {
     if (!selectedExam) return
     setSavingAdj(true)
@@ -2143,6 +2182,7 @@ function GradesContent() {
           adjSaved={adjSaved}
           setAdjSaved={setAdjSaved}
           status={currentStatus}
+          onToggleOverride={overrideAnswer}
         />
       )}
 

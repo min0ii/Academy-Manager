@@ -172,5 +172,70 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     return NextResponse.json({ success: true })
   }
 
+  // 자동 시험: 문항별 정답처리
+  if (body.overrideAnswer) {
+    const { submissionId, questionId } = body.overrideAnswer as { submissionId: string; questionId: string }
+
+    // 해당 문항 배점 조회
+    const { data: question } = await db.from('exam_questions').select('score').eq('id', questionId).single()
+    if (!question) return NextResponse.json({ error: '문항을 찾을 수 없어요.' }, { status: 404 })
+
+    // 정답처리: is_correct=true, score_earned=배점, manually_overridden=true
+    await db.from('exam_student_answers')
+      .update({ is_correct: true, score_earned: question.score, manually_overridden: true })
+      .eq('submission_id', submissionId)
+      .eq('question_id', questionId)
+
+    // auto_score 재계산 (adjusted_score는 건드리지 않음)
+    const { data: allAnswers } = await db.from('exam_student_answers')
+      .select('score_earned')
+      .eq('submission_id', submissionId)
+    const newAutoScore = (allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0)
+    await db.from('exam_submissions').update({ auto_score: newAutoScore }).eq('id', submissionId)
+
+    return NextResponse.json({ success: true })
+  }
+
+  // 자동 시험: 정답처리 되돌리기
+  if (body.undoOverride) {
+    const { submissionId, questionId } = body.undoOverride as { submissionId: string; questionId: string }
+
+    // 학생 답안 조회
+    const { data: studentAns } = await db.from('exam_student_answers')
+      .select('student_answer')
+      .eq('submission_id', submissionId)
+      .eq('question_id', questionId)
+      .single()
+
+    // 정답 목록 조회
+    const { data: correctAnswers } = await db.from('exam_correct_answers')
+      .select('answer_text')
+      .eq('question_id', questionId)
+
+    // 문항 배점 조회
+    const { data: question } = await db.from('exam_questions').select('score').eq('id', questionId).single()
+    if (!question) return NextResponse.json({ error: '문항을 찾을 수 없어요.' }, { status: 404 })
+
+    const correctTexts = (correctAnswers ?? []).map(a => a.answer_text.trim().toLowerCase())
+    const given = (studentAns?.student_answer ?? '').trim().toLowerCase()
+    const isCorrect = correctTexts.length > 0 && correctTexts.includes(given)
+    const scoreEarned = isCorrect ? question.score : 0
+
+    // 원래 채점으로 복원
+    await db.from('exam_student_answers')
+      .update({ is_correct: isCorrect, score_earned: scoreEarned, manually_overridden: false })
+      .eq('submission_id', submissionId)
+      .eq('question_id', questionId)
+
+    // auto_score 재계산
+    const { data: allAnswers } = await db.from('exam_student_answers')
+      .select('score_earned')
+      .eq('submission_id', submissionId)
+    const newAutoScore = (allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0)
+    await db.from('exam_submissions').update({ auto_score: newAutoScore }).eq('id', submissionId)
+
+    return NextResponse.json({ success: true })
+  }
+
   return NextResponse.json({ error: '잘못된 요청이에요.' }, { status: 400 })
 }
