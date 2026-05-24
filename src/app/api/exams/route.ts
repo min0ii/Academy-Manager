@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { data: exams, error } = await db
     .from('exams')
-    .select('id, title, exam_type, start_at, end_at, status, answer_reveal, created_at, no_deadline, category')
+    .select('id, title, exam_type, exam_format, parent_exam_id, start_at, end_at, status, answer_reveal, created_at, no_deadline, category')
     .eq('class_id', classId)
     .order('created_at', { ascending: false })
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (!teacherId) return NextResponse.json({ error: '선생님 계정만 접근할 수 있어요.' }, { status: 403 })
 
   const body = await req.json()
-  const { classId, title, examType, startAt, endAt, answerReveal, questions, maxScore, noDeadline, category } = body
+  const { classId, title, examType, startAt, endAt, answerReveal, questions, maxScore, noDeadline, category, examFormat, parentExamId } = body
 
   if (!classId || !title?.trim())
     return NextResponse.json({ error: '반과 시험 제목은 필수예요.' }, { status: 400 })
@@ -76,7 +76,9 @@ export async function POST(req: NextRequest) {
     status: examType === 'manual' ? 'closed' : 'scheduled',
     answer_reveal: answerReveal ?? 'after_close',
     created_by: teacherId,
-    max_score: (examType === 'manual' && maxScore != null) ? Number(maxScore) : null,
+    exam_format: examType === 'manual' ? (examFormat ?? 'score') : 'score',
+    parent_exam_id: examType === 'manual' ? (parentExamId ?? null) : null,
+    max_score: (examType === 'manual' && examFormat !== 'pass_fail' && maxScore != null) ? Number(maxScore) : null,
     no_deadline: examType === 'auto' ? (noDeadline ?? false) : false,
     category: category?.trim() || null,
   }).select('id').single()

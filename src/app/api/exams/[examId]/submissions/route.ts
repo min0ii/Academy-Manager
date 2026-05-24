@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   const { examId } = await params
 
   // 시험 정보
-  const { data: exam } = await db.from('exams').select('class_id, exam_type, status, max_score').eq('id', examId).single()
+  const { data: exam } = await db.from('exams').select('class_id, exam_type, exam_format, status, max_score').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
 
   // 반 학생 전체
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
     }
   })
 
-  return NextResponse.json({ maxScore: (exam as any).max_score ?? null, students: result })
+  return NextResponse.json({ maxScore: (exam as any).max_score ?? null, examFormat: (exam as any).exam_format ?? 'score', students: result })
 }
 
 // POST /api/exams/[examId]/submissions

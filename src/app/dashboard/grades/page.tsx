@@ -20,6 +20,8 @@ type ExamItem = {
   id: string
   title: string
   exam_type: 'manual' | 'auto'
+  exam_format?: 'score' | 'pass_fail'
+  parent_exam_id?: string | null
   start_at: string | null
   end_at: string | null
   status: 'scheduled' | 'active' | 'closed'
@@ -384,7 +386,7 @@ function WizardQuestionCard({
 // ── ManualScoreView ─────────────────────────────────────────────────────────
 
 function ManualScoreView({
-  entries, setEntries, maxScore, setMaxScore, onSave, saving, saved, setSaved,
+  entries, setEntries, maxScore, setMaxScore, onSave, saving, saved, setSaved, examFormat,
 }: {
   entries: ManualEntry[]
   setEntries: React.Dispatch<React.SetStateAction<ManualEntry[]>>
@@ -394,8 +396,11 @@ function ManualScoreView({
   saving: boolean
   saved: boolean
   setSaved: React.Dispatch<React.SetStateAction<boolean>>
+  examFormat: 'score' | 'pass_fail'
 }) {
   const [filter, setFilter] = useState<'all' | 'submitted' | 'not_submitted'>('all')
+
+  const isPassFail = examFormat === 'pass_fail'
 
   const maxNum = parseFloat(maxScore) || null
   const submittedEntries = entries.filter(e => e.status === 'submitted')
@@ -403,6 +408,10 @@ function ManualScoreView({
   const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null
   const hi  = scores.length > 0 ? Math.max(...scores) : null
   const lo  = scores.length > 0 ? Math.min(...scores) : null
+
+  // 통과/불통 집계
+  const passCount = entries.filter(e => e.status === 'submitted' && e.score === '1').length
+  const failCount = entries.filter(e => e.status === 'submitted' && e.score === '0').length
 
   const counts = {
     submitted:     entries.filter(e => e.status === 'submitted').length,
@@ -426,46 +435,69 @@ function ManualScoreView({
     setSaved(false)
     setEntries(prev => prev.map(e => e.studentId === studentId ? { ...e, score } : e))
   }
+  function togglePassFail(studentId: string, val: '1' | '0') {
+    setSaved(false)
+    setEntries(prev => prev.map(e =>
+      e.studentId === studentId ? { ...e, score: e.score === val ? '' : val } : e
+    ))
+  }
 
   const inp = 'w-14 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
   return (
     <div className="space-y-5">
       {/* 통계 카드 */}
-      {scores.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          {[{ label: '평균', val: avg }, { label: '최고', val: hi }, { label: '최저', val: lo }].map(({ label, val }) => {
-            const p = (val !== null && maxNum) ? pct(val, maxNum) : null
-            return (
-              <div key={label} className={`rounded-2xl border border-slate-200 p-4 text-center ${label === '평균' ? scoreBg(p) : 'bg-white'}`}>
-                <p className="text-xs text-slate-400 mb-1">{label}</p>
-                <p className={`text-xl font-bold ${label === '평균' ? scoreColor(p) : 'text-slate-800'}`}>
-                  {val !== null ? fmt(val) : '-'}<span className="text-sm font-normal text-slate-400">점</span>
-                </p>
-              </div>
-            )
-          })}
-        </div>
+      {isPassFail ? (
+        (passCount > 0 || failCount > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-slate-200 p-4 text-center bg-emerald-50">
+              <p className="text-xs text-slate-400 mb-1">통과</p>
+              <p className="text-xl font-bold text-emerald-600">{passCount}<span className="text-sm font-normal text-slate-400">명</span></p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 p-4 text-center bg-red-50">
+              <p className="text-xs text-slate-400 mb-1">불통</p>
+              <p className="text-xl font-bold text-red-500">{failCount}<span className="text-sm font-normal text-slate-400">명</span></p>
+            </div>
+          </div>
+        )
+      ) : (
+        scores.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            {[{ label: '평균', val: avg }, { label: '최고', val: hi }, { label: '최저', val: lo }].map(({ label, val }) => {
+              const p = (val !== null && maxNum) ? pct(val, maxNum) : null
+              return (
+                <div key={label} className={`rounded-2xl border border-slate-200 p-4 text-center ${label === '평균' ? scoreBg(p) : 'bg-white'}`}>
+                  <p className="text-xs text-slate-400 mb-1">{label}</p>
+                  <p className={`text-xl font-bold ${label === '평균' ? scoreColor(p) : 'text-slate-800'}`}>
+                    {val !== null ? fmt(val) : '-'}<span className="text-sm font-normal text-slate-400">점</span>
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        )
       )}
 
-      {/* 만점 설정 */}
-      <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between">
-        <span className="text-sm font-semibold text-slate-700">만점 설정</span>
-        <div className="flex items-center gap-2">
-          <input type="number" value={maxScore}
-            onChange={e => { setSaved(false); setMaxScore(e.target.value) }}
-            placeholder="100" min="0" step="any" className={inp} />
-          <span className="text-sm text-slate-400">점</span>
+      {/* 만점 설정 — 점수형만 */}
+      {!isPassFail && (
+        <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-semibold text-slate-700">만점 설정</span>
+          <div className="flex items-center gap-2">
+            <input type="number" value={maxScore}
+              onChange={e => { setSaved(false); setMaxScore(e.target.value) }}
+              placeholder="100" min="0" step="any" className={inp} />
+            <span className="text-sm text-slate-400">점</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 제출 현황 요약 */}
       <div className="flex items-center gap-3 flex-wrap text-sm bg-white rounded-2xl border border-slate-200 px-4 py-3">
         <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-          <CheckCircle2 size={14} /> 제출 {counts.submitted}명
+          <CheckCircle2 size={14} /> {isPassFail ? '기록' : '제출'} {counts.submitted}명
         </span>
         <span className="text-slate-300">|</span>
-        <span className="text-slate-500">미제출 {counts.not_submitted}명</span>
+        <span className="text-slate-500">미기록 {counts.not_submitted}명</span>
         <span className="text-slate-300">|</span>
         <span className="text-amber-500">미실시 {counts.absent}명</span>
       </div>
@@ -522,25 +554,38 @@ function ManualScoreView({
                     ))}
                   </div>
 
-                  {/* 점수 입력 — 제출일 때만 */}
-                  <div className="flex items-center gap-1 flex-shrink-0" style={{ minWidth: '5rem' }}>
+                  {/* 점수/통과불통 입력 — 제출일 때만 */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     {entry.status === 'submitted' ? (
-                      <>
-                        <input type="number" value={entry.score}
-                          onChange={e => {
-                            let val = e.target.value
-                            if (maxNum !== null && val !== '' && Number(val) > maxNum) val = String(maxNum)
-                            if (val !== '' && Number(val) < 0) val = '0'
-                            updateScore(entry.studentId, val)
-                          }}
-                          placeholder="-" step="any" min="0" max={maxNum ?? undefined}
-                          className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${!entry.score ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
-                        />
-                        <span className="text-xs text-slate-400">점</span>
-                      </>
+                      isPassFail ? (
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs flex-shrink-0">
+                          <button onClick={() => togglePassFail(entry.studentId, '1')}
+                            className={`px-3 py-1.5 font-semibold transition-colors ${entry.score === '1' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
+                            통과
+                          </button>
+                          <button onClick={() => togglePassFail(entry.studentId, '0')}
+                            className={`px-3 py-1.5 font-semibold transition-colors border-l border-slate-200 ${entry.score === '0' ? 'bg-red-500 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
+                            불통
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <input type="number" value={entry.score}
+                            onChange={e => {
+                              let val = e.target.value
+                              if (maxNum !== null && val !== '' && Number(val) > maxNum) val = String(maxNum)
+                              if (val !== '' && Number(val) < 0) val = '0'
+                              updateScore(entry.studentId, val)
+                            }}
+                            placeholder="-" step="any" min="0" max={maxNum ?? undefined}
+                            className={`w-16 px-2 py-1.5 rounded-lg border text-sm text-slate-800 text-center focus:outline-none focus:ring-2 focus:border-transparent ${!entry.score ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-slate-200 focus:ring-blue-500'}`}
+                          />
+                          <span className="text-xs text-slate-400">점</span>
+                        </>
+                      )
                     ) : (
                       <span className={`text-xs px-2 py-1 rounded-lg ${entry.status === 'absent' ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-400'}`}>
-                        {entry.status === 'absent' ? '미실시' : '미제출'}
+                        {entry.status === 'absent' ? '미실시' : '미기록'}
                       </span>
                     )}
                   </div>
@@ -853,6 +898,7 @@ function GradesContent() {
   const [manualDate, setManualDate] = useState(todayKST())
   const [manualFormMaxScore, setManualFormMaxScore] = useState('100')
   const [manualCategory, setManualCategory] = useState('')
+  const [manualFormat, setManualFormat] = useState<'score' | 'pass_fail'>('score')
   const [autoCategory, setAutoCategory] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
@@ -1004,13 +1050,13 @@ function GradesContent() {
       const students: StudentSubmission[] = subJson.students ?? []
       setSubmissions(students)
       // 3-상태 초기화
-      setManualEntries(students.map(s => ({
-        studentId: s.studentId,
-        studentName: s.studentName,
-        // 저장된 기록 없으면(=첫 진입) 기본값 '제출', 있으면 저장된 상태 그대로
-        status: s.submissionId === null ? 'submitted' : s.isAbsent ? 'absent' : s.isSubmitted ? 'submitted' : 'not_submitted',
-        score: s.finalScore !== null ? String(s.finalScore) : '',
-      })))
+      const isPassFail = subJson.examFormat === 'pass_fail'
+      setManualEntries(students.map(s => {
+        const status = s.submissionId === null ? (isPassFail ? 'not_submitted' : 'submitted') : s.isAbsent ? 'absent' : s.isSubmitted ? 'submitted' : 'not_submitted'
+        // pass/fail: finalScore 1='1', 0='0', null=''
+        const score = s.finalScore !== null ? String(s.finalScore) : ''
+        return { studentId: s.studentId, studentName: s.studentName, status, score }
+      }))
       setManualMaxScore(subJson.maxScore !== null && subJson.maxScore !== undefined ? String(subJson.maxScore) : '')
     }
     setLoadingDetail(false)
@@ -1041,16 +1087,17 @@ function GradesContent() {
         classId: selectedClass.id,
         title: manualTitle.trim(),
         examType: 'manual',
+        examFormat: manualFormat,
         startAt: manualDate ? new Date(manualDate + 'T00:00:00').toISOString() : null,
         endAt: null,
         answerReveal: 'immediate',
         questions: [],
-        maxScore: manualFormMaxScore !== '' ? Number(manualFormMaxScore) : null,
+        maxScore: manualFormat === 'pass_fail' ? null : (manualFormMaxScore !== '' ? Number(manualFormMaxScore) : null),
         category: manualCategory.trim() || null,
       }),
     })
     if (res.ok) {
-      setManualTitle(''); setManualDate(todayKST()); setManualFormMaxScore('100'); setManualCategory('')
+      setManualTitle(''); setManualDate(todayKST()); setManualFormMaxScore('100'); setManualCategory(''); setManualFormat('score')
       setAddModal('none')
       await loadExams(selectedClass.id)
     }
@@ -1145,6 +1192,36 @@ function GradesContent() {
       void showAlert('시험 관리 실패: ' + (err.error ?? `HTTP ${res.status}`))
     }
     setAddingAuto(false)
+  }
+
+  async function addRetest() {
+    if (!selectedExam || !selectedClass) return
+    const token = await getToken()
+    if (!token) return
+    const { data: existing } = await supabase.from('exams').select('id').eq('parent_exam_id', selectedExam.id)
+    const retestNum = (existing?.length ?? 0) + 1
+    const retestTitle = `${selectedExam.title} 재시험${retestNum > 1 ? ` ${retestNum}` : ''}`
+    const res = await fetch('/api/exams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        classId: selectedClass.id,
+        title: retestTitle,
+        examType: 'manual',
+        examFormat: 'pass_fail',
+        parentExamId: selectedExam.id,
+        startAt: new Date().toISOString(),
+        endAt: null,
+        answerReveal: 'immediate',
+        questions: [],
+        maxScore: null,
+        category: selectedExam.category ?? null,
+      }),
+    })
+    if (res.ok) {
+      await loadExams(selectedClass.id)
+      void showAlert(`재시험이 추가됐어요!\n시험 목록에서 "${retestTitle}"을 눌러 결과를 입력하세요.`)
+    }
   }
 
   async function deleteExam(examId: string, e: React.MouseEvent) {
@@ -1534,7 +1611,10 @@ function GradesContent() {
                           '자동채점',
                           exam.no_deadline ? '자유 응시 · 마감 없음' : (exam.end_at ? `${formatDT(exam.end_at)} 까지` : ''),
                         ].filter(Boolean).join(' · ')
-                      : ['수동입력', exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'].join(' · ')}
+                      : [
+                          exam.exam_format === 'pass_fail' ? '통과·불통형' : '점수 입력형',
+                          exam.parent_exam_id ? '↳ 재시험' : (exam.start_at ? formatDT(exam.start_at).slice(0, 10).replace(/\//g, '. ') : '날짜 미설정'),
+                        ].join(' · ')}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -1662,14 +1742,30 @@ function GradesContent() {
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">만점 *</label>
-                <div className="flex items-center gap-2">
-                  <input type="number" value={manualFormMaxScore} onChange={e => setManualFormMaxScore(e.target.value)}
-                    placeholder="100" min="0" step="any" required
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                  <span className="text-sm text-slate-400 flex-shrink-0">점</span>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">결과 형식 *</label>
+                <div className="flex rounded-xl border border-slate-200 overflow-hidden">
+                  {([['score', '점수 입력형'], ['pass_fail', '통과·불통형']] as const).map(([val, label]) => (
+                    <button key={val} type="button" onClick={() => setManualFormat(val)}
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${manualFormat === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {manualFormat === 'pass_fail' ? '학생별 통과 또는 불통 여부를 기록해요.' : '학생별 점수를 입력하는 방식이에요.'}
+                </p>
               </div>
+              {manualFormat === 'score' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">만점 *</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={manualFormMaxScore} onChange={e => setManualFormMaxScore(e.target.value)}
+                      placeholder="100" min="0" step="any" required
+                      className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                    <span className="text-sm text-slate-400 flex-shrink-0">점</span>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">날짜 (선택)</label>
                 <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)}
@@ -1947,6 +2043,13 @@ function GradesContent() {
         )}
       </div>
 
+      {selectedExam?.exam_type === 'manual' && selectedExam.exam_format === 'pass_fail' && (
+        <button onClick={addRetest}
+          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0 self-start">
+          + 재시험 추가
+        </button>
+      )}
+
       {loadingDetail ? (
         <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
       ) : selectedExam?.exam_type === 'manual' ? (
@@ -1959,6 +2062,7 @@ function GradesContent() {
           saving={savingManual}
           saved={manualSaved}
           setSaved={setManualSaved}
+          examFormat={selectedExam.exam_format ?? 'score'}
         />
       ) : (
         <AutoMonitorView

@@ -116,9 +116,9 @@ export async function GET(req: NextRequest) {
 
     // 신시스템 (마감된 시험 + 마감없는 시험 중 제출 완료)
     const [{ data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
-      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, exam_format, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
-      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, exam_format, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
     ])
     const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? [])].filter((e: any) => {
@@ -146,8 +146,10 @@ export async function GET(req: NextRequest) {
         // 마감없는 시험은 본인이 제출한 경우에만 차트에 포함
         if ((exam as any).no_deadline && (!mySub?.is_submitted || mySub?.is_forfeited)) continue
         const myScore = mySub?.is_submitted && !mySub?.is_forfeited ? (mySub.adjusted_score ?? mySub.auto_score) : null
-        const maxScore = (exam as any).max_score ?? maxScoreByExam[exam.id] ?? null
-        const arr = allScoresByExam[exam.id] ?? []
+        const examFormat = (exam as any).exam_format ?? 'score'
+        // 통과/불통형은 숫자 통계 제외
+        const maxScore = examFormat === 'pass_fail' ? null : ((exam as any).max_score ?? maxScoreByExam[exam.id] ?? null)
+        const arr = examFormat === 'pass_fail' ? [] : (allScoresByExam[exam.id] ?? [])
         const avgRaw = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
         const dateStr = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
         records.push({
@@ -158,6 +160,7 @@ export async function GET(req: NextRequest) {
           classHigh: arr.length > 0 ? Math.max(...arr) : null,
           classLow: arr.length > 0 ? Math.min(...arr) : null,
           absent: false,
+          examFormat,
           category: (exam as any).category ?? null,
         })
       }
@@ -376,9 +379,9 @@ export async function GET(req: NextRequest) {
     // exams: 마감된 시험 OR 마감없는 시험(active 상태, 학생이 제출했을 경우 표시)
     const [{ data: tests }, { data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
       db.from('tests').select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt5).order('date', { ascending: true }),
-      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline, category')
+      db.from('exams').select('id, title, status, exam_type, exam_format, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
-      db.from('exams').select('id, title, status, exam_type, answer_reveal, start_at, created_at, max_score, no_deadline, category')
+      db.from('exams').select('id, title, status, exam_type, exam_format, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('no_deadline', true).eq('status', 'active').order('start_at', { ascending: true }),
     ])
     // 중복 제거 + 등록일 이전 시험 제외
@@ -472,13 +475,15 @@ export async function GET(req: NextRequest) {
         if (exam.no_deadline && !mySub?.is_submitted) continue
         const myScore = (mySub?.is_submitted && !isForfeited) ? (mySub.adjusted_score ?? mySub.auto_score) : null
         const isAdjusted = !!(mySub?.is_submitted && !isForfeited && mySub.adjusted_score !== null && mySub.adjusted_score !== mySub.auto_score)
-        const maxScore = exam.max_score ?? maxScoreByExam[exam.id] ?? null
-        const arr     = allScoresByExam[exam.id] ?? []
+        const examFormat = exam.exam_format ?? 'score'
+        // 통과/불통형은 숫자 통계 제외
+        const maxScore = examFormat === 'pass_fail' ? null : (exam.max_score ?? maxScoreByExam[exam.id] ?? null)
+        const arr     = examFormat === 'pass_fail' ? [] : (allScoresByExam[exam.id] ?? [])
         const avgRaw  = arr.length > 0 ? arr.reduce((a: number, b: number) => a + b, 0) / arr.length : null
         const dateStr = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
 
-        // 등수 계산 (제출자 중 본인보다 높은 점수 수 + 1)
-        const rank = myScore !== null && arr.length > 0
+        // 등수 계산 (점수형만)
+        const rank = examFormat !== 'pass_fail' && myScore !== null && arr.length > 0
           ? arr.filter((s: number) => s > myScore).length + 1
           : null
         const totalSubmitted = arr.length
@@ -499,6 +504,7 @@ export async function GET(req: NextRequest) {
           noDeadline:     exam.no_deadline ?? false,
           examId:         exam.id,
           examType:       exam.exam_type,
+          examFormat,
           answerReveal:   exam.answer_reveal,
           category:       exam.category ?? null,
           rank,

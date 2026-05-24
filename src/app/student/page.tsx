@@ -34,7 +34,7 @@ type TestRecord = {
   avgScore: number | null; avgPct: number | null; classHigh: number | null; classLow: number | null; absent: boolean
   isForfeited?: boolean; noDeadline?: boolean; isAdjusted?: boolean; category?: string | null
   rank?: number | null; totalSubmitted?: number | null
-  examId?: string; examType?: string; answerReveal?: string
+  examId?: string; examType?: string; examFormat?: string; answerReveal?: string
 }
 
 type StudentContext = {
@@ -884,6 +884,14 @@ export default function StudentPage() {
                                 <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded-lg flex-shrink-0 font-semibold">시험 포기</span>
                               ) : t.absent ? (
                                 <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg flex-shrink-0">결시</span>
+                              ) : t.examFormat === 'pass_fail' ? (
+                                t.myScore === 1 ? (
+                                  <span className="text-sm font-black text-emerald-600 flex-shrink-0">통과 ✅</span>
+                                ) : t.myScore === 0 ? (
+                                  <span className="text-sm font-black text-red-500 flex-shrink-0">불통 ❌</span>
+                                ) : (
+                                  <span className="text-xs text-slate-400 flex-shrink-0">미기록</span>
+                                )
                               ) : t.myScore !== null ? (
                                 <div className="text-right flex-shrink-0">
                                   <p className={`text-base font-black ${t.myPct===null?'text-slate-700':t.myPct>=80?'text-emerald-600':t.myPct>=60?'text-blue-600':'text-red-600'}`}>{t.myScore}점</p>
@@ -892,7 +900,7 @@ export default function StudentPage() {
                                 </div>
                               ) : <span className="text-xs text-slate-400 flex-shrink-0">미입력</span>}
                             </div>
-                            {(t.avgScore !== null || t.classHigh !== null || (t.rank != null && t.myScore !== null)) && (
+                            {t.examFormat !== 'pass_fail' && (t.avgScore !== null || t.classHigh !== null || (t.rank != null && t.myScore !== null)) && (
                               <div className="flex gap-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 flex-wrap">
                                 {t.avgScore !== null && <>
                                   <span>반평균 <strong className="text-slate-700">{t.avgScore}점</strong></span>
