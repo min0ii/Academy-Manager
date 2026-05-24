@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Plus, Search, X, Pencil, Trash2, Upload, CheckSquare, Square, ChevronRight,
+  Plus, Search, X, Pencil, Trash2, Upload, ChevronRight,
   Users, KeyRound, CheckCircle2, XCircle, Loader2, RefreshCw, UserPlus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -81,8 +81,7 @@ export default function StudentsPage() {
   const [classFilter, setClassFilter] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive'>('active')
   const [importError, setImportError] = useState('')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [selectMode, setSelectMode] = useState(false)
+  const [hardDeleting, setHardDeleting] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   type ParsedStudent = { academy_id: string; name: string; school_name: string | null; grade: string; phone: string; parent_phone: string | null }
@@ -380,35 +379,16 @@ export default function StudentsPage() {
     setShowForm(false)
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!await showConfirm(`${name} 학생을 삭제할까요?`, { destructive: true })) return
+  async function handleHardDelete(id: string, name: string) {
+    if (!await showConfirm(
+      `${name} 학생을 완전히 삭제할까요?\n\n출결·성적·과제 등 모든 데이터가 영구 삭제돼요. 되돌릴 수 없어요.`,
+      { destructive: true, confirmText: '완전 삭제' }
+    )) return
+    setHardDeleting(id)
     await supabase.from('students').delete().eq('id', id)
     await loadData(academyId!)
+    setHardDeleting(null)
   }
-
-  function toggleSelect(id: string) {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === filtered.length) setSelectedIds(new Set())
-    else setSelectedIds(new Set(filtered.map(s => s.id)))
-  }
-
-  async function handleBulkDelete() {
-    if (selectedIds.size === 0) return
-    if (!await showConfirm(`선택한 ${selectedIds.size}명의 학생을 삭제할까요?\n출결·성적 등 모든 데이터가 함께 삭제돼요.`, { destructive: true })) return
-    await supabase.from('students').delete().in('id', [...selectedIds])
-    setSelectedIds(new Set())
-    setSelectMode(false)
-    await loadData(academyId!)
-  }
-
-  function exitSelectMode() { setSelectMode(false); setSelectedIds(new Set()) }
 
   function parseCSV(text: string): ParsedStudent[] {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
@@ -528,8 +508,6 @@ export default function StudentsPage() {
     )
   })
 
-  const allSelected = filtered.length > 0 && selectedIds.size === filtered.length
-
   // 계정 관리 탭 — 재원 학생만
   const activeStudents = students.filter(s => (s.status ?? 'active') === 'active')
   const filteredAccountStudents = activeStudents.filter(s => {
@@ -591,52 +569,22 @@ export default function StudentsPage() {
       {pageTab === 'list' && (
         <>
           {/* 액션 버튼 — 오른쪽 정렬 */}
-          <div className="flex justify-end">
-            {!selectMode ? (
-              <div className="flex gap-2 flex-wrap justify-end">
-                <button
-                  onClick={() => setSelectMode(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
-                >
-                  <CheckSquare size={15} /> 선택 삭제
-                </button>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={importing}
-                  className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
-                >
-                  <Upload size={15} />
-                  {importing ? '가져오는 중...' : 'CSV 가져오기'}
-                </button>
-                <input ref={fileInputRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
-                <button
-                  onClick={openAdd}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm"
-                >
-                  <Plus size={16} /> 학생 추가
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2 flex-wrap justify-end">
-                <button onClick={toggleSelectAll}
-                  className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
-                >
-                  {allSelected ? <CheckSquare size={15} className="text-blue-600" /> : <Square size={15} />}
-                  {allSelected ? '전체 해제' : '전체 선택'}
-                </button>
-                <button onClick={exitSelectMode}
-                  className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
-                >
-                  취소
-                </button>
-                <button onClick={handleBulkDelete} disabled={selectedIds.size === 0}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-colors text-sm disabled:opacity-40"
-                >
-                  <Trash2 size={15} />
-                  {selectedIds.size > 0 ? `${selectedIds.size}명 삭제` : '삭제'}
-                </button>
-              </div>
-            )}
+          <div className="flex gap-2 flex-wrap justify-end">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
+            >
+              <Upload size={15} />
+              {importing ? '가져오는 중...' : 'CSV 가져오기'}
+            </button>
+            <input ref={fileInputRef} type="file" accept=".csv" onChange={handleImport} className="hidden" />
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm"
+            >
+              <Plus size={16} /> 학생 추가
+            </button>
           </div>
 
           {importError && <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{importError}</p>}
@@ -710,44 +658,42 @@ export default function StudentsPage() {
           ) : (
             <div className="space-y-2">
               {filtered.map(s => {
-                const isSelected = selectedIds.has(s.id)
                 const classList = s.class_students.map(cs => cs.classes.name).join(', ')
+                const isInactive = s.status === 'inactive'
                 return (
-                  <div key={s.id}
-                    className={`bg-white rounded-2xl border transition-colors ${isSelected ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}>
+                  <div key={s.id} className="bg-white rounded-2xl border border-slate-200 transition-colors">
                     <div
                       className="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50 transition-colors rounded-2xl"
-                      onClick={() => selectMode ? toggleSelect(s.id) : router.push(`/dashboard/students/${s.id}`)}
+                      onClick={() => router.push(`/dashboard/students/${s.id}`)}
                     >
-                      {selectMode ? (
-                        <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'bg-red-500 border-red-500' : 'border-slate-300'}`}>
-                          {isSelected && <X size={14} className="text-white" />}
-                        </div>
-                      ) : (
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${s.status === 'inactive' ? 'bg-slate-100' : 'bg-blue-100'}`}>
-                          <span className={`font-bold text-sm ${s.status === 'inactive' ? 'text-slate-400' : 'text-blue-600'}`}>{s.name[0]}</span>
-                        </div>
-                      )}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isInactive ? 'bg-slate-100' : 'bg-blue-100'}`}>
+                        <span className={`font-bold text-sm ${isInactive ? 'text-slate-400' : 'text-blue-600'}`}>{s.name[0]}</span>
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className={`font-semibold ${s.status === 'inactive' ? 'text-slate-400' : 'text-slate-800'}`}>{s.name}</p>
-                          {s.status === 'inactive' && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full">퇴원</span>}
+                          <p className={`font-semibold ${isInactive ? 'text-slate-400' : 'text-slate-800'}`}>{s.name}</p>
+                          {isInactive && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full">퇴원</span>}
                           {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'inactive' ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{s.grade}학년</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${isInactive ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{s.grade}학년</span>
                         </div>
                         <p className="text-sm text-slate-400">{formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}</p>
                       </div>
-                      {!selectMode && (
-                        <div className="flex items-center gap-1">
-                          <button onClick={e => { e.stopPropagation(); openEdit(s) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
-                            <Pencil size={15} />
+                      <div className="flex items-center gap-1">
+                        <button onClick={e => { e.stopPropagation(); openEdit(s) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
+                          <Pencil size={15} />
+                        </button>
+                        {isInactive && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleHardDelete(s.id, s.name) }}
+                            disabled={hardDeleting === s.id}
+                            className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                            title="완전 삭제"
+                          >
+                            {hardDeleting === s.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                           </button>
-                          <button onClick={e => { e.stopPropagation(); handleDelete(s.id, s.name) }} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                            <Trash2 size={15} />
-                          </button>
-                          <ChevronRight size={16} className="text-slate-300" />
-                        </div>
-                      )}
+                        )}
+                        <ChevronRight size={16} className="text-slate-300" />
+                      </div>
                     </div>
                   </div>
                 )
