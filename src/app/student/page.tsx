@@ -256,6 +256,8 @@ export default function StudentPage() {
     setHwLoaded(false); setHomeworks([])
     setClinicLoaded(false); setClinics([])
     setExpandedHwId(null)
+    setExpandedNotes(new Set())
+    setGradeCategoryFilter(null)
     setShowAllAttend(false); setShowAllGrades(false)
     setShowAllHomework(false); setShowAllClinics(false)
     setLivesEnabled(false); setMyLives(0)
@@ -437,8 +439,8 @@ export default function StudentPage() {
     내점수: Math.round((t.myScore! / t.maxScore!) * 100),
     반평균: t.avgScore !== null && t.maxScore ? Math.round((t.avgScore / t.maxScore) * 100) : null,
   }))
-  const _allTestNames = filteredTests.map(t => t.name)
-  const duplicateTestNames = new Set(_allTestNames.filter((n, i) => _allTestNames.indexOf(n) !== i))
+  const testNames = filteredTests.map(t => t.name)
+  const duplicateTestNames = new Set(testNames.filter((n, i) => testNames.indexOf(n) !== i))
 
   const hwStats = {
     total:   homeworks.length,
@@ -968,6 +970,29 @@ export default function StudentPage() {
                   </div>
                 )}
 
+                {/* 자동 채점 — 공통 요약 그리드 */}
+                {examResultModal.examType === 'auto' && (() => {
+                  const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
+                  const wrong   = examResultModal.myAnswers.filter(a => a.is_correct === false).length
+                  const total   = examResultModal.questions.length
+                  return (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-emerald-600">{correct}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
+                      </div>
+                      <div className="bg-red-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-red-500">{wrong}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-slate-600">{total}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {/* 자동 채점 시험 — 정답 확인 불가 (never) */}
                 {examResultModal.examType === 'auto' && !examResultModal.canReveal && (
                   <>
@@ -975,28 +1000,6 @@ export default function StudentPage() {
                       <span className="text-amber-500 mt-0.5">🔒</span>
                       <p className="text-xs text-amber-700">선생님이 정답 확인을 막아뒀어요. 맞힌 문제 수와 내 답만 확인할 수 있어요.</p>
                     </div>
-                    {/* 요약 */}
-                    {(() => {
-                      const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
-                      const total = examResultModal.questions.length
-                      const wrong = examResultModal.myAnswers.filter(a => a.is_correct === false).length
-                      return (
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-emerald-600">{correct}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
-                          </div>
-                          <div className="bg-red-50 rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-red-500">{wrong}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
-                          </div>
-                          <div className="bg-slate-50 rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-slate-600">{total}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
-                          </div>
-                        </div>
-                      )
-                    })()}
                     {/* 문제별 내 답 (정답 숨김) */}
                     <div className="space-y-2">
                       {examResultModal.questions.map((q) => {
@@ -1031,28 +1034,6 @@ export default function StudentPage() {
                 {/* 자동 채점 시험 — 정답 공개 (after_close 또는 revealed) */}
                 {examResultModal.examType === 'auto' && examResultModal.canReveal && (
                   <>
-                    {/* 요약 */}
-                    {(() => {
-                      const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
-                      const wrong = examResultModal.myAnswers.filter(a => a.is_correct === false).length
-                      const total = examResultModal.questions.length
-                      return (
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-emerald-600">{correct}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
-                          </div>
-                          <div className="bg-red-50 rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-red-500">{wrong}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
-                          </div>
-                          <div className="bg-slate-50 rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-slate-600">{total}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
-                          </div>
-                        </div>
-                      )
-                    })()}
                     {/* 문제별 정오 + 정답 */}
                     <div className="space-y-3">
                       {examResultModal.questions.map((q) => {
