@@ -164,6 +164,12 @@ export default function StudentPage() {
   const [clinicLoaded, setClinicLoaded] = useState(false)
   const [clinicLoading, setClinicLoading] = useState(false)
 
+  // 더보기
+  const [showAllAttend, setShowAllAttend]   = useState(false)
+  const [showAllGrades, setShowAllGrades]   = useState(false)
+  const [showAllHomework, setShowAllHomework] = useState(false)
+  const [showAllClinics, setShowAllClinics] = useState(false)
+
   useEffect(() => { loadBase() }, [])
 
   useEffect(() => {
@@ -250,6 +256,8 @@ export default function StudentPage() {
     setHwLoaded(false); setHomeworks([])
     setClinicLoaded(false); setClinics([])
     setExpandedHwId(null)
+    setShowAllAttend(false); setShowAllGrades(false)
+    setShowAllHomework(false); setShowAllClinics(false)
     setLivesEnabled(false); setMyLives(0)
     setTab('home')
     const token = await getToken()
@@ -731,39 +739,47 @@ export default function StudentPage() {
                   {heldAttend.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">출결 기록이 없어요</div>
                   ) : (
-                    <div className="divide-y divide-slate-50">
-                      {heldAttend.slice(0, 30).map((a, i) => {
-                        const style = ATTEND_STYLE[a.status]
-                        return (
-                          <div key={i} className="flex items-center gap-3 px-5 py-3">
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm text-slate-700">{a.date.replace(/-/g,'. ')}</span>
-                              {a.note && (() => {
-                                const key = `att-${a.date}`
-                                const isLong = a.note.length > 40
-                                const expanded = expandedNotes.has(key)
-                                return (
-                                  <div>
-                                    <p className={`text-xs text-slate-400 mt-0.5 break-words ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{a.note}</p>
-                                    {isLong && (
-                                      <button onClick={() => toggleNote(key)} className="text-xs text-slate-400 underline underline-offset-2 mt-0.5">
-                                        {expanded ? '접기' : '자세히 보기'}
-                                      </button>
-                                    )}
-                                  </div>
-                                )
-                              })()}
+                    <>
+                      <div className="divide-y divide-slate-50">
+                        {(showAllAttend ? heldAttend : heldAttend.slice(0, 5)).map((a, i) => {
+                          const style = ATTEND_STYLE[a.status]
+                          return (
+                            <div key={i} className="flex items-center gap-3 px-5 py-3">
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm text-slate-700">{a.date.replace(/-/g,'. ')}</span>
+                                {a.note && (() => {
+                                  const key = `att-${a.date}`
+                                  const isLong = a.note.length > 40
+                                  const expanded = expandedNotes.has(key)
+                                  return (
+                                    <div>
+                                      <p className={`text-xs text-slate-400 mt-0.5 break-words ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{a.note}</p>
+                                      {isLong && (
+                                        <button onClick={() => toggleNote(key)} className="text-xs text-slate-400 underline underline-offset-2 mt-0.5">
+                                          {expanded ? '접기' : '자세히 보기'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                              <span className={`text-xs font-semibold flex-shrink-0 ${style.color}`}>
+                                {style.label}
+                                {a.status==='late' && a.late_minutes ? ` ${a.late_minutes}분` : ''}
+                                {a.status==='early_leave' && a.early_leave_minutes ? ` ${a.early_leave_minutes}분` : ''}
+                              </span>
                             </div>
-                            <span className={`text-xs font-semibold flex-shrink-0 ${style.color}`}>
-                              {style.label}
-                              {a.status==='late' && a.late_minutes ? ` ${a.late_minutes}분` : ''}
-                              {a.status==='early_leave' && a.early_leave_minutes ? ` ${a.early_leave_minutes}분` : ''}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
+                          )
+                        })}
+                      </div>
+                      {heldAttend.length > 5 && (
+                        <button onClick={() => setShowAllAttend(v => !v)}
+                          className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                          {showAllAttend ? '접기' : `더보기 (${heldAttend.length - 5}개 더)`}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </>
@@ -843,8 +859,9 @@ export default function StudentPage() {
                   ) : tests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
+                    <>
                     <div className="divide-y divide-slate-100">
-                      {[...filteredTests].reverse().map((t, i) => {
+                      {(showAllGrades ? [...filteredTests].reverse() : [...filteredTests].reverse().slice(0, 5)).map((t, i) => {
                         const isClickable = t.examType === 'auto' && t.examId
                         return (
                           <div key={i}
@@ -894,6 +911,13 @@ export default function StudentPage() {
                         )
                       })}
                     </div>
+                    {filteredTests.length > 5 && (
+                      <button onClick={() => setShowAllGrades(v => !v)}
+                        className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                        {showAllGrades ? '접기' : `더보기 (${filteredTests.length - 5}개 더)`}
+                      </button>
+                    )}
+                    </>
                   )}
                 </div>
               </>
@@ -1124,8 +1148,9 @@ export default function StudentPage() {
                       ) : homeworks.length === 0 ? (
                         <div className="px-5 py-8 text-center text-slate-400 text-sm">과제 기록이 없어요</div>
                       ) : (
+                        <>
                         <div className="divide-y divide-slate-100">
-                          {homeworks.map(h => {
+                          {(showAllHomework ? homeworks : homeworks.slice(0, 5)).map(h => {
                             const style = h.status ? HW_STYLE[h.status] : null
                             const isExpanded = expandedHwId === h.id
                             return (
@@ -1178,6 +1203,13 @@ export default function StudentPage() {
                             )
                           })}
                         </div>
+                        {homeworks.length > 5 && (
+                          <button onClick={() => setShowAllHomework(v => !v)}
+                            className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                            {showAllHomework ? '접기' : `더보기 (${homeworks.length - 5}개 더)`}
+                          </button>
+                        )}
+                        </>
                       )}
                     </div>
                   </>
@@ -1215,25 +1247,47 @@ export default function StudentPage() {
                           {clinics.length === 0 ? (
                             <div className="px-5 py-8 text-center text-slate-400 text-sm">클리닉 기록이 없어요</div>
                           ) : (
-                            <div className="divide-y divide-slate-50">
-                              {clinics.map((c, i) => {
-                                const style = c.status ? CLINIC_STYLE[c.status] : null
-                                return (
-                                  <div key={c.id ?? i} className="flex items-center gap-3 px-5 py-3.5">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-slate-800 truncate">{c.clinic_name ?? '클리닉'}</p>
-                                      <p className="text-xs text-slate-400 mt-0.5">{c.date.replace(/-/g,'. ')}</p>
-                                      {c.note && <p className="text-xs text-slate-400 mt-0.5 truncate">{c.note}</p>}
+                            <>
+                              <div className="divide-y divide-slate-50">
+                                {(showAllClinics ? clinics : clinics.slice(0, 5)).map((c, i) => {
+                                  const style = c.status ? CLINIC_STYLE[c.status] : null
+                                  return (
+                                    <div key={c.id ?? i} className="flex items-start gap-3 px-5 py-3.5">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-slate-800 truncate">{c.clinic_name ?? '클리닉'}</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">{c.date.replace(/-/g,'. ')}</p>
+                                        {c.note && (() => {
+                                          const key = `clinic-${c.id}`
+                                          const isLong = c.note!.length > 40
+                                          const expanded = expandedNotes.has(key)
+                                          return (
+                                            <div>
+                                              <p className={`text-xs text-slate-400 mt-0.5 break-words ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{c.note}</p>
+                                              {isLong && (
+                                                <button onClick={() => toggleNote(key)} className="text-xs text-slate-400 underline underline-offset-2 mt-0.5">
+                                                  {expanded ? '접기' : '자세히 보기'}
+                                                </button>
+                                              )}
+                                            </div>
+                                          )
+                                        })()}
+                                      </div>
+                                      {style ? (
+                                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>
+                                      ) : (
+                                        <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">기록 안됨</span>
+                                      )}
                                     </div>
-                                    {style ? (
-                                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>
-                                    ) : (
-                                      <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg flex-shrink-0">기록 안됨</span>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
+                                  )
+                                })}
+                              </div>
+                              {clinics.length > 5 && (
+                                <button onClick={() => setShowAllClinics(v => !v)}
+                                  className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                                  {showAllClinics ? '접기' : `더보기 (${clinics.length - 5}개 더)`}
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </>
