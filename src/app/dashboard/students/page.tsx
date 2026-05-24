@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Search, X, Pencil, Trash2, Upload, ChevronRight,
   Users, KeyRound, CheckCircle2, XCircle, Loader2, RefreshCw, UserPlus,
+  UserMinus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { useDialog } from '@/components/AppDialog'
 import { formatPhone } from '@/lib/auth'
+import { todayKST } from '@/lib/date'
 
 type PageTab = 'list' | 'accounts'
 
@@ -81,7 +83,13 @@ export default function StudentsPage() {
   const [classFilter, setClassFilter] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive'>('active')
   const [importError, setImportError] = useState('')
-  const [hardDeleting, setHardDeleting] = useState<string | null>(null)
+  // ── 퇴원/삭제 모달 ──
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawTab, setWithdrawTab] = useState<'active' | 'inactive'>('active')
+  const [withdrawSearch, setWithdrawSearch] = useState('')
+  const [selectedWithdrawIds, setSelectedWithdrawIds] = useState<Set<string>>(new Set())
+  const [withdrawProcessing, setWithdrawProcessing] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   type ParsedStudent = { academy_id: string; name: string; school_name: string | null; grade: string; phone: string; parent_phone: string | null }
@@ -112,11 +120,12 @@ export default function StudentsPage() {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
       if (showConflictModal) { setShowConflictModal(false); setConflicts([]); setPendingImport([]) }
+      else if (showWithdrawModal) { setShowWithdrawModal(false); setSelectedWithdrawIds(new Set()); setWithdrawSearch('') }
       else if (showForm) setShowForm(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [showForm, showConflictModal])
+  }, [showForm, showConflictModal, showWithdrawModal])
 
   // 계정 탭 전환 시 30초 캐시 — 최근에 로드했으면 재조회 생략
   useEffect(() => {
@@ -379,15 +388,61 @@ export default function StudentsPage() {
     setShowForm(false)
   }
 
-  async function handleHardDelete(id: string, name: string) {
+  function openWithdrawModal() {
+    setWithdrawTab('active')
+    setWithdrawSearch('')
+    setSelectedWithdrawIds(new Set())
+    setShowWithdrawModal(true)
+  }
+
+  async function handleBulkWithdraw() {
+    const ids = [...selectedWithdrawIds]
+    const names = students.filter(s => ids.includes(s.id)).map(s => s.name).join(', ')
     if (!await showConfirm(
-      `${name} 학생을 완전히 삭제할까요?\n\n출결·성적·과제 등 모든 데이터가 영구 삭제돼요. 되돌릴 수 없어요.`,
+      `${ids.length}명을 퇴원 처리할까요?\n(${names})\n\n학생·학부모 앱 계정이 삭제되고 접근할 수 없게 돼요.\n출결·성적·과제 기록은 모두 보존돼요.`,
+      { destructive: true, confirmText: '퇴원 처리' }
+    )) return
+
+    setWithdrawProcessing(true)
+
+    // 1. 앱 계정 삭제
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ student_ids: ids, target: 'both' }),
+      })
+    }
+
+    // 2. DB 상태: inactive + 퇴원일 기록
+    const today = todayKST()
+    for (const id of ids) {
+      await supabase.from('students').update({ status: 'inactive', withdrawn_at: today }).eq('id', id)
+    }
+
+    await loadData(academyId!)
+    setWithdrawProcessing(false)
+    setShowWithdrawModal(false)
+    setSelectedWithdrawIds(new Set())
+  }
+
+  async function handleBulkHardDelete() {
+    const ids = [...selectedWithdrawIds]
+    const names = students.filter(s => ids.includes(s.id)).map(s => s.name).join(', ')
+    if (!await showConfirm(
+      `${ids.length}명을 완전 삭제할까요?\n(${names})\n\n출결·성적·과제 등 모든 데이터가 영구 삭제돼요.\n되돌릴 수 없어요.`,
       { destructive: true, confirmText: '완전 삭제' }
     )) return
-    setHardDeleting(id)
-    await supabase.from('students').delete().eq('id', id)
+
+    setWithdrawProcessing(true)
+    for (const id of ids) {
+      await supabase.from('students').delete().eq('id', id)
+    }
     await loadData(academyId!)
-    setHardDeleting(null)
+    setWithdrawProcessing(false)
+    setShowWithdrawModal(false)
+    setSelectedWithdrawIds(new Set())
   }
 
   function parseCSV(text: string): ParsedStudent[] {
@@ -571,6 +626,12 @@ export default function StudentsPage() {
           {/* 액션 버튼 — 오른쪽 정렬 */}
           <div className="flex gap-2 flex-wrap justify-end">
             <button
+              onClick={openWithdrawModal}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-500 font-medium rounded-xl hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors text-sm"
+            >
+              <UserMinus size={15} /> 퇴원/삭제
+            </button>
+            <button
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
               className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
@@ -682,16 +743,6 @@ export default function StudentsPage() {
                         <button onClick={e => { e.stopPropagation(); openEdit(s) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
                           <Pencil size={15} />
                         </button>
-                        {isInactive && (
-                          <button
-                            onClick={e => { e.stopPropagation(); handleHardDelete(s.id, s.name) }}
-                            disabled={hardDeleting === s.id}
-                            className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-40"
-                            title="완전 삭제"
-                          >
-                            {hardDeleting === s.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                          </button>
-                        )}
                         <ChevronRight size={16} className="text-slate-300" />
                       </div>
                     </div>
@@ -1076,6 +1127,206 @@ export default function StudentsPage() {
           </div>
         </div>
       )}
+
+      {/* ══ 퇴원/삭제 모달 ══ */}
+      {showWithdrawModal && (() => {
+        const withdrawList = students.filter(s => {
+          if ((s.status ?? 'active') !== withdrawTab) return false
+          if (!withdrawSearch) return true
+          return (
+            s.name.includes(withdrawSearch) ||
+            s.phone.includes(withdrawSearch.replace(/-/g, '')) ||
+            (s.school_name ?? '').includes(withdrawSearch)
+          )
+        })
+        const allChecked = withdrawList.length > 0 && withdrawList.every(s => selectedWithdrawIds.has(s.id))
+        const checkedCount = withdrawList.filter(s => selectedWithdrawIds.has(s.id)).length
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: '85vh' }}>
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <UserMinus size={18} className="text-slate-500" />
+                  <h2 className="font-bold text-slate-800">퇴원 / 삭제</h2>
+                </div>
+                <button onClick={() => { setShowWithdrawModal(false); setSelectedWithdrawIds(new Set()); setWithdrawSearch('') }}
+                  className="text-slate-400 hover:text-slate-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* 탭 */}
+              <div className="flex bg-slate-100 rounded-xl mx-5 mt-4 p-1 flex-shrink-0">
+                <button
+                  onClick={() => { setWithdrawTab('active'); setSelectedWithdrawIds(new Set()) }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    withdrawTab === 'active' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >재원</button>
+                <button
+                  onClick={() => { setWithdrawTab('inactive'); setSelectedWithdrawIds(new Set()) }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    withdrawTab === 'inactive' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >퇴원</button>
+              </div>
+
+              {/* 안내 문구 */}
+              <p className="text-xs text-slate-400 px-5 pt-3 flex-shrink-0">
+                {withdrawTab === 'active'
+                  ? '기록보존 퇴원: 계정은 삭제되고 출결·성적 기록은 보존돼요.'
+                  : '완전 삭제: 모든 데이터가 영구 삭제돼요. 되돌릴 수 없어요.'}
+              </p>
+
+              {/* 검색 */}
+              <div className="relative mx-5 mt-3 flex-shrink-0">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text" value={withdrawSearch} onChange={e => setWithdrawSearch(e.target.value)}
+                  placeholder="이름, 학교, 전화번호로 검색"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+
+              {/* 전체 선택 */}
+              {withdrawList.length > 0 && (
+                <div className="flex items-center gap-2 px-5 pt-3 pb-1 flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      if (allChecked) {
+                        setSelectedWithdrawIds(prev => {
+                          const next = new Set(prev)
+                          withdrawList.forEach(s => next.delete(s.id))
+                          return next
+                        })
+                      } else {
+                        setSelectedWithdrawIds(prev => {
+                          const next = new Set(prev)
+                          withdrawList.forEach(s => next.add(s.id))
+                          return next
+                        })
+                      }
+                    }}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      allChecked ? 'bg-blue-600 border-blue-600' : 'border-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    {allChecked && <X size={11} className="text-white" />}
+                  </button>
+                  <span className="text-xs text-slate-500">전체 선택</span>
+                  {checkedCount > 0 && (
+                    <span className="ml-auto text-xs font-semibold text-blue-600">{checkedCount}명 선택됨</span>
+                  )}
+                </div>
+              )}
+
+              {/* 학생 목록 */}
+              <div className="overflow-y-auto flex-1 px-5 py-2">
+                {withdrawList.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400 text-sm">
+                    {withdrawTab === 'active' ? '재원 중인 학생이 없어요' : '퇴원한 학생이 없어요'}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 pb-2">
+                    {withdrawList.map(s => {
+                      const isChecked = selectedWithdrawIds.has(s.id)
+                      const classList = s.class_students.map(cs => cs.classes.name).join(', ')
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => setSelectedWithdrawIds(prev => {
+                            const next = new Set(prev)
+                            next.has(s.id) ? next.delete(s.id) : next.add(s.id)
+                            return next
+                          })}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
+                            isChecked
+                              ? withdrawTab === 'active'
+                                ? 'bg-blue-50 border-blue-200'
+                                : 'bg-red-50 border-red-200'
+                              : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                            isChecked
+                              ? withdrawTab === 'active' ? 'bg-blue-600 border-blue-600' : 'bg-red-500 border-red-500'
+                              : 'border-slate-300'
+                          }`}>
+                            {isChecked && <X size={11} className="text-white" />}
+                          </div>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            withdrawTab === 'active' ? 'bg-blue-100' : 'bg-slate-100'
+                          }`}>
+                            <span className={`font-bold text-sm ${withdrawTab === 'active' ? 'text-blue-600' : 'text-slate-400'}`}>
+                              {s.name[0]}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold text-sm ${withdrawTab === 'active' ? 'text-slate-800' : 'text-slate-500'}`}>
+                              {s.name}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate">
+                              {formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}{s.school_name ? ` · ${s.school_name}` : ''}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 하단 액션 바 */}
+              <div className="px-5 py-4 border-t border-slate-100 flex-shrink-0">
+                {selectedWithdrawIds.size === 0 ? (
+                  <button
+                    onClick={() => { setShowWithdrawModal(false); setSelectedWithdrawIds(new Set()); setWithdrawSearch('') }}
+                    className="w-full py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    닫기
+                  </button>
+                ) : withdrawTab === 'active' ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedWithdrawIds(new Set())}
+                      className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
+                    >
+                      선택 해제
+                    </button>
+                    <button
+                      onClick={handleBulkWithdraw}
+                      disabled={withdrawProcessing}
+                      className="flex-1 py-3 bg-slate-700 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {withdrawProcessing ? <Loader2 size={15} className="animate-spin" /> : <UserMinus size={15} />}
+                      기록보존 퇴원 ({selectedWithdrawIds.size}명)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedWithdrawIds(new Set())}
+                      className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
+                    >
+                      선택 해제
+                    </button>
+                    <button
+                      onClick={handleBulkHardDelete}
+                      disabled={withdrawProcessing}
+                      className="flex-1 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {withdrawProcessing ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                      완전 삭제 ({selectedWithdrawIds.size}명)
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ══ 중복 학생 처리 모달 ══ */}
       {showConflictModal && (
