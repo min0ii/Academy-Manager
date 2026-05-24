@@ -377,20 +377,13 @@ export default function StudentsPage() {
       if (inactiveMatch) {
         setSaving(false)
 
-        // 1단계: 재등록 여부
-        const confirmed = await showConfirm(
-          `이전에 퇴원한 ${inactiveMatch.name} 학생이에요.\n재등록할까요?`,
-          { confirmText: '재등록' }
-        )
-        if (!confirmed) return
-
-        // 2단계: 기록 처리 선택
+        // 기록 처리 선택: 이어받기(취소) vs 삭제 후 재등록(확인)
         const deleteHistory = await showConfirm(
-          `기존 출결·성적·과제 기록을 어떻게 할까요?\n\n기록을 이어받으려면 취소를 누르세요.\n삭제 후 재등록하면 모든 기록이 사라져요.`,
+          `이전에 퇴원한 ${inactiveMatch.name} 학생이에요.\n\n기록을 이어받으려면 취소를 누르세요.\n삭제 후 재등록하면 모든 기록이 사라져요.`,
           { confirmText: '삭제 후 재등록', destructive: true }
         )
         // deleteHistory = true → 기록 전체 삭제 후 새 시작
-        // deleteHistory = false → 기록 이어받기 (기본)
+        // deleteHistory = false → 기록 이어받기 (기본, 취소 버튼)
 
         setSaving(true)
 
