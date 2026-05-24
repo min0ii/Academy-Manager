@@ -237,7 +237,7 @@ export default function ClassDetailPage() {
     setAcademyId(aId)
     setSchedules(scheduleData ?? [])
     setClinicSchedules(clinicScheduleData ?? [])
-    setStudents(((csData ?? []) as any[]).map(r => r.students).filter(Boolean))
+    setStudents(((csData ?? []) as any[]).map(r => r.students).filter(Boolean).sort((a: any, b: any) => a.name.localeCompare(b.name, 'ko')))
 
     const [{ data: allData }, { data: academyData }] = await Promise.all([
       supabase.from('students')
