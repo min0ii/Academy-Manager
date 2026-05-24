@@ -371,16 +371,52 @@ export default function StudentsPage() {
       if (form.classIds.length > 0)
         await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: editingId })))
     } else {
-      const { data: newStudent, error: insertError } = await supabase.from('students').insert({
-        academy_id: academyId, name: form.name, school_name: form.school_name || null,
-        grade: form.grade, phone: digits,
-        parent_phone: form.parentPhone.replace(/\D/g, '') || null,
-        parent_relation: form.parentRelation || null,
-        memo: form.memo || null,
-      }).select().single()
-      if (insertError) { setError('저장 중 오류가 발생했어요.'); setSaving(false); return }
-      if (form.classIds.length > 0)
-        await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: newStudent.id })))
+      // 퇴원 학생 재등록 감지 — 같은 전화번호의 inactive 학생 확인
+      const inactiveMatch = students.find(s => s.phone === digits && (s.status ?? 'active') === 'inactive')
+
+      if (inactiveMatch) {
+        setSaving(false)
+        const confirmed = await showConfirm(
+          `이전에 퇴원한 ${inactiveMatch.name} 학생이에요.\n\n재등록하면 기존 출결·성적·과제 기록을 그대로 이어받아요.\n재등록할까요?`,
+          { confirmText: '재등록' }
+        )
+        if (!confirmed) return
+        setSaving(true)
+
+        // 기존 레코드 재활성화
+        const { error: reactivateError } = await supabase.from('students').update({
+          name: form.name,
+          school_name: form.school_name || null,
+          grade: form.grade,
+          parent_phone: form.parentPhone.replace(/\D/g, '') || null,
+          parent_relation: form.parentRelation || null,
+          memo: form.memo || null,
+          status: 'active',
+          withdrawn_at: null,
+          enrolled_at: todayKST(),
+        }).eq('id', inactiveMatch.id)
+        if (reactivateError) { setError('재등록 중 오류가 발생했어요.'); setSaving(false); return }
+
+        // 반 배정 갱신
+        await supabase.from('class_students').delete().eq('student_id', inactiveMatch.id)
+        if (form.classIds.length > 0) {
+          await supabase.from('class_students').insert(
+            form.classIds.map(cid => ({ class_id: cid, student_id: inactiveMatch.id }))
+          )
+        }
+      } else {
+        // 신규 등록
+        const { data: newStudent, error: insertError } = await supabase.from('students').insert({
+          academy_id: academyId, name: form.name, school_name: form.school_name || null,
+          grade: form.grade, phone: digits,
+          parent_phone: form.parentPhone.replace(/\D/g, '') || null,
+          parent_relation: form.parentRelation || null,
+          memo: form.memo || null,
+        }).select().single()
+        if (insertError) { setError('저장 중 오류가 발생했어요.'); setSaving(false); return }
+        if (form.classIds.length > 0)
+          await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: newStudent.id })))
+      }
     }
 
     await loadData(academyId!)
