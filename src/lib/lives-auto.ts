@@ -13,23 +13,47 @@ export function checkCondition(
   eventDetail: Record<string, unknown>
 ): boolean {
   const d = rule.condition_detail
-  if (eventType === 'attendance' || eventType === 'homework' || eventType === 'clinic') {
+
+  if (eventType === 'attendance') {
+    // 신규: statuses 배열 / 구버전 호환: status 단일값
+    const statuses = Array.isArray(d.statuses)
+      ? (d.statuses as string[])
+      : (d.status ? [d.status as string] : [])
+    return statuses.includes(eventDetail.status as string)
+  }
+
+  if (eventType === 'homework' || eventType === 'clinic') {
     return d.status === eventDetail.status
   }
+
   if (eventType === 'exam_score') {
-    if (eventDetail.examFormat === 'pass_fail') return false
     const category = d.category as string | null
     if (category && category !== eventDetail.category) return false
+
+    const examSubType = (d.examSubType as string) ?? 'score'
+
+    if (examSubType === 'pass_fail') {
+      if (eventDetail.examFormat !== 'pass_fail') return false
+      const score = eventDetail.score as number
+      return d.result === 'pass' ? score === 1 : score === 0
+    }
+
+    // score 유형 (구버전 호환: examSubType 없으면 score로 처리)
+    if (eventDetail.examFormat === 'pass_fail') return false
     const score = eventDetail.score as number | null
     const maxScore = eventDetail.maxScore as number | null
-    if (score === null || !maxScore || maxScore <= 0) return false
-    const pct = (score / maxScore) * 100
+    if (score === null) return false
+
+    const scoreType = (d.scoreType as string) ?? 'pct'
     const val = d.value as number
     const op = d.operator as string
-    if (op === 'lt') return pct < val
-    if (op === 'lte') return pct <= val
-    if (op === 'gte') return pct >= val
-    if (op === 'gt') return pct > val
+    const compareVal = scoreType === 'raw' ? score : (maxScore && maxScore > 0 ? (score / maxScore) * 100 : 0)
+    if (scoreType === 'pct' && (!maxScore || maxScore <= 0)) return false
+
+    if (op === 'lt') return compareVal < val
+    if (op === 'lte') return compareVal <= val
+    if (op === 'gte') return compareVal >= val
+    if (op === 'gt') return compareVal > val
   }
   return false
 }

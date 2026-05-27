@@ -165,29 +165,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
       }
     }))
 
-    // 목숨 자동화 트리거: 신규 제출된 학생만 (점수형, pass_fail 제외)
+    // 목숨 자동화 트리거: 신규 제출된 학생만 (점수형 + pass_fail 모두)
     const examForLives = await db.from('exams')
       .select('class_id, category, exam_format, max_score, start_at, created_at')
       .eq('id', examId).single()
-    if (examForLives.data && (examForLives.data as any).exam_format !== 'pass_fail') {
-      const finalMaxScore = maxScore !== undefined ? maxScore : (examForLives.data as any).max_score
-      if (finalMaxScore && Number(finalMaxScore) > 0) {
-        const { data: classData } = await db.from('classes')
-          .select('academy_id').eq('id', (examForLives.data as any).class_id).single()
-        if (classData) {
-          const examDate = (examForLives.data as any).start_at
-            ? (examForLives.data as any).start_at.slice(0, 10)
-            : (examForLives.data as any).created_at.slice(0, 10)
-          for (const { studentId, status, score } of scores as { studentId: string; status: string; score: number | null }[]) {
-            if (status === 'submitted' && score !== null && score !== undefined && !currentSubMap.get(studentId)) {
-              void applyLivesRulesInternal(db, (classData as any).academy_id, studentId, 'exam_score', {
-                score: Number(score),
-                maxScore: Number(finalMaxScore),
-                date: examDate,
-                category: (examForLives.data as any).category ?? null,
-                examFormat: (examForLives.data as any).exam_format ?? 'score',
-              })
-            }
+    if (examForLives.data) {
+      const examFormat = (examForLives.data as any).exam_format ?? 'score'
+      const examDate = (examForLives.data as any).start_at
+        ? (examForLives.data as any).start_at.slice(0, 10)
+        : (examForLives.data as any).created_at.slice(0, 10)
+      const { data: classData } = await db.from('classes')
+        .select('academy_id').eq('id', (examForLives.data as any).class_id).single()
+      if (classData) {
+        const finalMaxScore = maxScore !== undefined ? maxScore : (examForLives.data as any).max_score
+        for (const { studentId, status, score } of scores as { studentId: string; status: string; score: number | null }[]) {
+          if (status === 'submitted' && score !== null && score !== undefined && !currentSubMap.get(studentId)) {
+            void applyLivesRulesInternal(db, (classData as any).academy_id, studentId, 'exam_score', {
+              score: Number(score),
+              maxScore: finalMaxScore ? Number(finalMaxScore) : null,
+              date: examDate,
+              category: (examForLives.data as any).category ?? null,
+              examFormat,
+            })
           }
         }
       }
