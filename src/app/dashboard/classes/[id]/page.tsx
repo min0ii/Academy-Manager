@@ -516,6 +516,7 @@ export default function ClassDetailPage() {
         await supabase.from('attendance').update({ status }).eq('id', rec.id)
         setAttendanceList(prev => prev.map(a =>
           a.student_id === studentId ? { ...a, status } : a))
+        applyLivesRule(studentId, 'attendance', { status, date: selectedDate! })
       }
     } else {
       const { data: na } = await supabase.from('attendance').insert({
@@ -523,6 +524,7 @@ export default function ClassDetailPage() {
       }).select().single()
       setAttendanceList(prev => prev.map(a =>
         a.student_id === studentId ? { ...a, id: na?.id ?? null, status, note: null } : a))
+      applyLivesRule(studentId, 'attendance', { status, date: selectedDate! })
     }
   }
 
@@ -626,6 +628,7 @@ export default function ClassDetailPage() {
         await supabase.from('clinic_attendance').update({ status }).eq('id', rec.id)
         setClinicAttList(prev => prev.map(a =>
           a.student_id === studentId ? { ...a, status } : a))
+        applyLivesRule(studentId, 'clinic', { status, date: selectedDate! })
       }
     } else {
       const { data: na } = await supabase.from('clinic_attendance').insert({
@@ -633,6 +636,7 @@ export default function ClassDetailPage() {
       }).select().single()
       setClinicAttList(prev => prev.map(a =>
         a.student_id === studentId ? { ...a, id: na?.id ?? null, status } : a))
+      applyLivesRule(studentId, 'clinic', { status, date: selectedDate! })
     }
   }
 
@@ -672,6 +676,19 @@ export default function ClassDetailPage() {
     await supabase.from('clinic_sessions').update({ name: trimmed }).eq('id', selectedClinicSession.id)
     setSelectedClinicSession({ ...selectedClinicSession, name: trimmed })
     await loadMonthSessions()
+  }
+
+  // ── 목숨 자동화 fire-and-forget 트리거
+  function applyLivesRule(studentId: string, eventType: string, eventDetail: Record<string, unknown>) {
+    if (!livesEnabled || !academyId) return
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return
+      fetch('/api/lives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'apply-rules', academyId, studentId, eventType, eventDetail }),
+      }).catch(() => {})
+    })
   }
 
   // ── 목숨
@@ -838,6 +855,7 @@ export default function ClassDetailPage() {
   async function setHomeworkStatus(hwId: string, studentId: string, status: 'done' | 'partial' | 'none') {
     const list = homeworkStatuses[hwId] ?? []
     const rec  = list.find(r => r.student_id === studentId)
+    const hwDate = dateHomeworks.find(h => h.id === hwId)?.assigned_date ?? selectedDate ?? ''
     if (rec?.id) {
       if (rec.status === status) {
         await supabase.from('homework_status').delete().eq('id', rec.id)
@@ -851,6 +869,7 @@ export default function ClassDetailPage() {
           ...prev,
           [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, status } : r),
         }))
+        applyLivesRule(studentId, 'homework', { status, date: hwDate })
       }
     } else {
       const { data: nr } = await supabase.from('homework_status').insert({
@@ -862,6 +881,7 @@ export default function ClassDetailPage() {
           r.student_id === studentId ? { ...r, id: nr?.id ?? null, status } : r
         ),
       }))
+      applyLivesRule(studentId, 'homework', { status, date: hwDate })
     }
   }
 

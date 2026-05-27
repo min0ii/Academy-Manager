@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { applyLivesRulesInternal } from '@/lib/lives-auto'
 
 function admin() {
   return createClient(
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   const action = body?.action  // 'forfeit' or undefined (= normal submit)
 
   // 시험 확인
-  const { data: exam } = await db.from('exams').select('end_at, status, exam_type, no_deadline').eq('id', examId).single()
+  const { data: exam } = await db.from('exams').select('end_at, status, exam_type, exam_format, no_deadline, class_id, category').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
   if (exam.status === 'closed') return NextResponse.json({ error: '마감된 시험이에요.' }, { status: 403 })
   if (exam.end_at && new Date(exam.end_at) < new Date())
@@ -124,6 +125,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   }).eq('id', submissionId)
 
   const calcMaxScore = Math.round((questions ?? []).reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
+
+  // 목숨 자동화 트리거 (fire & forget)
+  if ((exam as any).exam_format !== 'pass_fail' && calcMaxScore > 0) {
+    const { data: classData } = await db.from('classes').select('academy_id').eq('id', (exam as any).class_id).single()
+    if (classData) {
+      void applyLivesRulesInternal(db, (classData as any).academy_id, studentId, 'exam_score', {
+        score: totalScore,
+        maxScore: calcMaxScore,
+        date: new Date().toISOString().slice(0, 10),
+        category: (exam as any).category ?? null,
+        examFormat: (exam as any).exam_format ?? 'score',
+      })
+    }
+  }
 
   // 마감 없는 시험이면 실시간 반 통계 포함
   let classStats: { classAvg: number | null; classHigh: number | null; classLow: number | null; classCount: number } | null = null

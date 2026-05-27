@@ -6,10 +6,54 @@ import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera, ShieldQuestion, Sparkles, Heart,
+  Zap, Plus, Trash2, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'fun'
 type Title = '원장' | '관리자' | '강사' | '조교'
+type ConditionType = 'attendance' | 'exam_score' | 'homework' | 'clinic'
+type LivesRule = {
+  id: string
+  name: string
+  condition_type: ConditionType
+  condition_detail: Record<string, unknown>
+  delta: number
+  enabled: boolean
+}
+
+const COND_LABEL: Record<ConditionType, string> = {
+  attendance: '출결',
+  exam_score: '시험 점수',
+  homework:   '과제',
+  clinic:     '클리닉',
+}
+const ATT_STATUS_LABEL = { present: '출석', late: '지각', early_leave: '조퇴', absent: '결석' }
+const HW_STATUS_LABEL  = { done: '완료', partial: '오답(완벽) 완료', none: '미완료' }
+const CLINIC_STATUS_LABEL = { done: '완료', not_done: '미완료' }
+const OPERATOR_LABEL = { lt: '미만', lte: '이하', gte: '이상', gt: '초과' }
+
+function ruleDescription(rule: LivesRule): string {
+  const d = rule.condition_detail
+  const deltaStr = rule.delta > 0 ? `+${rule.delta}` : `${rule.delta}`
+  if (rule.condition_type === 'attendance')
+    return `${ATT_STATUS_LABEL[d.status as keyof typeof ATT_STATUS_LABEL] ?? d.status}하면 목숨 ${deltaStr}`
+  if (rule.condition_type === 'homework')
+    return `과제 ${HW_STATUS_LABEL[d.status as keyof typeof HW_STATUS_LABEL] ?? d.status}이면 목숨 ${deltaStr}`
+  if (rule.condition_type === 'clinic')
+    return `클리닉 ${CLINIC_STATUS_LABEL[d.status as keyof typeof CLINIC_STATUS_LABEL] ?? d.status}이면 목숨 ${deltaStr}`
+  if (rule.condition_type === 'exam_score') {
+    const catStr = d.category ? ` [${d.category}]` : ''
+    return `시험${catStr} ${d.value}%${OPERATOR_LABEL[d.operator as keyof typeof OPERATOR_LABEL] ?? d.operator}이면 목숨 ${deltaStr}`
+  }
+  return `목숨 ${deltaStr}`
+}
+
+const COND_ICON: Record<ConditionType, string> = {
+  attendance: '📋',
+  exam_score: '📝',
+  homework:   '📚',
+  clinic:     '🏥',
+}
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('academy')
@@ -51,6 +95,27 @@ export default function SettingsPage() {
   const [savingLives, setSavingLives]   = useState(false)
   const [livesSaved, setLivesSaved]     = useState(false)
 
+  // 목숨 자동화
+  const [livesAutoEnabled, setLivesAutoEnabled] = useState(false)
+  const [livesAutoFrom, setLivesAutoFrom]       = useState('')
+  const [livesRules, setLivesRules]             = useState<LivesRule[]>([])
+  const [rulesLoaded, setRulesLoaded]           = useState(false)
+  const [savingAuto, setSavingAuto]             = useState(false)
+  const [autoSaved, setAutoSaved]               = useState(false)
+  const [recalculating, setRecalculating]       = useState(false)
+  // 규칙 추가 폼
+  const [showRuleForm, setShowRuleForm]         = useState(false)
+  const [formType, setFormType]                 = useState<ConditionType>('attendance')
+  const [formAttStatus, setFormAttStatus]       = useState<'present'|'late'|'early_leave'|'absent'>('absent')
+  const [formHwStatus, setFormHwStatus]         = useState<'done'|'partial'|'none'>('none')
+  const [formClinicStatus, setFormClinicStatus] = useState<'done'|'not_done'>('not_done')
+  const [formScoreOp, setFormScoreOp]           = useState<'lt'|'lte'|'gte'|'gt'>('lt')
+  const [formScoreVal, setFormScoreVal]         = useState(70)
+  const [formScoreCat, setFormScoreCat]         = useState('')
+  const [formDelta, setFormDelta]               = useState(-1)
+  const [savingRule, setSavingRule]             = useState(false)
+  const [examCategories, setExamCategories]     = useState<string[]>([])
+
   // 보안 질문
   const [currentSQ, setCurrentSQ]     = useState<string | null>(null)
   const [sqLoaded, setSqLoaded]       = useState(false)
@@ -63,6 +128,7 @@ export default function SettingsPage() {
 
   // 설정 변경 시 '저장됨' 상태 초기화
   useEffect(() => { setLivesSaved(false) }, [livesEnabled, livesDefault])
+  useEffect(() => { setAutoSaved(false) }, [livesAutoEnabled, livesAutoFrom])
 
   const ctx = useAcademy()
   useEffect(() => {
@@ -77,6 +143,8 @@ export default function SettingsPage() {
     setLoading(false)
     loadSecurityQuestion(ctx.userId)
     loadLivesSettings(ctx.academyId)
+    loadAutoRules(ctx.academyId)
+    loadExamCategories(ctx.academyId)
   }, [ctx])
 
   async function loadLivesSettings(aId: string) {
@@ -85,6 +153,145 @@ export default function SettingsPage() {
     setLivesEnabled(data?.lives_enabled ?? false)
     setLivesDefault(data?.lives_default ?? 3)
     setLivesLoaded(true)
+  }
+
+  async function loadAutoRules(aId: string) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    const res = await fetch(`/api/lives?action=rules&academyId=${aId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return
+    const json = await res.json()
+    setLivesAutoEnabled(json.livesAutoEnabled ?? false)
+    setLivesAutoFrom(json.livesAutoFrom ?? '')
+    setLivesRules(json.rules ?? [])
+    setRulesLoaded(true)
+  }
+
+  async function loadExamCategories(aId: string) {
+    const { data: classes } = await supabase.from('classes').select('id').eq('academy_id', aId)
+    if (!classes || classes.length === 0) return
+    const classIds = classes.map(c => c.id)
+    const { data: exams } = await supabase
+      .from('exams').select('category')
+      .in('class_id', classIds)
+      .not('category', 'is', null)
+    const cats = [...new Set((exams ?? []).map(e => e.category).filter(Boolean))] as string[]
+    setExamCategories(cats)
+  }
+
+  async function saveAutoSettings() {
+    setSavingAuto(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setSavingAuto(false); return }
+    const res = await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'save-auto-settings',
+        academyId,
+        livesAutoEnabled,
+        livesAutoFrom: livesAutoFrom || null,
+      }),
+    })
+    const json = await res.json()
+    setSavingAuto(false)
+    if (res.ok) {
+      setAutoSaved(true)
+      setTimeout(() => setAutoSaved(false), 2000)
+      if (json.recalculating) {
+        setRecalculating(true)
+        setTimeout(() => setRecalculating(false), 3000)
+      }
+    }
+  }
+
+  function resetRuleForm() {
+    setFormType('attendance')
+    setFormAttStatus('absent')
+    setFormHwStatus('none')
+    setFormClinicStatus('not_done')
+    setFormScoreOp('lt')
+    setFormScoreVal(70)
+    setFormScoreCat('')
+    setFormDelta(-1)
+  }
+
+  function buildConditionDetail(): Record<string, unknown> {
+    if (formType === 'attendance') return { status: formAttStatus }
+    if (formType === 'homework')   return { status: formHwStatus }
+    if (formType === 'clinic')     return { status: formClinicStatus }
+    return {
+      operator: formScoreOp,
+      value: formScoreVal,
+      category: formScoreCat || null,
+    }
+  }
+
+  function buildRuleName(): string {
+    const d = buildConditionDetail()
+    const deltaStr = formDelta > 0 ? `+${formDelta}` : `${formDelta}`
+    if (formType === 'attendance')
+      return `${ATT_STATUS_LABEL[d.status as keyof typeof ATT_STATUS_LABEL]}하면 ${deltaStr}`
+    if (formType === 'homework')
+      return `과제 ${HW_STATUS_LABEL[d.status as keyof typeof HW_STATUS_LABEL]}이면 ${deltaStr}`
+    if (formType === 'clinic')
+      return `클리닉 ${CLINIC_STATUS_LABEL[d.status as keyof typeof CLINIC_STATUS_LABEL]}이면 ${deltaStr}`
+    const catStr = d.category ? ` [${d.category}]` : ''
+    return `시험${catStr} ${d.value}%${OPERATOR_LABEL[d.operator as keyof typeof OPERATOR_LABEL]}이면 ${deltaStr}`
+  }
+
+  async function addRule() {
+    setSavingRule(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setSavingRule(false); return }
+    const res = await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'create-rule',
+        academyId,
+        name: buildRuleName(),
+        condition_type: formType,
+        condition_detail: buildConditionDetail(),
+        delta: formDelta,
+      }),
+    })
+    const json = await res.json()
+    setSavingRule(false)
+    if (res.ok && json.rule) {
+      setLivesRules(prev => [...prev, json.rule])
+      setShowRuleForm(false)
+      resetRuleForm()
+    }
+  }
+
+  async function toggleRule(ruleId: string, enabled: boolean) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'update-rule', ruleId, enabled }),
+    })
+    setLivesRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled } : r))
+  }
+
+  async function deleteRule(ruleId: string) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'delete-rule', ruleId }),
+    })
+    setLivesRules(prev => prev.filter(r => r.id !== ruleId))
   }
 
   async function saveLivesSettings() {
@@ -323,6 +530,172 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* 규칙 추가 모달 */}
+      {showRuleForm && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-4 sm:pb-0">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white">
+              <div className="flex items-center gap-2">
+                <Zap size={18} className="text-violet-500" />
+                <h2 className="font-bold text-slate-800">규칙 추가</h2>
+              </div>
+              <button onClick={() => setShowRuleForm(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-5">
+              {/* 유형 선택 */}
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">조건 유형</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['attendance', 'homework', 'clinic', 'exam_score'] as ConditionType[]).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setFormType(t)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                        formType === t
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50'
+                      }`}
+                    >
+                      <span>{COND_ICON[t]}</span> {COND_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 조건 상세 */}
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">세부 조건</p>
+
+                {formType === 'attendance' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['absent', 'late', 'early_leave', 'present'] as const).map(s => (
+                      <button key={s} onClick={() => setFormAttStatus(s)}
+                        className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
+                          formAttStatus === s ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50'
+                        }`}>
+                        {ATT_STATUS_LABEL[s]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {formType === 'homework' && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['none', 'done', 'partial'] as const).map(s => (
+                      <button key={s} onClick={() => setFormHwStatus(s)}
+                        className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
+                          formHwStatus === s ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50'
+                        }`}>
+                        {HW_STATUS_LABEL[s]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {formType === 'clinic' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['not_done', 'done'] as const).map(s => (
+                      <button key={s} onClick={() => setFormClinicStatus(s)}
+                        className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
+                          formClinicStatus === s ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50'
+                        }`}>
+                        {CLINIC_STATUS_LABEL[s]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {formType === 'exam_score' && (
+                  <div className="space-y-3">
+                    {/* 카테고리 */}
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1.5">시험 카테고리 (선택)</p>
+                      <select
+                        value={formScoreCat}
+                        onChange={e => setFormScoreCat(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                      >
+                        <option value="">전체 카테고리</option>
+                        {examCategories.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* 연산자 + 값 */}
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1.5">점수 조건 (%)</p>
+                      <div className="flex gap-2 items-center">
+                        <select
+                          value={formScoreOp}
+                          onChange={e => setFormScoreOp(e.target.value as 'lt'|'lte'|'gte'|'gt')}
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                        >
+                          {(['lt','lte','gte','gt'] as const).map(op => (
+                            <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min={0} max={100}
+                          value={formScoreVal}
+                          onChange={e => setFormScoreVal(Number(e.target.value))}
+                          className="w-20 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-violet-400"
+                        />
+                        <span className="text-sm text-slate-500">%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 목숨 변화 */}
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">목숨 변화</p>
+                <div className="flex items-center gap-3 bg-slate-50 rounded-2xl px-4 py-3">
+                  <button
+                    onClick={() => setFormDelta(v => v - 1)}
+                    className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors text-lg font-bold"
+                  >−</button>
+                  <div className="flex-1 text-center">
+                    <span className={`text-2xl font-bold ${formDelta > 0 ? 'text-emerald-600' : formDelta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                      {formDelta > 0 ? `+${formDelta}` : formDelta}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setFormDelta(v => v + 1)}
+                    className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors text-lg font-bold"
+                  >+</button>
+                </div>
+              </div>
+
+              {/* 미리보기 */}
+              <div className="bg-violet-50 rounded-xl px-4 py-3">
+                <p className="text-xs text-violet-500 mb-1">규칙 미리보기</p>
+                <p className="text-sm font-semibold text-violet-800">
+                  {formDelta > 0 ? `+${formDelta}` : formDelta}개 — {ruleDescription({
+                    id: '', name: '', condition_type: formType,
+                    condition_detail: buildConditionDetail(),
+                    delta: formDelta, enabled: true,
+                  })}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowRuleForm(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl text-sm">취소</button>
+                <button
+                  onClick={addRule}
+                  disabled={savingRule || formDelta === 0}
+                  className="flex-1 py-2.5 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 transition-colors text-sm disabled:opacity-50"
+                >
+                  {savingRule ? '추가 중...' : '추가'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 보안 질문 모달 */}
       {showSqModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -471,6 +844,138 @@ export default function SettingsPage() {
               </button>
             )}
           </div>
+
+          {/* ── 목숨 자동화 카드 ── */}
+          {livesEnabled && rulesLoaded && (
+            <div className="bg-white rounded-2xl border border-violet-200 p-5 space-y-5">
+              {/* 헤더 */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <Zap size={16} className="text-violet-600" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-slate-800">목숨 자동화</h2>
+                  <p className="text-xs text-slate-400">규칙에 따라 목숨을 자동으로 조정해요</p>
+                </div>
+              </div>
+
+              {/* 자동화 on/off */}
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">자동화 활성화</p>
+                  <p className="text-xs text-slate-400 mt-0.5">켜면 출결·과제·클리닉·시험 시 자동으로 목숨이 바뀌어요</p>
+                </div>
+                <button
+                  onClick={() => isAdmin && setLivesAutoEnabled(v => !v)}
+                  disabled={!isAdmin}
+                  className="disabled:opacity-60"
+                >
+                  {livesAutoEnabled
+                    ? <ToggleRight size={36} className="text-violet-600" />
+                    : <ToggleLeft size={36} className="text-slate-300" />}
+                </button>
+              </div>
+
+              {/* 집계 시작일 */}
+              {livesAutoEnabled && (
+                <div className="pt-4 border-t border-slate-100 space-y-2">
+                  <p className="text-sm font-semibold text-slate-700">집계 시작일</p>
+                  <p className="text-xs text-slate-400">이 날짜부터의 데이터를 기준으로 목숨을 계산해요. 변경하면 전체 재계산이 실행돼요.</p>
+                  <input
+                    type="date"
+                    value={livesAutoFrom}
+                    onChange={e => isAdmin && setLivesAutoFrom(e.target.value)}
+                    disabled={!isAdmin}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:bg-slate-50 disabled:text-slate-400"
+                  />
+                </div>
+              )}
+
+              {/* 저장 버튼 */}
+              {isAdmin && (
+                <button
+                  onClick={saveAutoSettings}
+                  disabled={savingAuto}
+                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    autoSaved
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-violet-600 text-white hover:bg-violet-700'
+                  }`}
+                >
+                  {autoSaved
+                    ? <><Check size={14} /> 저장됨</>
+                    : savingAuto
+                    ? <><Loader2 size={14} className="animate-spin" /> 저장 중...</>
+                    : recalculating
+                    ? <><Loader2 size={14} className="animate-spin" /> 재계산 중...</>
+                    : '저장'}
+                </button>
+              )}
+
+              {/* 규칙 목록 */}
+              {livesAutoEnabled && (
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-700">자동화 규칙</p>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { resetRuleForm(); setShowRuleForm(true) }}
+                        className="flex items-center gap-1 text-xs font-semibold text-violet-600 bg-violet-50 px-3 py-1.5 rounded-lg hover:bg-violet-100 transition-colors"
+                      >
+                        <Plus size={13} /> 규칙 추가
+                      </button>
+                    )}
+                  </div>
+
+                  {livesRules.length === 0 ? (
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                      <p className="text-xs text-slate-400">등록된 규칙이 없어요. 규칙을 추가해보세요!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {livesRules.map(rule => (
+                        <div
+                          key={rule.id}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
+                            rule.enabled ? 'bg-white border-violet-100' : 'bg-slate-50 border-slate-100 opacity-60'
+                          }`}
+                        >
+                          <span className="text-base flex-shrink-0">{COND_ICON[rule.condition_type]}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-slate-700 truncate">{ruleDescription(rule)}</p>
+                            <p className="text-xs text-slate-400">{COND_LABEL[rule.condition_type]}</p>
+                          </div>
+                          <span className={`text-sm font-bold flex-shrink-0 ${
+                            rule.delta > 0 ? 'text-emerald-600' : 'text-red-500'
+                          }`}>
+                            {rule.delta > 0 ? `+${rule.delta}` : rule.delta}
+                          </span>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => toggleRule(rule.id, !rule.enabled)}
+                                className="text-slate-400 hover:text-violet-600 transition-colors flex-shrink-0"
+                              >
+                                {rule.enabled
+                                  ? <ToggleRight size={20} className="text-violet-500" />
+                                  : <ToggleLeft size={20} />}
+                              </button>
+                              <button
+                                onClick={() => deleteRule(rule.id)}
+                                className="text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 앞으로 추가될 기능 안내 */}
           <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-4 text-center">
