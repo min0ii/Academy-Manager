@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X, Heart, ChevronDown, ChevronUp, Check, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import { useAcademy } from '@/lib/academy-context'
@@ -79,6 +79,20 @@ function StudentReportContent() {
   const [transferring, setTransferring]           = useState(false)
   const [actionLoading, setActionLoading]         = useState(false)
 
+  // 목숨
+  const [livesEnabled, setLivesEnabled]   = useState(false)
+  const [livesDefault, setLivesDefault]   = useState(3)
+  const [currentLives, setCurrentLives]   = useState(0)
+  const [showLivesLog, setShowLivesLog]   = useState(false)
+  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string }[]>([])
+  const [livesLogLoading, setLivesLogLoading] = useState(false)
+  // 수동 조정 (디바운스)
+  const [pendingLives, setPendingLives]   = useState<number | null>(null)
+  const [livesSaveTimer, setLivesSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const [livesReason, setLivesReason]     = useState('')
+  const [savingLives, setSavingLives]     = useState(false)
+  const [livesSaved, setLivesSaved]       = useState(false)
+
   useEffect(() => { if (ctx) loadStudent(ctx.academyId) }, [studentId, ctx])
   useEffect(() => { if (selectedClassId) loadClassDetail(selectedClassId) }, [selectedClassId])
 
@@ -102,7 +116,65 @@ function StudentReportContent() {
     setAllClasses(ac ?? [])
     if (classList.length > 0) setSelectedClassId(classList[0].id)
 
+    // 목숨 로드
+    const token = await getToken()
+    if (token) loadLivesData(academyId, studentId, token)
+
     setLoading(false)
+  }
+
+  async function loadLivesData(academyId: string, sid: string, token: string) {
+    const { data: academy } = await supabase.from('academies').select('lives_enabled, lives_default').eq('id', academyId).single()
+    if (!academy?.lives_enabled) return
+    setLivesEnabled(true)
+    setLivesDefault(academy.lives_default ?? 3)
+    const { data: rec } = await supabase.from('student_lives').select('lives').eq('academy_id', academyId).eq('student_id', sid).maybeSingle()
+    setCurrentLives(rec?.lives ?? (academy.lives_default ?? 3))
+    setPendingLives(rec?.lives ?? (academy.lives_default ?? 3))
+  }
+
+  async function loadLivesLog() {
+    if (!ctx) return
+    setLivesLogLoading(true)
+    const token = await getToken()
+    if (!token) { setLivesLogLoading(false); return }
+    const res = await fetch(`/api/lives?action=lives-log&studentId=${studentId}&academyId=${ctx.academyId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) setLivesLog((await res.json()).logs ?? [])
+    setLivesLogLoading(false)
+  }
+
+  function adjustLives(delta: number) {
+    if (pendingLives === null) return
+    const next = pendingLives + delta
+    setPendingLives(next)
+    if (livesSaveTimer) clearTimeout(livesSaveTimer)
+    const t = setTimeout(() => saveLivesAdjust(next), 1500)
+    setLivesSaveTimer(t)
+  }
+
+  async function saveLivesAdjust(nextLives: number) {
+    if (!ctx) return
+    const netDelta = nextLives - currentLives
+    if (netDelta === 0) return
+    setSavingLives(true)
+    const token = await getToken()
+    if (!token) { setSavingLives(false); return }
+    const res = await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'manual-adjust', academyId: ctx.academyId, studentId, delta: netDelta, reason: livesReason }),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      setCurrentLives(json.lives)
+      setLivesSaved(true)
+      setLivesReason('')
+      if (showLivesLog) loadLivesLog()
+      setTimeout(() => setLivesSaved(false), 2000)
+    }
+    setSavingLives(false)
   }
 
   // ── 퇴원 처리 ──
@@ -368,6 +440,75 @@ function StudentReportContent() {
           )}
         </div>
       </div>
+
+      {/* 목숨 카드 */}
+      {livesEnabled && pendingLives !== null && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Heart size={16} className="text-red-500 fill-red-500" />
+              <h3 className="font-bold text-slate-800">목숨</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {savingLives && <Loader2 size={14} className="animate-spin text-slate-400" />}
+              {livesSaved && <Check size={14} className="text-emerald-500" />}
+              <span className={`text-2xl font-bold ${pendingLives < 0 ? 'text-red-600' : pendingLives === 0 ? 'text-slate-400' : 'text-red-500'}`}>
+                {pendingLives}
+              </span>
+              <span className="text-sm text-slate-400">/ {livesDefault}</span>
+            </div>
+          </div>
+
+          {/* +/- 조정 */}
+          <div className="flex items-center gap-2">
+            <button onClick={() => adjustLives(-1)}
+              className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 text-red-500 font-bold text-lg flex items-center justify-center hover:bg-red-100 transition-colors">−</button>
+            <button onClick={() => adjustLives(1)}
+              className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 font-bold text-lg flex items-center justify-center hover:bg-emerald-100 transition-colors">+</button>
+            <input
+              type="text"
+              value={livesReason}
+              onChange={e => setLivesReason(e.target.value)}
+              placeholder="사유 입력 (선택)"
+              className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+            />
+          </div>
+
+          {/* 내역 토글 */}
+          <button
+            onClick={() => { if (!showLivesLog) loadLivesLog(); setShowLivesLog(v => !v) }}
+            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
+          >
+            {showLivesLog ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            목숨 내역 보기
+          </button>
+
+          {showLivesLog && (
+            <div className="border border-slate-100 rounded-xl overflow-hidden">
+              {livesLogLoading ? (
+                <div className="p-4 text-center text-xs text-slate-400">불러오는 중...</div>
+              ) : livesLog.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-400">변동 내역이 없어요</div>
+              ) : (
+                <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto">
+                  {[...livesLog].reverse().map(log => (
+                    <div key={log.id} className="flex items-center gap-3 px-3 py-2">
+                      <span className={`text-sm font-bold flex-shrink-0 w-10 text-right ${log.delta > 0 ? 'text-emerald-600' : log.delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                        {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-700 truncate">{log.reason}</p>
+                        <p className="text-xs text-slate-400">{log.created_at.slice(0, 10)}</p>
+                      </div>
+                      <span className="text-xs text-slate-400 flex-shrink-0">→ {log.lives_after}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 반 없으면 안내 */}
       {classes.length === 0 ? (

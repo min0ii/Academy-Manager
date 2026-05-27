@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, ChevronUp, Heart, Skull, MessageSquare, Loader2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -161,8 +161,14 @@ export default function ClassDetailPage() {
   const [livesEnabled, setLivesEnabled]     = useState(false)
   const [livesDefault, setLivesDefault]     = useState(3)
   const [studentLives, setStudentLives]     = useState<Record<string, number>>({})
-  const [livesLoading, setLivesLoading]     = useState(false)
+  const [pendingLivesMap, setPendingLivesMap] = useState<Record<string, number>>({})
+  const livesTimerMap = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [studentLivesReason, setStudentLivesReason] = useState<Record<string, string>>({})
+  const [showLivesLogForId, setShowLivesLogForId] = useState<string | null>(null)
+  const [studentLogMap, setStudentLogMap]   = useState<Record<string, { id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string }[]>>({})
+  const [livesLogLoading, setLivesLogLoading] = useState(false)
   const [savingLivesId, setSavingLivesId]   = useState<string | null>(null)
+  const [livesLoading, setLivesLoading]     = useState(false)
 
   // ── 초기화
   const [showDangerZone, setShowDangerZone]   = useState(false)
@@ -702,19 +708,63 @@ export default function ClassDetailPage() {
     const map: Record<string, number> = {}
     for (const r of data ?? []) map[r.student_id] = r.lives
     setStudentLives(map)
+    setPendingLivesMap(map)
     setLivesLoading(false)
   }
 
-  async function updateStudentLives(studentId: string, delta: number) {
-    const current = studentLives[studentId] ?? livesDefault
-    const next = current + delta
-    setStudentLives(prev => ({ ...prev, [studentId]: next }))
+  async function loadSingleLives(sid: string) {
+    const { data } = await supabase.from('student_lives').select('lives')
+      .eq('academy_id', academyId).eq('student_id', sid).maybeSingle()
+    const lives = data?.lives ?? livesDefault
+    setStudentLives(prev => ({ ...prev, [sid]: lives }))
+    setPendingLivesMap(prev => ({ ...prev, [sid]: lives }))
+  }
+
+  function adjustLivesDelta(studentId: string, delta: number) {
+    const base = pendingLivesMap[studentId] ?? studentLives[studentId] ?? livesDefault
+    const next = base + delta
+    setPendingLivesMap(prev => ({ ...prev, [studentId]: next }))
+    if (livesTimerMap.current[studentId]) clearTimeout(livesTimerMap.current[studentId])
+    livesTimerMap.current[studentId] = setTimeout(() => commitLivesAdjust(studentId, next), 1500)
+  }
+
+  async function commitLivesAdjust(studentId: string, nextLives: number) {
+    const committed = studentLives[studentId] ?? livesDefault
+    const netDelta = nextLives - committed
+    if (netDelta === 0) return
     setSavingLivesId(studentId)
-    await supabase.from('student_lives').upsert(
-      { academy_id: academyId, student_id: studentId, lives: next, updated_at: new Date().toISOString() },
-      { onConflict: 'academy_id,student_id' }
-    )
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setSavingLivesId(null); return }
+    const reason = studentLivesReason[studentId] ?? ''
+    const res = await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'manual-adjust', academyId, studentId, delta: netDelta, reason }),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      setStudentLives(prev => ({ ...prev, [studentId]: json.lives }))
+      setPendingLivesMap(prev => ({ ...prev, [studentId]: json.lives }))
+      setStudentLivesReason(prev => ({ ...prev, [studentId]: '' }))
+      if (showLivesLogForId === studentId) loadStudentLog(studentId)
+    }
     setSavingLivesId(null)
+  }
+
+  async function loadStudentLog(studentId: string) {
+    setLivesLogLoading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setLivesLogLoading(false); return }
+    const res = await fetch(`/api/lives?action=lives-log&studentId=${studentId}&academyId=${academyId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      const json = await res.json()
+      setStudentLogMap(prev => ({ ...prev, [studentId]: json.logs ?? [] }))
+    }
+    setLivesLogLoading(false)
   }
 
   async function resetAllLives() {
@@ -728,6 +778,7 @@ export default function ClassDetailPage() {
     const map: Record<string, number> = {}
     for (const s of students) map[s.id] = livesDefault
     setStudentLives(map)
+    setPendingLivesMap(map)
   }
 
   // ── 출결 현황 통계
@@ -1266,7 +1317,10 @@ export default function ClassDetailPage() {
                 return (
                   <div key={s.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                     <div className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
-                      onClick={() => setExpandedStudentId(isExpanded ? null : s.id)}>
+                      onClick={() => {
+                        setExpandedStudentId(isExpanded ? null : s.id)
+                        if (!isExpanded && livesEnabled) loadSingleLives(s.id)
+                      }}>
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                         <span className="text-blue-600 font-bold text-sm">{s.name[0]}</span>
                       </div>
@@ -1300,6 +1354,72 @@ export default function ClassDetailPage() {
                             <div className="col-span-2"><p className="text-slate-400 mb-0.5">메모</p><p className="text-slate-700 font-medium">{s.memo}</p></div>
                           )}
                         </div>
+                        {/* 목숨 (활성화 시) */}
+                        {livesEnabled && (pendingLivesMap[s.id] !== undefined || studentLives[s.id] !== undefined) && (() => {
+                          const slives = pendingLivesMap[s.id] ?? studentLives[s.id] ?? livesDefault
+                          const isSaving = savingLivesId === s.id
+                          const showLog = showLivesLogForId === s.id
+                          return (
+                            <div className="pt-3 border-t border-slate-100 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Heart size={13} className="text-red-400 fill-red-400" />
+                                  <span className="text-xs font-semibold text-slate-600">목숨</span>
+                                  <span className={`text-sm font-bold ${slives < 0 ? 'text-red-600' : 'text-slate-800'}`}>{slives}</span>
+                                  {isSaving && <Loader2 size={12} className="animate-spin text-slate-400" />}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button onClick={() => adjustLivesDelta(s.id, -1)} disabled={isSaving}
+                                    className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-500 disabled:opacity-30 font-bold text-base leading-none">−</button>
+                                  <button onClick={() => adjustLivesDelta(s.id, 1)} disabled={isSaving}
+                                    className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 disabled:opacity-30 font-bold text-base leading-none">+</button>
+                                </div>
+                              </div>
+                              <input
+                                type="text"
+                                value={studentLivesReason[s.id] ?? ''}
+                                onChange={e => setStudentLivesReason(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                placeholder="사유 입력 (선택)"
+                                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-red-300"
+                              />
+                              <button
+                                onClick={() => {
+                                  if (!showLog) loadStudentLog(s.id)
+                                  setShowLivesLogForId(showLog ? null : s.id)
+                                }}
+                                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+                              >
+                                {showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                목숨 내역
+                              </button>
+                              {showLog && (
+                                <div className="border border-slate-100 rounded-xl overflow-hidden">
+                                  {livesLogLoading ? (
+                                    <div className="p-3 text-center text-xs text-slate-400">불러오는 중...</div>
+                                  ) : (studentLogMap[s.id] ?? []).length === 0 ? (
+                                    <div className="p-3 text-center text-xs text-slate-400">내역 없음</div>
+                                  ) : (
+                                    <div className="divide-y divide-slate-50 max-h-48 overflow-y-auto">
+                                      {[...(studentLogMap[s.id] ?? [])].reverse().map(log => (
+                                        <div key={log.id} className="flex items-center gap-2 px-3 py-2">
+                                          <span className={`text-xs font-bold flex-shrink-0 w-8 text-right ${log.delta > 0 ? 'text-emerald-600' : log.delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                            {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-slate-700 truncate">{log.reason}</p>
+                                            <p className="text-xs text-slate-400">{log.created_at.slice(0, 10)}</p>
+                                          </div>
+                                          <span className="text-xs text-slate-400 flex-shrink-0">→{log.lives_after}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
+
                         <button
                           onClick={() => router.push(`/dashboard/students/${s.id}?from=${encodeURIComponent(`/dashboard/classes/${classId}?tab=students`)}`)}
                           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-blue-300 hover:text-blue-600 transition-colors">
@@ -2187,7 +2307,7 @@ export default function ClassDetailPage() {
           ) : (
             <div className="space-y-2">
               {students.map(s => {
-                const lives    = studentLives[s.id] ?? livesDefault
+                const lives    = pendingLivesMap[s.id] ?? studentLives[s.id] ?? livesDefault
                 const isSaving = savingLivesId === s.id
                 const isNeg    = lives < 0
                 const filledCount   = isNeg ? 0 : Math.min(lives, Math.min(livesDefault, 10))
@@ -2231,17 +2351,17 @@ export default function ClassDetailPage() {
                     {/* 조정 버튼 */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
-                        onClick={() => updateStudentLives(s.id, -1)}
+                        onClick={() => adjustLivesDelta(s.id, -1)}
                         disabled={isSaving}
                         className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg font-bold leading-none"
                       >−</button>
                       <span className={`text-base font-bold min-w-[28px] text-center ${
                         isNeg ? 'text-red-600' : lives === 0 ? 'text-slate-300' : 'text-slate-800'
                       }`}>
-                        {isSaving ? '…' : lives}
+                        {isSaving ? <Loader2 size={14} className="animate-spin inline" /> : lives}
                       </span>
                       <button
-                        onClick={() => updateStudentLives(s.id, 1)}
+                        onClick={() => adjustLivesDelta(s.id, 1)}
                         disabled={isSaving}
                         className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 font-bold text-lg leading-none"
                       >+</button>

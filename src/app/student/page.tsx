@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart, Skull,
+  KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart, Skull, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import ExamTab from './ExamTab'
 import {
@@ -153,6 +153,11 @@ export default function StudentPage() {
   const [livesEnabled, setLivesEnabled] = useState(false)
   const [myLives, setMyLives]           = useState(0)
   const [livesDefault, setLivesDefault] = useState(3)
+  const [myAcademyId, setMyAcademyId]   = useState('')
+  const [myStudentId, setMyStudentId]   = useState('')
+  const [showLivesLog, setShowLivesLog]   = useState(false)
+  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string }[]>([])
+  const [livesLogLoading, setLivesLogLoading] = useState(false)
 
   // 과제·클리닉
   const [hwClinicSub, setHwClinicSub]   = useState<HwClinicSub>('homework')
@@ -235,11 +240,28 @@ export default function StudentPage() {
     })
     if (!res.ok) return
     const json = await res.json()
+    setMyStudentId(studentId)
     if (json.enabled) {
       setLivesEnabled(true)
       setMyLives(json.lives)
       setLivesDefault(json.livesDefault)
+      if (json.academyId) setMyAcademyId(json.academyId)
     }
+  }
+
+  async function loadLivesLog() {
+    if (!myStudentId || !myAcademyId) return
+    setLivesLogLoading(true)
+    const token = await getToken()
+    if (!token) { setLivesLogLoading(false); return }
+    const res = await fetch(`/api/lives?action=lives-log&studentId=${myStudentId}&academyId=${myAcademyId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      const json = await res.json()
+      setLivesLog(json.logs ?? [])
+    }
+    setLivesLogLoading(false)
   }
 
   async function switchContext(idx: number) {
@@ -564,11 +586,51 @@ export default function StudentPage() {
                         {bonusOverflow > 0 && <span className="text-xs font-bold text-red-300 ml-0.5">+{bonusOverflow}</span>}
                         {myLives === 0 && <span className={`text-xs ml-1 ${c.label}`}>목숨이 없어요 😢</span>}
                       </div>
+                      <button
+                        onClick={() => {
+                          if (!showLivesLog) loadLivesLog()
+                          setShowLivesLog(v => !v)
+                        }}
+                        className={`mt-2.5 flex items-center gap-1 text-xs font-semibold ${c.label} opacity-80 hover:opacity-100`}
+                      >
+                        {showLivesLog ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        목숨 내역 보기
+                      </button>
                     </div>
                   )}
                 </div>
               )
             })()}
+
+            {/* 목숨 내역 패널 */}
+            {livesEnabled && showLivesLog && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                  <Heart size={13} className="text-red-400 fill-red-400" />
+                  <p className="text-sm font-bold text-slate-700">목숨 변동 내역</p>
+                </div>
+                {livesLogLoading ? (
+                  <div className="p-4 text-center text-xs text-slate-400">불러오는 중...</div>
+                ) : livesLog.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400">변동 내역이 없어요</div>
+                ) : (
+                  <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                    {[...livesLog].reverse().map(log => (
+                      <div key={log.id} className="flex items-center gap-3 px-4 py-2.5">
+                        <span className={`text-sm font-bold flex-shrink-0 w-10 text-right ${log.delta > 0 ? 'text-emerald-600' : log.delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                          {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-slate-700 truncate">{log.reason}</p>
+                          <p className="text-xs text-slate-400">{log.created_at.slice(0, 10)}</p>
+                        </div>
+                        <span className="text-xs text-slate-400 flex-shrink-0">→ {log.lives_after}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 학원 선택기 (여러 학원에 다닐 때만 표시) */}
             {allContexts.length > 1 && (
