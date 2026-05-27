@@ -974,7 +974,7 @@ export default function SettingsPage() {
                 )}
 
                 {/* 자동화 저장 버튼 */}
-                {isAdmin && (
+                {isAdmin && livesAutoEnabled && (
                   <button
                     onClick={saveAutoSettings}
                     disabled={savingAuto}
