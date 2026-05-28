@@ -409,26 +409,26 @@ export async function recalculate(db: DB, academyId: string) {
   const allClinicSessionIds = clinicSessions.map(s => s.id)
   const allExamIds         = allExams.map(e => e.id)
 
-  // Supabase 기본 1000행 제한 우회 — 학원 규모가 커질수록 제한에 걸리므로 limit을 높게 설정
-  const [attRes, hwStatusRes, clinicAttRes, subRes] = await Promise.all([
+  // Supabase 1000행 기본 제한 우회 — fetchAll로 전체 데이터 페이지네이션 조회
+  const [attData, hwData, caData, subData] = await Promise.all([
     allSessionIds.length > 0
-      ? db.from('attendance').select('student_id, session_id, status').in('session_id', allSessionIds).limit(10000)
-      : Promise.resolve({ data: [] }),
+      ? fetchAll((f, t) => db.from('attendance').select('student_id, session_id, status').in('session_id', allSessionIds).range(f, t))
+      : Promise.resolve([]),
     allHomeworkIds.length > 0
-      ? db.from('homework_status').select('student_id, homework_id, status').in('homework_id', allHomeworkIds).limit(10000)
-      : Promise.resolve({ data: [] }),
+      ? fetchAll((f, t) => db.from('homework_status').select('student_id, homework_id, status').in('homework_id', allHomeworkIds).range(f, t))
+      : Promise.resolve([]),
     allClinicSessionIds.length > 0
-      ? db.from('clinic_attendance').select('student_id, clinic_session_id, status').in('clinic_session_id', allClinicSessionIds).limit(10000)
-      : Promise.resolve({ data: [] }),
+      ? fetchAll((f, t) => db.from('clinic_attendance').select('student_id, clinic_session_id, status').in('clinic_session_id', allClinicSessionIds).range(f, t))
+      : Promise.resolve([]),
     allExamIds.length > 0
-      ? db.from('exam_submissions').select('student_id, exam_id, auto_score, adjusted_score, is_submitted, is_forfeited').in('exam_id', allExamIds).limit(10000)
-      : Promise.resolve({ data: [] }),
+      ? fetchAll((f, t) => db.from('exam_submissions').select('student_id, exam_id, auto_score, adjusted_score, is_submitted, is_forfeited').in('exam_id', allExamIds).range(f, t))
+      : Promise.resolve([]),
   ])
 
-  const attByStudent    = groupBy(attRes.data ?? [], 'student_id')
-  const hwByStudent     = groupBy(hwStatusRes.data ?? [], 'student_id')
-  const caByStudent     = groupBy(clinicAttRes.data ?? [], 'student_id')
-  const subByStudent    = groupBy(subRes.data ?? [], 'student_id')
+  const attByStudent    = groupBy(attData, 'student_id')
+  const hwByStudent     = groupBy(hwData, 'student_id')
+  const caByStudent     = groupBy(caData, 'student_id')
+  const subByStudent    = groupBy(subData, 'student_id')
 
   // 로그 삭제: 학원 전체 한 번에
   await db.from('student_lives_log')
@@ -541,4 +541,24 @@ function groupBy<T extends Record<string, any>>(arr: T[], key: string): Map<stri
     map.get(k)!.push(item)
   }
   return map
+}
+
+// ─────────────────────────────────────────────────────────────
+// 유틸: Supabase 1000행 기본 제한 우회 — 전체 데이터 페이지네이션 조회
+// ─────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchAll(
+  buildQuery: (from: number, to: number) => Promise<{ data: any[] | null }>
+): Promise<any[]> {
+  const all: any[] = []
+  let from = 0
+  const PAGE = 1000
+  while (true) {
+    const { data } = await buildQuery(from, from + PAGE - 1)
+    if (!data?.length) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all
 }
