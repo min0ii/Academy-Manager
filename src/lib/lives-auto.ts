@@ -409,18 +409,19 @@ export async function recalculate(db: DB, academyId: string) {
   const allClinicSessionIds = clinicSessions.map(s => s.id)
   const allExamIds         = allExams.map(e => e.id)
 
+  // Supabase 기본 1000행 제한 우회 — 학원 규모가 커질수록 제한에 걸리므로 limit을 높게 설정
   const [attRes, hwStatusRes, clinicAttRes, subRes] = await Promise.all([
     allSessionIds.length > 0
-      ? db.from('attendance').select('student_id, session_id, status').in('session_id', allSessionIds)
+      ? db.from('attendance').select('student_id, session_id, status').in('session_id', allSessionIds).limit(10000)
       : Promise.resolve({ data: [] }),
     allHomeworkIds.length > 0
-      ? db.from('homework_status').select('student_id, homework_id, status').in('homework_id', allHomeworkIds)
+      ? db.from('homework_status').select('student_id, homework_id, status').in('homework_id', allHomeworkIds).limit(10000)
       : Promise.resolve({ data: [] }),
     allClinicSessionIds.length > 0
-      ? db.from('clinic_attendance').select('student_id, clinic_session_id, status').in('clinic_session_id', allClinicSessionIds)
+      ? db.from('clinic_attendance').select('student_id, clinic_session_id, status').in('clinic_session_id', allClinicSessionIds).limit(10000)
       : Promise.resolve({ data: [] }),
     allExamIds.length > 0
-      ? db.from('exam_submissions').select('student_id, exam_id, auto_score, adjusted_score, is_submitted, is_forfeited').in('exam_id', allExamIds)
+      ? db.from('exam_submissions').select('student_id, exam_id, auto_score, adjusted_score, is_submitted, is_forfeited').in('exam_id', allExamIds).limit(10000)
       : Promise.resolve({ data: [] }),
   ])
 
