@@ -6,7 +6,7 @@ import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera, ShieldQuestion, Sparkles, Heart,
-  Zap, Plus, Trash2, ToggleLeft, ToggleRight,
+  Zap, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'fun'
@@ -114,6 +114,8 @@ export default function SettingsPage() {
   const [savingAuto, setSavingAuto]             = useState(false)
   const [autoSaved, setAutoSaved]               = useState(false)
   const [recalculating, setRecalculating]       = useState(false)
+  const [manualRecalculating, setManualRecalculating] = useState(false)
+  const [manualRecalcDone, setManualRecalcDone]       = useState(false)
   // 규칙 추가 폼
   const [showRuleForm, setShowRuleForm]           = useState(false)
   const [formType, setFormType]                   = useState<ConditionType>('attendance')
@@ -221,6 +223,22 @@ export default function SettingsPage() {
         setTimeout(() => setRecalculating(false), 3000)
       }
     }
+  }
+
+  async function manualRecalculate() {
+    setManualRecalculating(true)
+    setManualRecalcDone(false)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setManualRecalculating(false); return }
+    await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'recalculate', academyId }),
+    })
+    setManualRecalculating(false)
+    setManualRecalcDone(true)
+    setTimeout(() => setManualRecalcDone(false), 3000)
   }
 
   function resetRuleForm() {
@@ -979,25 +997,40 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                {/* 자동화 저장 버튼 */}
+                {/* 자동화 저장 + 재계산 버튼 */}
                 {isAdmin && livesAutoEnabled && (
-                  <button
-                    onClick={saveAutoSettings}
-                    disabled={savingAuto}
-                    className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                      autoSaved
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-violet-600 text-white hover:bg-violet-700'
-                    }`}
-                  >
-                    {autoSaved
-                      ? <><Check size={14} /> 저장됨</>
-                      : savingAuto
-                      ? <><Loader2 size={14} className="animate-spin" /> 저장 중...</>
-                      : recalculating
-                      ? <><Loader2 size={14} className="animate-spin" /> 재계산 중...</>
-                      : '자동화 저장'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveAutoSettings}
+                      disabled={savingAuto || manualRecalculating}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                        autoSaved
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50'
+                      }`}
+                    >
+                      {autoSaved
+                        ? <><Check size={14} /> 저장됨</>
+                        : savingAuto
+                        ? <><Loader2 size={14} className="animate-spin" /> 저장 중...</>
+                        : '자동화 저장'}
+                    </button>
+                    <button
+                      onClick={manualRecalculate}
+                      disabled={manualRecalculating || savingAuto}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 border ${
+                        manualRecalcDone
+                          ? 'bg-emerald-500 text-white border-emerald-500'
+                          : 'border-violet-300 text-violet-600 hover:bg-violet-50 disabled:opacity-50'
+                      }`}
+                    >
+                      {manualRecalcDone
+                        ? <><Check size={14} /> 완료</>
+                        : manualRecalculating
+                        ? <><Loader2 size={14} className="animate-spin" /> 계산 중...</>
+                        : <><RefreshCw size={14} /> 재계산</>}
+                    </button>
+                  </div>
                 )}
 
                 {/* 규칙 목록 */}
