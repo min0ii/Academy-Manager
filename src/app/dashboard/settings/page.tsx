@@ -1047,6 +1047,7 @@ export default function SettingsPage() {
                         </button>
                       )}
                     </div>
+                    <p className="text-xs text-slate-400">같은 이벤트(수업·과제·시험)엔 위에서부터 순서대로 확인해 첫 번째 맞는 규칙 하나만 적용돼요. 시험은 미제출 규칙이 점수 규칙보다 항상 먼저예요.</p>
 
                     {livesRules.length === 0 ? (
                       <div className="bg-slate-50 rounded-xl p-4 text-center">

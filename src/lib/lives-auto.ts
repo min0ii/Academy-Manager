@@ -88,6 +88,76 @@ function buildRuleReason(rule: LivesRule & { name?: string }): string {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 내부 헬퍼
+// ─────────────────────────────────────────────────────────────
+type LogEntry = {
+  academy_id: string; student_id: string
+  delta: number; reason: string; source: string
+  lives_after: number; created_at: string
+}
+
+function makeEntry(academyId: string, studentId: string, rule: any, created_at: string): LogEntry {
+  return {
+    academy_id: academyId, student_id: studentId,
+    delta: rule.delta, reason: buildRuleReason(rule),
+    source: 'rule', lives_after: 0, created_at,
+  }
+}
+
+async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[]) {
+  logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
+  let acc = 0
+  for (const e of logEntries) { acc += e.delta; e.lives_after = acc }
+
+  await db.from('student_lives').upsert(
+    { academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() },
+    { onConflict: 'academy_id,student_id' }
+  )
+  if (logEntries.length > 0) await db.from('student_lives_log').insert(logEntries)
+}
+
+// 시험 규칙 적용 — 이벤트 하나당 최대 하나의 규칙만 적용
+// 1) 미제출 규칙 먼저: 매칭되면 끝
+// 2) 점수 규칙: 위에서부터 첫 번째 매칭만 적용
+function applyExamRules(
+  examRules: any[],
+  exam: any,
+  sub: any,
+  maxScore: number | null,
+  academyId: string,
+  studentId: string,
+  examDate: string,
+  logEntries: LogEntry[]
+) {
+  const isSubmitted = !!(sub && sub.is_submitted && !sub.is_forfeited)
+
+  // 1) 미제출 규칙 (first match)
+  for (const rule of examRules) {
+    if ((rule.condition_detail.examSubType as string) !== 'not_submitted') continue
+    if (checkCondition(rule, 'exam_score', { isSubmitted, category: exam.category ?? null })) {
+      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
+      return  // 이 시험에 대한 처리 완료
+    }
+  }
+
+  // 2) 점수/통과·불통 규칙 (미제출이면 skip, first match)
+  if (!isSubmitted) return
+  const score = sub!.adjusted_score ?? sub!.auto_score
+  if (score === null) return
+
+  for (const rule of examRules) {
+    if ((rule.condition_detail.examSubType as string) === 'not_submitted') continue
+    if (checkCondition(rule, 'exam_score', {
+      score, maxScore, category: exam.category ?? null,
+      examFormat: exam.exam_format ?? 'score', isSubmitted,
+    })) {
+      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
+      return  // 이 시험에 대한 처리 완료
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // 학생 1명 재계산 (단일 이벤트 실시간 트리거용 — DB 직접 조회)
 // ─────────────────────────────────────────────────────────────
 export async function recalculateStudent(db: DB, academyId: string, studentId: string) {
@@ -135,7 +205,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   const { data: classes } = await db.from('classes').select('id').eq('academy_id', academyId)
   const classIds = (classes ?? []).map((c: any) => c.id) as string[]
 
-  // 출결
+  // 출결 — 수업 하나당 첫 번째 매칭 규칙만 적용
   const attRules = rules.filter((r: any) => r.condition_type === 'attendance')
   if (attRules.length > 0 && classIds.length > 0) {
     const { data: sessions } = await db.from('sessions').select('id, date').in('class_id', classIds).gte('date', autoFrom)
@@ -149,14 +219,16 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
       for (const att of attRows ?? []) {
         const date = sessDateMap[att.session_id]
         for (const rule of attRules) {
-          if (checkCondition(rule, 'attendance', { status: att.status, date }))
+          if (checkCondition(rule, 'attendance', { status: att.status, date })) {
             logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+            break  // 이 수업에 대한 처리 완료
+          }
         }
       }
     }
   }
 
-  // 과제
+  // 과제 — 과제 하나당 첫 번째 매칭 규칙만 적용
   const hwRules = rules.filter((r: any) => r.condition_type === 'homework')
   if (hwRules.length > 0 && classIds.length > 0) {
     const { data: homeworks } = await db.from('homework').select('id, assigned_date').in('class_id', classIds).gte('assigned_date', autoFrom)
@@ -169,14 +241,16 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
       for (const hw of homeworks) {
         const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
         for (const rule of hwRules) {
-          if (checkCondition(rule, 'homework', { status }))
+          if (checkCondition(rule, 'homework', { status })) {
             logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`))
+            break  // 이 과제에 대한 처리 완료
+          }
         }
       }
     }
   }
 
-  // 클리닉
+  // 클리닉 — 클리닉 하나당 첫 번째 매칭 규칙만 적용
   const clinicRules = rules.filter((r: any) => r.condition_type === 'clinic')
   if (clinicRules.length > 0 && classIds.length > 0) {
     const { data: clinicSessions } = await db.from('clinic_sessions').select('id, date').in('class_id', classIds).gte('date', autoFrom)
@@ -190,14 +264,16 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
       for (const ca of caRows ?? []) {
         const date = csDateMap[ca.clinic_session_id]
         for (const rule of clinicRules) {
-          if (checkCondition(rule, 'clinic', { status: ca.status }))
+          if (checkCondition(rule, 'clinic', { status: ca.status })) {
             logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+            break  // 이 클리닉에 대한 처리 완료
+          }
         }
       }
     }
   }
 
-  // 시험
+  // 시험 — 미제출 규칙 우선, 이후 점수 규칙 첫 번째 매칭만 적용
   const examRules = rules.filter((r: any) => r.condition_type === 'exam_score')
   if (examRules.length > 0 && classIds.length > 0) {
     const { data: allExams } = await db.from('exams')
@@ -224,24 +300,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
       for (const exam of exams) {
         const maxScore = exam.exam_type === 'manual' ? exam.max_score : (maxScoreByExam[exam.id] ?? null)
         const examDate = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
-        const sub = subByExam.get(exam.id)
-        const isSubmitted = !!(sub && sub.is_submitted && !sub.is_forfeited)
-        for (const rule of examRules) {
-          const ruleSubType = (rule.condition_detail.examSubType as string) ?? 'score'
-          if (ruleSubType === 'not_submitted') {
-            if (checkCondition(rule, 'exam_score', { isSubmitted, category: exam.category ?? null }))
-              logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
-          } else {
-            if (!isSubmitted) continue
-            const score = sub!.adjusted_score ?? sub!.auto_score
-            if (score === null) continue
-            if (checkCondition(rule, 'exam_score', {
-              score, maxScore, category: exam.category ?? null,
-              examFormat: exam.exam_format ?? 'score', isSubmitted,
-            }))
-              logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
-          }
-        }
+        applyExamRules(examRules, exam, subByExam.get(exam.id), maxScore, academyId, studentId, examDate, logEntries)
       }
     }
   }
@@ -258,35 +317,6 @@ export async function applyLivesRulesInternal(
   _eventDetail: Record<string, unknown>
 ) {
   await recalculateStudent(db, academyId, studentId)
-}
-
-// ─────────────────────────────────────────────────────────────
-// 내부 헬퍼
-// ─────────────────────────────────────────────────────────────
-type LogEntry = {
-  academy_id: string; student_id: string
-  delta: number; reason: string; source: string
-  lives_after: number; created_at: string
-}
-
-function makeEntry(academyId: string, studentId: string, rule: any, created_at: string): LogEntry {
-  return {
-    academy_id: academyId, student_id: studentId,
-    delta: rule.delta, reason: buildRuleReason(rule),
-    source: 'rule', lives_after: 0, created_at,
-  }
-}
-
-async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[]) {
-  logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
-  let acc = 0
-  for (const e of logEntries) { acc += e.delta; e.lives_after = acc }
-
-  await db.from('student_lives').upsert(
-    { academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() },
-    { onConflict: 'academy_id,student_id' }
-  )
-  if (logEntries.length > 0) await db.from('student_lives_log').insert(logEntries)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -315,7 +345,7 @@ export async function recalculate(db: DB, academyId: string) {
 
   const classIds = (classes ?? []).map((c: any) => c.id) as string[]
 
-  // ── 전체 데이터 한 번에 조회 ──────────────────────────────
+  // 전체 데이터 한 번에 조회
   const [sessionsRes, homeworksRes, clinicSessionsRes, examsRes] = await Promise.all([
     classIds.length > 0
       ? db.from('sessions').select('id, date').in('class_id', classIds).gte('date', autoFrom)
@@ -350,7 +380,6 @@ export async function recalculate(db: DB, academyId: string) {
   })
   const examIds = allExams.map(e => e.id)
 
-  // 자동채점 시험 만점 계산
   const autoExamIds = allExams.filter(e => e.exam_type === 'auto').map(e => e.id)
   const maxScoreByExam: Record<string, number> = {}
   if (autoExamIds.length > 0) {
@@ -358,7 +387,7 @@ export async function recalculate(db: DB, academyId: string) {
     for (const q of qRows ?? []) maxScoreByExam[q.exam_id] = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score)
   }
 
-  // ── 학생별 데이터도 한 번에 조회 ─────────────────────────
+  // 학생별 데이터도 한 번에 조회
   const [attRes, hwStatusRes, clinicAttRes, subRes] = await Promise.all([
     sessionIds.length > 0
       ? db.from('attendance').select('student_id, session_id, status').in('session_id', sessionIds)
@@ -375,18 +404,17 @@ export async function recalculate(db: DB, academyId: string) {
   ])
 
   // 학생별로 인덱싱
-  const attByStudent = groupBy(attRes.data ?? [], 'student_id')
-  const hwByStudent  = groupBy(hwStatusRes.data ?? [], 'student_id')
-  const caByStudent  = groupBy(clinicAttRes.data ?? [], 'student_id')
-  const subByStudent = groupBy(subRes.data ?? [], 'student_id')
+  const attByStudent    = groupBy(attRes.data ?? [], 'student_id')
+  const hwByStudent     = groupBy(hwStatusRes.data ?? [], 'student_id')
+  const caByStudent     = groupBy(clinicAttRes.data ?? [], 'student_id')
+  const subByStudent    = groupBy(subRes.data ?? [], 'student_id')
 
-  // ── 로그 삭제: 학원 전체 한 번에 ─────────────────────────
+  // 로그 삭제: 학원 전체 한 번에
   await db.from('student_lives_log')
     .delete()
     .eq('academy_id', academyId)
     .in('source', ['rule', 'init'])
 
-  // ── 각 학생 메모리에서 계산 (DB 쿼리 0회) ────────────────
   const attRules    = rules.filter((r: any) => r.condition_type === 'attendance')
   const hwRules     = rules.filter((r: any) => r.condition_type === 'homework')
   const clinicRules = rules.filter((r: any) => r.condition_type === 'clinic')
@@ -405,57 +433,46 @@ export async function recalculate(db: DB, academyId: string) {
       created_at: `${autoFrom}T00:00:00.000Z`,
     })
 
-    // 출결
+    // 출결 — 수업 하나당 첫 번째 매칭 규칙만 적용
     for (const att of attByStudent.get(studentId) ?? []) {
       const date = sessDateMap[att.session_id]
       for (const rule of attRules) {
-        if (checkCondition(rule, 'attendance', { status: att.status }))
+        if (checkCondition(rule, 'attendance', { status: att.status })) {
           logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+          break
+        }
       }
     }
 
-    // 과제
+    // 과제 — 과제 하나당 첫 번째 매칭 규칙만 적용
     const hwStatusMap = new Map((hwByStudent.get(studentId) ?? []).map((hs: any) => [hs.homework_id, hs.status]))
     for (const hw of homeworks) {
       const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
       for (const rule of hwRules) {
-        if (checkCondition(rule, 'homework', { status }))
+        if (checkCondition(rule, 'homework', { status })) {
           logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`))
+          break
+        }
       }
     }
 
-    // 클리닉
+    // 클리닉 — 클리닉 하나당 첫 번째 매칭 규칙만 적용
     for (const ca of caByStudent.get(studentId) ?? []) {
       const date = csDateMap[ca.clinic_session_id]
       for (const rule of clinicRules) {
-        if (checkCondition(rule, 'clinic', { status: ca.status }))
+        if (checkCondition(rule, 'clinic', { status: ca.status })) {
           logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+          break
+        }
       }
     }
 
-    // 시험
+    // 시험 — 미제출 규칙 우선, 이후 점수 규칙 첫 번째 매칭만 적용
     const subMap = new Map((subByStudent.get(studentId) ?? []).map((s: any) => [s.exam_id, s]))
     for (const exam of allExams) {
       const maxScore = exam.exam_type === 'manual' ? exam.max_score : (maxScoreByExam[exam.id] ?? null)
       const examDate = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
-      const sub = subMap.get(exam.id)
-      const isSubmitted = !!(sub && sub.is_submitted && !sub.is_forfeited)
-      for (const rule of examRules) {
-        const ruleSubType = (rule.condition_detail.examSubType as string) ?? 'score'
-        if (ruleSubType === 'not_submitted') {
-          if (checkCondition(rule, 'exam_score', { isSubmitted, category: exam.category ?? null }))
-            logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
-        } else {
-          if (!isSubmitted) continue
-          const score = sub!.adjusted_score ?? sub!.auto_score
-          if (score === null) continue
-          if (checkCondition(rule, 'exam_score', {
-            score, maxScore, category: exam.category ?? null,
-            examFormat: exam.exam_format ?? 'score', isSubmitted,
-          }))
-            logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
-        }
-      }
+      applyExamRules(examRules, exam, subMap.get(exam.id), maxScore, academyId, studentId, examDate, logEntries)
     }
 
     // 날짜 순 정렬 + lives_after 재계산
@@ -467,7 +484,7 @@ export async function recalculate(db: DB, academyId: string) {
     livesUpserts.push({ academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() })
   }
 
-  // ── 전체 저장 한 번에 ────────────────────────────────────
+  // 전체 저장 한 번에
   if (livesUpserts.length > 0)
     await db.from('student_lives').upsert(livesUpserts, { onConflict: 'academy_id,student_id' })
   if (allLogEntries.length > 0)
