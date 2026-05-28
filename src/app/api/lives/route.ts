@@ -190,6 +190,7 @@ export async function POST(req: NextRequest) {
     }).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    void recalculate(db, academyId)
     return NextResponse.json({ rule: data })
   }
 
@@ -200,7 +201,9 @@ export async function POST(req: NextRequest) {
     const { ruleId, enabled } = body
     if (!ruleId) return NextResponse.json({ error: 'ruleId 필요' }, { status: 400 })
 
+    const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
     await db.from('lives_rules').update({ enabled }).eq('id', ruleId)
+    if (rule) void recalculate(db, (rule as any).academy_id)
     return NextResponse.json({ success: true })
   }
 
@@ -211,7 +214,9 @@ export async function POST(req: NextRequest) {
     const { ruleId } = body
     if (!ruleId) return NextResponse.json({ error: 'ruleId 필요' }, { status: 400 })
 
+    const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
     await db.from('lives_rules').delete().eq('id', ruleId)
+    if (rule) void recalculate(db, (rule as any).academy_id)
     return NextResponse.json({ success: true })
   }
 
