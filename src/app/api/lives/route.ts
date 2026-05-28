@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     const [{ data: academy }, { data: rules }] = await Promise.all([
       db.from('academies').select('lives_auto_enabled, lives_auto_from').eq('id', academyId).single(),
-      db.from('lives_rules').select('*').eq('academy_id', academyId).order('created_at'),
+      db.from('lives_rules').select('*').eq('academy_id', academyId).order('order_num').order('created_at'),
     ])
 
     return NextResponse.json({
@@ -185,8 +185,12 @@ export async function POST(req: NextRequest) {
     if (!academyId || !name || !condition_type || !condition_detail || delta === undefined)
       return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 })
 
+    const { data: existing } = await db.from('lives_rules').select('id').eq('academy_id', academyId)
+    const orderNum = (existing ?? []).length
+
     const { data, error } = await db.from('lives_rules').insert({
       academy_id: academyId, name, condition_type, condition_detail, delta, enabled: true,
+      order_num: orderNum,
     }).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -217,6 +221,21 @@ export async function POST(req: NextRequest) {
     const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
     await db.from('lives_rules').delete().eq('id', ruleId)
     if (rule) void recalculate(db, (rule as any).academy_id)
+    return NextResponse.json({ success: true })
+  }
+
+  if (action === 'reorder-rules') {
+    const teacherId = await verifyTeacher(db, token)
+    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    const { ruleIds } = body
+    if (!Array.isArray(ruleIds)) return NextResponse.json({ error: 'ruleIds 필요' }, { status: 400 })
+
+    await Promise.all(
+      ruleIds.map((id: string, idx: number) =>
+        db.from('lives_rules').update({ order_num: idx }).eq('id', id)
+      )
+    )
     return NextResponse.json({ success: true })
   }
 

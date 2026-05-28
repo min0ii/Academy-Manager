@@ -6,7 +6,7 @@ import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera, ShieldQuestion, Sparkles, Heart,
-  Zap, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw,
+  Zap, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw, GripVertical,
 } from 'lucide-react'
 
 type Tab = 'academy' | 'profile' | 'fun'
@@ -116,6 +116,8 @@ export default function SettingsPage() {
   const [recalculating, setRecalculating]       = useState(false)
   const [manualRecalculating, setManualRecalculating] = useState(false)
   const [manualRecalcDone, setManualRecalcDone]       = useState(false)
+  const [draggingId, setDraggingId]                   = useState<string | null>(null)
+  const [dragOverId, setDragOverId]                   = useState<string | null>(null)
   // 규칙 추가 폼
   const [showRuleForm, setShowRuleForm]           = useState(false)
   const [formType, setFormType]                   = useState<ConditionType>('attendance')
@@ -223,6 +225,30 @@ export default function SettingsPage() {
         setTimeout(() => setRecalculating(false), 3000)
       }
     }
+  }
+
+  async function reorderRules(ruleIds: string[]) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'reorder-rules', ruleIds }),
+    })
+  }
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return }
+    const newOrder = [...livesRules]
+    const fromIdx = newOrder.findIndex(r => r.id === draggingId)
+    const toIdx   = newOrder.findIndex(r => r.id === targetId)
+    if (fromIdx === -1 || toIdx === -1) return
+    newOrder.splice(toIdx, 0, newOrder.splice(fromIdx, 1)[0])
+    setLivesRules(newOrder)
+    reorderRules(newOrder.map(r => r.id))
+    setDraggingId(null)
+    setDragOverId(null)
   }
 
   async function manualRecalculate() {
@@ -1058,10 +1084,24 @@ export default function SettingsPage() {
                         {livesRules.map(rule => (
                           <div
                             key={rule.id}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
-                              rule.enabled ? 'bg-white border-violet-100' : 'bg-slate-50 border-slate-100 opacity-60'
+                            draggable={isAdmin}
+                            onDragStart={() => setDraggingId(rule.id)}
+                            onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
+                            onDragOver={e => { e.preventDefault(); setDragOverId(rule.id) }}
+                            onDrop={() => handleDrop(rule.id)}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all select-none ${
+                              draggingId === rule.id
+                                ? 'opacity-40 scale-95'
+                                : dragOverId === rule.id && draggingId !== rule.id
+                                ? 'border-violet-400 bg-violet-50 shadow-sm'
+                                : rule.enabled
+                                ? 'bg-white border-violet-100'
+                                : 'bg-slate-50 border-slate-100 opacity-60'
                             }`}
                           >
+                            {isAdmin && (
+                              <GripVertical size={16} className="text-slate-300 flex-shrink-0 cursor-grab active:cursor-grabbing" />
+                            )}
                             <span className="text-base flex-shrink-0">{COND_ICON[rule.condition_type]}</span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-slate-700 truncate">{ruleDescription(rule)}</p>
