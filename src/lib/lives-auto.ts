@@ -173,6 +173,13 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   const autoFrom = academy.lives_auto_from as string | null
   const autoEnabled = academy.lives_auto_enabled as boolean
 
+  // 학생 등록일 조회 → effectiveFrom = max(autoFrom, 등록일)
+  const { data: studentRow } = await db.from('students').select('created_at').eq('id', studentId).single()
+  const studentDate = studentRow?.created_at ? (studentRow.created_at as string).slice(0, 10) : null
+  const effectiveFrom = autoFrom
+    ? (studentDate && studentDate > autoFrom ? studentDate : autoFrom)
+    : null
+
   await db.from('student_lives_log')
     .delete()
     .eq('academy_id', academyId)
@@ -185,10 +192,10 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     academy_id: academyId, student_id: studentId,
     delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
     source: 'init', lives_after: livesDefault,
-    created_at: autoFrom ? `${autoFrom}T00:00:00.000Z` : new Date(0).toISOString(),
+    created_at: effectiveFrom ? `${effectiveFrom}T00:00:00.000Z` : new Date(0).toISOString(),
   })
 
-  if (!autoEnabled || !autoFrom) {
+  if (!autoEnabled || !effectiveFrom) {
     await flushStudent(db, academyId, studentId, logEntries)
     return
   }
@@ -216,7 +223,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   // 출결 — 수업 하나당 첫 번째 매칭 규칙만 적용
   const attRules = rules.filter((r: any) => r.condition_type === 'attendance')
   if (attRules.length > 0) {
-    const { data: sessions } = await db.from('sessions').select('id, date').in('class_id', classIds).gte('date', autoFrom)
+    const { data: sessions } = await db.from('sessions').select('id, date').in('class_id', classIds).gte('date', effectiveFrom)
     if (sessions?.length > 0) {
       const sessDateMap: Record<string, string> = {}
       for (const s of sessions) sessDateMap[s.id] = s.date
@@ -239,7 +246,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   // 과제 — 과제 하나당 첫 번째 매칭 규칙만 적용
   const hwRules = rules.filter((r: any) => r.condition_type === 'homework')
   if (hwRules.length > 0) {
-    const { data: homeworks } = await db.from('homework').select('id, assigned_date').in('class_id', classIds).gte('assigned_date', autoFrom)
+    const { data: homeworks } = await db.from('homework').select('id, assigned_date').in('class_id', classIds).gte('assigned_date', effectiveFrom)
     if (homeworks?.length > 0) {
       const { data: hwRows } = await db.from('homework_status')
         .select('status, homework_id')
@@ -261,7 +268,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   // 클리닉 — 클리닉 하나당 첫 번째 매칭 규칙만 적용
   const clinicRules = rules.filter((r: any) => r.condition_type === 'clinic')
   if (clinicRules.length > 0) {
-    const { data: clinicSessions } = await db.from('clinic_sessions').select('id, date').in('class_id', classIds).gte('date', autoFrom)
+    const { data: clinicSessions } = await db.from('clinic_sessions').select('id, date').in('class_id', classIds).gte('date', effectiveFrom)
     if (clinicSessions?.length > 0) {
       const csDateMap: Record<string, string> = {}
       for (const s of clinicSessions) csDateMap[s.id] = s.date
@@ -289,7 +296,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
       .in('class_id', classIds)
     const exams = ((allExams ?? []) as any[]).filter(e => {
       const dateStr = e.start_at ? e.start_at.slice(0, 10) : e.created_at.slice(0, 10)
-      return dateStr >= autoFrom!
+      return dateStr >= effectiveFrom!
     })
     if (exams.length > 0) {
       const autoExamIds = exams.filter(e => e.exam_type === 'auto').map(e => e.id)
@@ -343,13 +350,20 @@ export async function recalculate(db: DB, academyId: string) {
   const autoFrom = academy.lives_auto_from as string
 
   const [{ data: allStudents }, { data: rules }, { data: classes }] = await Promise.all([
-    db.from('students').select('id').eq('academy_id', academyId),
+    db.from('students').select('id, created_at').eq('academy_id', academyId),
     db.from('lives_rules').select('id, condition_type, condition_detail, delta, name').eq('academy_id', academyId).eq('enabled', true).order('order_num').order('created_at'),
     db.from('classes').select('id').eq('academy_id', academyId),
   ])
 
   const studentIds = (allStudents ?? []).map((s: any) => s.id) as string[]
   if (studentIds.length === 0 || !rules || rules.length === 0) return
+
+  // 학생별 effectiveFrom = max(autoFrom, 학생 등록일)
+  const effectiveFromByStudent = new Map<string, string>()
+  for (const s of allStudents ?? []) {
+    const studentDate = s.created_at ? (s.created_at as string).slice(0, 10) : null
+    effectiveFromByStudent.set(s.id, studentDate && studentDate > autoFrom ? studentDate : autoFrom)
+  }
 
   const classIds = (classes ?? []).map((c: any) => c.id) as string[]
 
@@ -446,22 +460,23 @@ export async function recalculate(db: DB, academyId: string) {
 
   for (const studentId of studentIds) {
     const logEntries: LogEntry[] = []
+    const effectiveFrom = effectiveFromByStudent.get(studentId) ?? autoFrom
 
     logEntries.push({
       academy_id: academyId, student_id: studentId,
       delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
       source: 'init', lives_after: livesDefault,
-      created_at: `${autoFrom}T00:00:00.000Z`,
+      created_at: `${effectiveFrom}T00:00:00.000Z`,
     })
 
     // 이 학생이 속한 반 ID 집합
     const studentClassSet = classesByStudent.get(studentId) ?? new Set<string>()
 
-    // 출결 — 학생 소속 반의 수업만 / 수업 하나당 첫 번째 매칭 규칙만 적용
+    // 출결 — 학생 소속 반의 수업만 / 등록일 이후만 / 수업 하나당 첫 번째 매칭 규칙만 적용
     if (attRules.length > 0 && studentClassSet.size > 0) {
       for (const att of attByStudent.get(studentId) ?? []) {
         const date = sessDateMap[att.session_id]
-        // 이 수업이 학생 소속 반인지 확인
+        if (!date || date < effectiveFrom) continue  // 등록 전 수업 무시
         const session = sessions.find(s => s.id === att.session_id)
         if (!session || !studentClassSet.has(session.class_id)) continue
         for (const rule of attRules) {
@@ -473,9 +488,9 @@ export async function recalculate(db: DB, academyId: string) {
       }
     }
 
-    // 과제 — 학생 소속 반의 과제만 / 과제 하나당 첫 번째 매칭 규칙만 적용
+    // 과제 — 학생 소속 반의 과제만 / 등록일 이후만 / 과제 하나당 첫 번째 매칭 규칙만 적용
     if (hwRules.length > 0 && studentClassSet.size > 0) {
-      const studentHomeworks = homeworks.filter(h => studentClassSet.has(h.class_id))
+      const studentHomeworks = homeworks.filter(h => studentClassSet.has(h.class_id) && h.assigned_date >= effectiveFrom)
       const hwStatusMap = new Map((hwByStudent.get(studentId) ?? []).map((hs: any) => [hs.homework_id, hs.status]))
       for (const hw of studentHomeworks) {
         const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
@@ -488,10 +503,11 @@ export async function recalculate(db: DB, academyId: string) {
       }
     }
 
-    // 클리닉 — 학생 소속 반의 클리닉만 / 클리닉 하나당 첫 번째 매칭 규칙만 적용
+    // 클리닉 — 학생 소속 반의 클리닉만 / 등록일 이후만 / 클리닉 하나당 첫 번째 매칭 규칙만 적용
     if (clinicRules.length > 0 && studentClassSet.size > 0) {
       for (const ca of caByStudent.get(studentId) ?? []) {
         const date = csDateMap[ca.clinic_session_id]
+        if (!date || date < effectiveFrom) continue  // 등록 전 클리닉 무시
         const cs = clinicSessions.find(s => s.id === ca.clinic_session_id)
         if (!cs || !studentClassSet.has(cs.class_id)) continue
         for (const rule of clinicRules) {
@@ -503,9 +519,12 @@ export async function recalculate(db: DB, academyId: string) {
       }
     }
 
-    // 시험 — 학생 소속 반의 시험만 / 미제출 우선, 점수 규칙 첫 번째 매칭만 적용
+    // 시험 — 학생 소속 반의 시험만 / 등록일 이후만 / 미제출 우선, 점수 규칙 첫 번째 매칭만 적용
     if (examRules.length > 0 && studentClassSet.size > 0) {
-      const studentExams = allExams.filter(e => studentClassSet.has(e.class_id))
+      const studentExams = allExams.filter(e => {
+        const examDate = e.start_at ? e.start_at.slice(0, 10) : e.created_at.slice(0, 10)
+        return studentClassSet.has(e.class_id) && examDate >= effectiveFrom
+      })
       const subMap = new Map((subByStudent.get(studentId) ?? []).map((s: any) => [s.exam_id, s]))
       for (const exam of studentExams) {
         const maxScore = exam.exam_type === 'manual' ? exam.max_score : (maxScoreByExam[exam.id] ?? null)
