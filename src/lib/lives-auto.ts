@@ -197,6 +197,8 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     .select('id, condition_type, condition_detail, delta, name')
     .eq('academy_id', academyId)
     .eq('enabled', true)
+    .order('order_num')
+    .order('created_at')
   if (!rules || rules.length === 0) {
     await flushStudent(db, academyId, studentId, logEntries)
     return
@@ -336,7 +338,7 @@ export async function recalculate(db: DB, academyId: string) {
 
   const [{ data: allStudents }, { data: rules }, { data: classes }] = await Promise.all([
     db.from('students').select('id').eq('academy_id', academyId),
-    db.from('lives_rules').select('id, condition_type, condition_detail, delta, name').eq('academy_id', academyId).eq('enabled', true),
+    db.from('lives_rules').select('id, condition_type, condition_detail, delta, name').eq('academy_id', academyId).eq('enabled', true).order('order_num').order('created_at'),
     db.from('classes').select('id').eq('academy_id', academyId),
   ])
 
