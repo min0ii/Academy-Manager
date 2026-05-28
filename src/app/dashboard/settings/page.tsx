@@ -28,7 +28,7 @@ const COND_LABEL: Record<ConditionType, string> = {
   clinic:     '클리닉',
 }
 const ATT_STATUS_LABEL: Record<string, string> = { present: '출석', late: '지각', early_leave: '조퇴', absent: '결석' }
-const HW_STATUS_LABEL  = { done: '완료', partial: '오답(완벽) 완료', none: '미완료' }
+const HW_STATUS_LABEL  = { done: '완료', partial: '오답(완벽) 완료', none: '미완료', unrecorded: '미기록' }
 const CLINIC_STATUS_LABEL = { done: '완료', not_done: '미완료' }
 const OPERATOR_LABEL = { lt: '미만', lte: '이하', gte: '이상', gt: '초과' }
 
@@ -49,6 +49,7 @@ function ruleDescription(rule: LivesRule): string {
   if (rule.condition_type === 'exam_score') {
     const catStr = d.category ? ` [${d.category}]` : ''
     const examSubType = (d.examSubType as string) ?? 'score'
+    if (examSubType === 'not_submitted') return `시험${catStr} 미제출이면 목숨 ${deltaStr}`
     if (examSubType === 'pass_fail')
       return `시험${catStr} ${d.result === 'pass' ? '통과' : '불통'}이면 목숨 ${deltaStr}`
     const scoreType = (d.scoreType as string) ?? 'pct'
@@ -117,9 +118,9 @@ export default function SettingsPage() {
   const [showRuleForm, setShowRuleForm]           = useState(false)
   const [formType, setFormType]                   = useState<ConditionType>('attendance')
   const [formAttStatuses, setFormAttStatuses]     = useState<Set<string>>(new Set(['absent']))
-  const [formHwStatus, setFormHwStatus]           = useState<'done'|'partial'|'none'>('none')
+  const [formHwStatus, setFormHwStatus]           = useState<'done'|'partial'|'none'|'unrecorded'>('none')
   const [formClinicStatus, setFormClinicStatus]   = useState<'done'|'not_done'>('not_done')
-  const [formExamSubType, setFormExamSubType]     = useState<'score'|'pass_fail'>('score')
+  const [formExamSubType, setFormExamSubType]     = useState<'score'|'pass_fail'|'not_submitted'>('score')
   const [formPassFailResult, setFormPassFailResult] = useState<'pass'|'fail'>('fail')
   const [formScoreOp, setFormScoreOp]             = useState<'lt'|'lte'|'gte'|'gt'>('lt')
   const [formScoreVal, setFormScoreVal]           = useState(70)
@@ -240,6 +241,10 @@ export default function SettingsPage() {
     if (formType === 'attendance') return { statuses: [...formAttStatuses] }
     if (formType === 'homework')   return { status: formHwStatus }
     if (formType === 'clinic')     return { status: formClinicStatus }
+    if (formExamSubType === 'not_submitted') return {
+      examSubType: 'not_submitted',
+      category: formScoreCat || null,
+    }
     if (formExamSubType === 'pass_fail') return {
       examSubType: 'pass_fail',
       result: formPassFailResult,
@@ -266,6 +271,7 @@ export default function SettingsPage() {
     if (formType === 'clinic')
       return `클리닉 ${CLINIC_STATUS_LABEL[d.status as keyof typeof CLINIC_STATUS_LABEL]}이면 ${deltaStr}`
     const catStr = d.category ? ` [${d.category}]` : ''
+    if (formExamSubType === 'not_submitted') return `시험${catStr} 미제출이면 ${deltaStr}`
     if (formExamSubType === 'pass_fail')
       return `시험${catStr} ${formPassFailResult === 'pass' ? '통과' : '불통'}이면 ${deltaStr}`
     return `시험${catStr} ${d.value}${formScoreType === 'raw' ? '점' : '%'} ${OPERATOR_LABEL[d.operator as keyof typeof OPERATOR_LABEL]}이면 ${deltaStr}`
@@ -622,8 +628,8 @@ export default function SettingsPage() {
                 )}
 
                 {formType === 'homework' && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['none', 'done', 'partial'] as const).map(s => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['none', 'done', 'partial', 'unrecorded'] as const).map(s => (
                       <button key={s} onClick={() => setFormHwStatus(s)}
                         className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
                           formHwStatus === s ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50'
@@ -651,12 +657,12 @@ export default function SettingsPage() {
                   <div className="space-y-3">
                     {/* 시험 유형 */}
                     <div className="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
-                      {(['score', 'pass_fail'] as const).map((t, i) => (
+                      {(['score', 'pass_fail', 'not_submitted'] as const).map((t, i) => (
                         <button key={t} onClick={() => setFormExamSubType(t)}
                           className={`flex-1 py-2 font-medium transition-colors ${i > 0 ? 'border-l border-slate-200' : ''} ${
                             formExamSubType === t ? 'bg-violet-600 text-white' : 'text-slate-600 hover:bg-violet-50'
                           }`}>
-                          {t === 'score' ? '점수형' : '통과·불통형'}
+                          {t === 'score' ? '점수형' : t === 'pass_fail' ? '통과·불통형' : '미제출'}
                         </button>
                       ))}
                     </div>
@@ -676,7 +682,7 @@ export default function SettingsPage() {
                       </select>
                     </div>
 
-                    {formExamSubType === 'pass_fail' ? (
+                    {formExamSubType === 'not_submitted' ? null : formExamSubType === 'pass_fail' ? (
                       /* 통과/불통 선택 */
                       <div className="grid grid-cols-2 gap-2">
                         {(['fail', 'pass'] as const).map(r => (

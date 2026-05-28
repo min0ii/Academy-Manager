@@ -31,6 +31,10 @@ export function checkCondition(
 
     const examSubType = (d.examSubType as string) ?? 'score'
 
+    if (examSubType === 'not_submitted') {
+      return eventDetail.isSubmitted === false
+    }
+
     if (examSubType === 'pass_fail') {
       if (eventDetail.examFormat !== 'pass_fail') return false
       const score = eventDetail.score as number
@@ -64,7 +68,7 @@ function buildRuleReason(rule: LivesRule & { name?: string }): string {
     return statuses.map(s => label[s] ?? s).join('/') + ' 처리됨'
   }
   if (rule.condition_type === 'homework') {
-    const label: Record<string, string> = { done: '과제 완료', partial: '과제 오답 완료', none: '과제 미완료' }
+    const label: Record<string, string> = { done: '과제 완료', partial: '과제 오답 완료', none: '과제 미완료', unrecorded: '과제 미기록' }
     return label[d.status as string] ?? '과제'
   }
   if (rule.condition_type === 'clinic') {
@@ -73,6 +77,7 @@ function buildRuleReason(rule: LivesRule & { name?: string }): string {
   if (rule.condition_type === 'exam_score') {
     const cat = d.category ? ` [${d.category}]` : ''
     const examSubType = (d.examSubType as string) ?? 'score'
+    if (examSubType === 'not_submitted') return `시험${cat} 미제출`
     if (examSubType === 'pass_fail')
       return `시험${cat} ${d.result === 'pass' ? '통과' : '불통'}`
     const unit = (d.scoreType as string) === 'raw' ? '점' : '%'
@@ -178,10 +183,12 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         .select('status, homework_id')
         .in('homework_id', homeworks.map((h: any) => h.id))
         .eq('student_id', studentId)
-      for (const hs of hwRows ?? []) {
-        const date = hwDateMap[hs.homework_id]
+      const hwStatusMap = new Map((hwRows ?? []).map((hs: any) => [hs.homework_id, hs.status]))
+      for (const hw of homeworks) {
+        const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
+        const date = hwDateMap[hw.id]
         for (const rule of hwRules) {
-          if (checkCondition(rule, 'homework', { status: hs.status, date })) {
+          if (checkCondition(rule, 'homework', { status, date })) {
             running += rule.delta
             logEntries.push({
               academy_id: academyId, student_id: studentId,
@@ -244,28 +251,44 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const maxScore = exam.exam_type === 'manual' ? exam.max_score : (maxScoreByExam[exam.id] ?? null)
         const examDate = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
         const { data: sub } = await db.from('exam_submissions')
-          .select('auto_score, adjusted_score')
+          .select('auto_score, adjusted_score, is_submitted, is_forfeited')
           .eq('exam_id', exam.id)
           .eq('student_id', studentId)
-          .eq('is_submitted', true)
-          .eq('is_forfeited', false)
           .maybeSingle()
-        if (!sub) continue
-        const score = sub.adjusted_score ?? sub.auto_score
-        if (score === null) continue
+        const isSubmitted = !!(sub && sub.is_submitted && !sub.is_forfeited)
         for (const rule of examRules) {
-          if (checkCondition(rule, 'exam_score', {
-            score, maxScore, date: examDate,
-            category: exam.category ?? null,
-            examFormat: exam.exam_format ?? 'score',
-          })) {
-            running += rule.delta
-            logEntries.push({
-              academy_id: academyId, student_id: studentId,
-              delta: rule.delta, reason: buildRuleReason(rule),
-              source: 'rule', lives_after: running,
-              created_at: `${examDate}T12:00:00.000Z`,
-            })
+          const ruleSubType = (rule.condition_detail.examSubType as string) ?? 'score'
+          if (ruleSubType === 'not_submitted') {
+            if (checkCondition(rule, 'exam_score', {
+              isSubmitted,
+              category: exam.category ?? null,
+            })) {
+              running += rule.delta
+              logEntries.push({
+                academy_id: academyId, student_id: studentId,
+                delta: rule.delta, reason: buildRuleReason(rule),
+                source: 'rule', lives_after: running,
+                created_at: `${examDate}T12:00:00.000Z`,
+              })
+            }
+          } else {
+            if (!isSubmitted) continue
+            const score = sub!.adjusted_score ?? sub!.auto_score
+            if (score === null) continue
+            if (checkCondition(rule, 'exam_score', {
+              score, maxScore, date: examDate,
+              category: exam.category ?? null,
+              examFormat: exam.exam_format ?? 'score',
+              isSubmitted,
+            })) {
+              running += rule.delta
+              logEntries.push({
+                academy_id: academyId, student_id: studentId,
+                delta: rule.delta, reason: buildRuleReason(rule),
+                source: 'rule', lives_after: running,
+                created_at: `${examDate}T12:00:00.000Z`,
+              })
+            }
           }
         }
       }
