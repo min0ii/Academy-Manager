@@ -100,6 +100,8 @@ export default function ExamTab({
 
   // Debounce for SA
   const saDebounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // 아직 저장 안 된 SA 답안 (제출 직전 flush용)
+  const pendingSARef = useRef<Record<string, string>>({})
 
   // Submit
   const [showSubmitModal, setShowSubmitModal] = useState(false)
@@ -212,9 +214,14 @@ export default function ExamTab({
     if (qType === 'multiple_choice') {
       await doSave()
     } else {
-      // Debounce SA
+      // Debounce SA — pending 목록에 등록
+      pendingSARef.current[questionId] = answer
       if (saDebounceRef.current[questionId]) clearTimeout(saDebounceRef.current[questionId])
-      saDebounceRef.current[questionId] = setTimeout(doSave, 1500)
+      saDebounceRef.current[questionId] = setTimeout(async () => {
+        await doSave()
+        delete pendingSARef.current[questionId]
+        delete saDebounceRef.current[questionId]
+      }, 1500)
     }
   }, [examDetail, submissionId])
 
@@ -228,6 +235,25 @@ export default function ExamTab({
     setSubmitting(true)
     const token = await getToken()
     if (!token) { setSubmitting(false); return }
+
+    // 제출 전: 아직 저장 안 된 SA 답안 즉시 flush
+    const pendingEntries = Object.entries(pendingSARef.current)
+    if (pendingEntries.length > 0) {
+      // 대기 중인 debounce 타이머 전부 취소
+      for (const qId of Object.keys(saDebounceRef.current)) {
+        clearTimeout(saDebounceRef.current[qId])
+      }
+      saDebounceRef.current = {}
+      // 미저장 답안 즉시 저장
+      await Promise.all(pendingEntries.map(([questionId, answer]) =>
+        fetch(`/api/exams/${examDetail!.exam.id}/draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ questionId, answer }),
+        })
+      ))
+      pendingSARef.current = {}
+    }
 
     const res = await fetch(`/api/exams/${examDetail.exam.id}/submit`, {
       method: 'POST',
