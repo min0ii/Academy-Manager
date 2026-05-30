@@ -515,6 +515,7 @@ export default function ClassDetailPage() {
         await supabase.from('attendance').delete().eq('id', rec.id)
         setAttendanceList(prev => prev.map(a =>
           a.student_id === studentId ? { ...a, id: null, status: null, note: null } : a))
+        applyLivesRule(studentId, 'attendance', { status: null, date: selectedDate! })
       } else {
         await supabase.from('attendance').update({ status }).eq('id', rec.id)
         setAttendanceList(prev => prev.map(a =>
@@ -558,17 +559,20 @@ export default function ClassDetailPage() {
     const am: Record<string, string> = {}
     for (const a of (ins ?? [])) am[a.student_id] = a.id
     setAttendanceList(students.map(s => ({ id: am[s.id] ?? null, student_id: s.id, status: 'present' as const, note: null })))
+    students.forEach(s => applyLivesRule(s.id, 'attendance', { status: 'present', date: selectedDate! }))
   }
 
   async function deleteSession() {
     if (!selectedSession) return
     const hasAtt = attendanceList.some(a => a.status !== null)
     if (!await showConfirm(hasAtt ? '이 수업을 삭제할까요?\n출석 기록도 함께 삭제돼요.' : '이 수업을 삭제할까요?', { destructive: true })) return
+    const affectedStudents = attendanceList.filter(a => a.status !== null).map(a => a.student_id)
     await supabase.from('attendance').delete().eq('session_id', selectedSession.id)
     await supabase.from('sessions').delete().eq('id', selectedSession.id)
     setSelectedSession(null)
     setAttendanceList(students.map(s => ({ id: null, student_id: s.id, status: null, note: null })))
     await loadMonthSessions()
+    affectedStudents.forEach(sid => applyLivesRule(sid, 'attendance', { status: null, date: selectedDate! }))
   }
 
   async function addExtraSession(e: React.FormEvent) {
@@ -627,6 +631,7 @@ export default function ClassDetailPage() {
         await supabase.from('clinic_attendance').delete().eq('id', rec.id)
         setClinicAttList(prev => prev.map(a =>
           a.student_id === studentId ? { ...a, id: null, status: null } : a))
+        applyLivesRule(studentId, 'clinic', { status: null, date: selectedDate! })
       } else {
         await supabase.from('clinic_attendance').update({ status }).eq('id', rec.id)
         setClinicAttList(prev => prev.map(a =>
@@ -658,13 +663,16 @@ export default function ClassDetailPage() {
     const am: Record<string, string> = {}
     for (const a of (ins ?? [])) am[a.student_id] = a.id
     setClinicAttList(students.map(s => ({ id: am[s.id] ?? null, student_id: s.id, status: 'done' as const })))
+    students.forEach(s => applyLivesRule(s.id, 'clinic', { status: 'done', date: selectedDate! }))
   }
 
   async function deleteClinicSession() {
     if (!selectedClinicSession) return
     if (!await showConfirm('이 클리닉 세션을 삭제할까요?\n기록도 함께 삭제돼요.', { destructive: true })) return
+    const affectedClinicStudents = clinicAttList.filter(a => a.status !== null).map(a => a.student_id)
     await supabase.from('clinic_attendance').delete().eq('clinic_session_id', selectedClinicSession.id)
     await supabase.from('clinic_sessions').delete().eq('id', selectedClinicSession.id)
+    affectedClinicStudents.forEach(sid => applyLivesRule(sid, 'clinic', { status: null, date: selectedDate! }))
     setSelectedClinicSession(null)
     const _dow = new Date(selectedDate! + 'T00:00:00').getDay()
     setClinicAttList(clinicSchedules.some(s => s.day_of_week === _dow)
@@ -847,10 +855,13 @@ async function resetAllLives() {
 
   async function deleteHomework(hwId: string) {
     if (!await showConfirm('이 과제를 삭제할까요?', { destructive: true })) return
+    const affectedHwStudents = (homeworkStatuses[hwId] ?? []).filter(r => r.status !== null).map(r => r.student_id)
+    const hwDate = dateHomeworks.find(h => h.id === hwId)?.assigned_date ?? selectedDate ?? ''
     await supabase.from('homework_status').delete().eq('homework_id', hwId)
     await supabase.from('homework').delete().eq('id', hwId)
     setDateHomeworks(prev => prev.filter(h => h.id !== hwId))
     if (expandedHomeworkId === hwId) setExpandedHomeworkId(null)
+    affectedHwStudents.forEach(sid => applyLivesRule(sid, 'homework', { status: null, date: hwDate }))
   }
 
   async function saveHomeworkDueDate(hwId: string, dueDate: string) {
@@ -887,6 +898,7 @@ async function resetAllLives() {
           ...prev,
           [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, id: null, status: null, note: null } : r),
         }))
+        applyLivesRule(studentId, 'homework', { status: null, date: hwDate })
       } else {
         await supabase.from('homework_status').update({ status }).eq('id', rec.id)
         setHomeworkStatuses(prev => ({
