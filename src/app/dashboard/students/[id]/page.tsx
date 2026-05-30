@@ -79,6 +79,11 @@ function StudentReportContent() {
   const [transferring, setTransferring]           = useState(false)
   const [actionLoading, setActionLoading]         = useState(false)
 
+  // 정보 수정
+  const [isEditing, setIsEditing]   = useState(false)
+  const [editForm, setEditForm]     = useState({ name: '', phone: '', school_name: '', grade: '', parent_phone: '', parent_relation: '', enrolled_at: '', memo: '' })
+  const [savingInfo, setSavingInfo] = useState(false)
+
   // 목숨
   const [livesEnabled, setLivesEnabled]   = useState(false)
   const [livesDefault, setLivesDefault]   = useState(3)
@@ -175,6 +180,53 @@ function StudentReportContent() {
       setTimeout(() => setLivesSaved(false), 2000)
     }
     setSavingLives(false)
+  }
+
+  // ── 정보 수정 ──
+  function openEdit() {
+    if (!student) return
+    setEditForm({
+      name:           student.name,
+      phone:          student.phone ?? '',
+      school_name:    student.school_name ?? '',
+      grade:          student.grade ?? '',
+      parent_phone:   student.parent_phone ?? '',
+      parent_relation: student.parent_relation ?? '',
+      enrolled_at:    student.enrolled_at?.slice(0, 10) ?? '',
+      memo:           student.memo ?? '',
+    })
+    setIsEditing(true)
+  }
+
+  async function saveStudentInfo() {
+    if (!student) return
+    const phone        = editForm.phone.replace(/\D/g, '')
+    const parent_phone = editForm.parent_phone.replace(/\D/g, '') || null
+    if (!editForm.name.trim()) return
+    setSavingInfo(true)
+    await supabase.from('students').update({
+      name:            editForm.name.trim(),
+      phone,
+      school_name:     editForm.school_name.trim() || null,
+      grade:           editForm.grade.trim(),
+      parent_phone,
+      parent_relation: editForm.parent_relation.trim() || null,
+      enrolled_at:     editForm.enrolled_at || student.enrolled_at,
+      memo:            editForm.memo.trim() || null,
+    }).eq('id', studentId)
+    setStudent(prev => prev ? {
+      ...prev,
+      name:            editForm.name.trim(),
+      phone,
+      school_name:     editForm.school_name.trim() || null,
+      grade:           editForm.grade.trim(),
+      parent_phone,
+      parent_relation: editForm.parent_relation.trim() || null,
+      enrolled_at:     editForm.enrolled_at || prev.enrolled_at,
+      memo:            editForm.memo.trim() || null,
+    } : null)
+    setSavingInfo(false)
+    setIsEditing(false)
   }
 
   // ── 퇴원 처리 ──
@@ -356,89 +408,161 @@ function StudentReportContent() {
 
       {/* 기본 정보 */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-blue-600 font-bold text-xl">{student.name[0]}</span>
+        {isEditing ? (
+          /* ── 편집 모드 ── */
+          <div className="space-y-3">
+            <h3 className="font-bold text-slate-800 text-sm">학생 정보 수정</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-slate-400 mb-1 block">이름</label>
+                <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">학생 전화번호</label>
+                <input value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="01012345678" inputMode="numeric"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">학년</label>
+                <input value={editForm.grade} onChange={e => setEditForm(p => ({ ...p, grade: e.target.value }))}
+                  placeholder="예: 2" inputMode="numeric"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-slate-400 mb-1 block">학교</label>
+                <input value={editForm.school_name} onChange={e => setEditForm(p => ({ ...p, school_name: e.target.value }))}
+                  placeholder="○○고등학교"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">학부모 전화번호</label>
+                <input value={editForm.parent_phone} onChange={e => setEditForm(p => ({ ...p, parent_phone: e.target.value }))}
+                  placeholder="01012345678" inputMode="numeric"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">관계</label>
+                <input value={editForm.parent_relation} onChange={e => setEditForm(p => ({ ...p, parent_relation: e.target.value }))}
+                  placeholder="예: 어머니"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-slate-400 mb-1 block">등록일</label>
+                <input type="date" value={editForm.enrolled_at} onChange={e => setEditForm(p => ({ ...p, enrolled_at: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-slate-400 mb-1 block">메모</label>
+                <textarea value={editForm.memo} onChange={e => setEditForm(p => ({ ...p, memo: e.target.value }))}
+                  rows={2} placeholder="메모 (선택)"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setIsEditing(false)}
+                className="flex-1 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+                취소
+              </button>
+              <button onClick={saveStudentInfo} disabled={savingInfo || !editForm.name.trim()}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                {savingInfo ? '저장 중...' : '저장'}
+              </button>
+            </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-slate-800">{student.name}</h2>
-              {student.status === 'inactive' && (
-                <span className="text-xs px-2 py-0.5 bg-slate-200 text-slate-500 rounded-full font-medium">퇴원</span>
+        ) : (
+          /* ── 보기 모드 ── */
+          <>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-blue-600 font-bold text-xl">{student.name[0]}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-bold text-slate-800">{student.name}</h2>
+                  {student.status === 'inactive' && (
+                    <span className="text-xs px-2 py-0.5 bg-slate-200 text-slate-500 rounded-full font-medium">퇴원</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {student.school_name && (
+                    <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{student.school_name}</span>
+                  )}
+                  <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{student.grade}학년</span>
+                  {classes.map(c => (
+                    <span key={c.id} className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full">{c.name}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-slate-400 mb-0.5">학생 전화번호</p>
+                <p className="text-slate-700 font-medium">{formatPhone(student.phone)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-0.5">학부모 전화번호</p>
+                <p className="text-slate-700 font-medium">
+                  {student.parent_phone ? formatPhone(student.parent_phone) : '-'}
+                  {student.parent_relation && (
+                    <span className="text-slate-400 font-normal ml-1">({student.parent_relation})</span>
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-0.5">등록일</p>
+                <p className="text-slate-700 font-medium">{student.enrolled_at?.slice(0, 10) ?? '-'}</p>
+              </div>
+              {student.memo && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400 mb-0.5">메모</p>
+                  <p className="text-slate-700 font-medium">{student.memo}</p>
+                </div>
+              )}
+              {student.withdrawn_at && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400 mb-0.5">퇴원일</p>
+                  <p className="text-slate-500 font-medium">{student.withdrawn_at.slice(0, 10)}</p>
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {student.school_name && (
-                <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{student.school_name}</span>
-              )}
-              <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{student.grade}학년</span>
-              {classes.map(c => (
-                <span key={c.id} className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full">{c.name}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">학생 전화번호</p>
-            <p className="text-slate-700 font-medium">{formatPhone(student.phone)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">학부모 전화번호</p>
-            <p className="text-slate-700 font-medium">
-              {student.parent_phone ? formatPhone(student.parent_phone) : '-'}
-              {student.parent_relation && (
-                <span className="text-slate-400 font-normal ml-1">({student.parent_relation})</span>
-              )}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">등록일</p>
-            <p className="text-slate-700 font-medium">{student.enrolled_at?.slice(0, 10) ?? '-'}</p>
-          </div>
-          {student.memo && (
-            <div className="col-span-2">
-              <p className="text-xs text-slate-400 mb-0.5">메모</p>
-              <p className="text-slate-700 font-medium">{student.memo}</p>
-            </div>
-          )}
-          {student.withdrawn_at && (
-            <div className="col-span-2">
-              <p className="text-xs text-slate-400 mb-0.5">퇴원일</p>
-              <p className="text-slate-500 font-medium">{student.withdrawn_at.slice(0, 10)}</p>
-            </div>
-          )}
-        </div>
 
-        {/* 액션 버튼 */}
-        <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
-          {student.status === 'active' ? (
-            <>
-              <button
-                onClick={openTransferModal}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <ArrowRightLeft size={14} /> 소속반 변경
+            {/* 액션 버튼 */}
+            <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100 flex-wrap">
+              <button onClick={openEdit}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+                ✏️ 정보 수정
               </button>
-              <button
-                onClick={withdrawStudent}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors ml-auto"
-              >
-                <LogOut size={14} /> 퇴원 처리
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={restoreStudent}
-              disabled={actionLoading}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
-            >
-              <RotateCcw size={14} /> 재원 복귀
-            </button>
-          )}
-        </div>
+              {student.status === 'active' ? (
+                <>
+                  <button
+                    onClick={openTransferModal}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    <ArrowRightLeft size={14} /> 소속반 변경
+                  </button>
+                  <button
+                    onClick={withdrawStudent}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors ml-auto"
+                  >
+                    <LogOut size={14} /> 퇴원 처리
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={restoreStudent}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                >
+                  <RotateCcw size={14} /> 재원 복귀
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* 목숨 카드 */}
