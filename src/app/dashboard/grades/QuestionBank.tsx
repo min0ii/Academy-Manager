@@ -357,6 +357,17 @@ export default function QuestionBank() {
     const token = await getToken()
     if (!token) { setSavingSet(false); return }
 
+    // 제목 저장
+    const trimmedTitle = editingSetTitle.trim()
+    if (trimmedTitle) {
+      await fetch('/api/question-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'rename_set', id: editingSetId, title: trimmedTitle }),
+      })
+      setSets(prev => prev.map(s => s.id === editingSetId ? { ...s, title: trimmedTitle } : s))
+    }
+
     const payload = questions.map((q, i) => {
       const base = {
         order_num: i + 1,
@@ -496,7 +507,7 @@ export default function QuestionBank() {
           <div className="flex-1 min-w-0">
             <input
               value={editingSetTitle}
-              onChange={e => setEditingSetTitle(e.target.value)}
+              onChange={e => { setEditingSetTitle(e.target.value); setSavedSet(false) }}
               className="text-lg font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none w-full transition-colors"
             />
             <p className="text-xs text-slate-400">{questions.length}문제 · 총 {totalScore}점</p>

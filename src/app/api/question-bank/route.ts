@@ -132,8 +132,39 @@ export async function DELETE(req: NextRequest) {
   if (!type || !id) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
   if (type === 'folder') {
-    await db.from('qb_folders').delete().eq('id', id).eq('academy_id', academyId)
+    // 하위 폴더 재귀 수집 (BFS)
+    const allFolderIds: string[] = [id]
+    const queue: string[] = [id]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      const { data: children } = await db.from('qb_folders').select('id').eq('parent_id', cur)
+      for (const c of children ?? []) { allFolderIds.push(c.id); queue.push(c.id) }
+    }
+
+    // 하위 세트·문제·선택지·정답 삭제
+    const { data: sets } = await db.from('qb_sets').select('id').in('folder_id', allFolderIds)
+    const setIds = (sets ?? []).map((s: any) => s.id)
+    if (setIds.length > 0) {
+      const { data: qs } = await db.from('qb_questions').select('id').in('set_id', setIds)
+      const qIds = (qs ?? []).map((q: any) => q.id)
+      if (qIds.length > 0) {
+        await db.from('qb_choices').delete().in('question_id', qIds)
+        await db.from('qb_answers').delete().in('question_id', qIds)
+        await db.from('qb_questions').delete().in('set_id', setIds)
+      }
+      await db.from('qb_sets').delete().in('folder_id', allFolderIds)
+    }
+    await db.from('qb_folders').delete().in('id', allFolderIds)
+
   } else if (type === 'set') {
+    // 문제·선택지·정답 삭제 후 세트 삭제
+    const { data: qs } = await db.from('qb_questions').select('id').eq('set_id', id)
+    const qIds = (qs ?? []).map((q: any) => q.id)
+    if (qIds.length > 0) {
+      await db.from('qb_choices').delete().in('question_id', qIds)
+      await db.from('qb_answers').delete().in('question_id', qIds)
+      await db.from('qb_questions').delete().in('id', qIds)
+    }
     await db.from('qb_sets').delete().eq('id', id).eq('academy_id', academyId)
   }
 
