@@ -619,43 +619,41 @@ export default function StudentPage() {
                         className={`mt-2.5 flex items-center gap-1 text-xs font-semibold ${c.label} opacity-80 hover:opacity-100`}
                       >
                         {showLivesLog ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                        목숨 내역 보기
+                        목숨 변동내역 보기
                       </button>
+
+                      {/* 변동내역 — 카드 안에서 부드럽게 확장 */}
+                      <div className={`grid transition-all duration-300 ease-in-out ${showLivesLog ? 'grid-rows-[1fr] mt-3' : 'grid-rows-[0fr]'}`}>
+                        <div className="overflow-hidden">
+                          <div className={`border-t ${c.border} pt-3`}>
+                            {livesLogLoading ? (
+                              <p className={`text-xs text-center py-2 ${c.muted}`}>불러오는 중...</p>
+                            ) : livesLog.length === 0 ? (
+                              <p className={`text-xs text-center py-2 ${c.muted}`}>변동 내역이 없어요</p>
+                            ) : (
+                              <div className="space-y-2 max-h-56 overflow-y-auto">
+                                {[...livesLog].reverse().map(log => (
+                                  <div key={log.id} className="flex items-center gap-3">
+                                    <span className={`text-sm font-bold flex-shrink-0 w-8 text-right ${log.delta > 0 ? 'text-emerald-300' : log.delta < 0 ? 'text-red-300' : 'text-white/50'}`}>
+                                      {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs text-white/90 truncate">{log.reason}</p>
+                                      <p className={`text-xs ${c.muted}`}>{log.created_at.slice(0, 10)}</p>
+                                    </div>
+                                    <span className={`text-xs ${c.muted} flex-shrink-0`}>→ {log.lives_after}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               )
             })()}
-
-            {/* 목숨 내역 패널 */}
-            {livesEnabled && showLivesLog && (
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-                  <Heart size={13} className="text-red-400 fill-red-400" />
-                  <p className="text-sm font-bold text-slate-700">목숨 변동 내역</p>
-                </div>
-                {livesLogLoading ? (
-                  <div className="p-4 text-center text-xs text-slate-400">불러오는 중...</div>
-                ) : livesLog.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-400">변동 내역이 없어요</div>
-                ) : (
-                  <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                    {[...livesLog].reverse().map(log => (
-                      <div key={log.id} className="flex items-center gap-3 px-4 py-2.5">
-                        <span className={`text-sm font-bold flex-shrink-0 w-10 text-right ${log.delta > 0 ? 'text-emerald-600' : log.delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                          {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-slate-700 truncate">{log.reason}</p>
-                          <p className="text-xs text-slate-400">{log.created_at.slice(0, 10)}</p>
-                        </div>
-                        <span className="text-xs text-slate-400 flex-shrink-0">→ {log.lives_after}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* 빌보드 */}
             {livesEnabled && billboardEnabled && billboardLoaded && (
