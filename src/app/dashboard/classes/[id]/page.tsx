@@ -714,17 +714,18 @@ export default function ClassDetailPage() {
   async function loadLives() {
     if (!academyId || students.length === 0) return
     setLivesLoading(true)
-    const { data } = await supabase.from('student_lives')
-      .select('student_id, lives')
-      .eq('academy_id', academyId)
-      .in('student_id', students.map(s => s.id))
+    const [{ data }] = await Promise.all([
+      supabase.from('student_lives')
+        .select('student_id, lives')
+        .eq('academy_id', academyId)
+        .in('student_id', students.map(s => s.id)),
+      loadBillboard(),
+    ])
     const map: Record<string, number> = {}
     for (const r of data ?? []) map[r.student_id] = r.lives
     setStudentLives(map)
     setPendingLivesMap(map)
     setLivesLoading(false)
-    // 빌보드 로드
-    await loadBillboard()
   }
 
   async function loadBillboard() {
@@ -2391,7 +2392,7 @@ function LivesIcons({ lives, max = 5 }: { lives: number; max?: number }) {
   return (
     <span className="flex items-center gap-0.5 flex-wrap">
       {Array.from({ length: count }).map((_, i) => <Skull key={i} size={13} className="text-slate-700 fill-slate-700" />)}
-      {overflow > 0 && <span className="text-xs font-bold text-slate-700 ml-0.5">+{overflow}</span>}
+      {overflow > 0 && <span className="text-xs font-bold text-slate-700 ml-0.5">-{overflow}</span>}
     </span>
   )
 }

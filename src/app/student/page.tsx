@@ -1716,7 +1716,7 @@ function LivesIconsStudent({ lives, max = 5 }: { lives: number; max?: number }) 
   return (
     <span className="flex items-center gap-0.5">
       {Array.from({ length: count }).map((_, i) => <Skull key={i} size={12} className="text-slate-700 fill-slate-700" />)}
-      {overflow > 0 && <span className="text-xs font-bold text-slate-700 ml-0.5">+{overflow}</span>}
+      {overflow > 0 && <span className="text-xs font-bold text-slate-700 ml-0.5">-{overflow}</span>}
     </span>
   )
 }
