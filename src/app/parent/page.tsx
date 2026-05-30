@@ -33,7 +33,7 @@ type TestRecord = {
   myScore: number | null; myPct: number | null
   avgScore: number | null; avgPct: number | null; classHigh: number | null; classLow: number | null; absent: boolean
   isForfeited?: boolean; noDeadline?: boolean; isAdjusted?: boolean; category?: string | null
-  examFormat?: string
+  examFormat?: string; note?: string | null
 }
 type ClinicRecord = {
   id: string; clinic_name: string | null; date: string
@@ -802,6 +802,9 @@ export default function ParentPage() {
                               <span className="text-slate-300">|</span>
                               <span>최저 <strong className="text-red-500">{t.classLow !== null ? `${t.classLow}점` : '-'}</strong></span>
                             </div>
+                          )}
+                          {t.note && (
+                            <p className="text-xs text-slate-500 mt-1.5 bg-slate-50 rounded-xl px-3 py-2 break-words">💬 {t.note}</p>
                           )}
                         </div>
                       ))}

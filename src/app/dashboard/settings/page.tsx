@@ -480,7 +480,7 @@ export default function SettingsPage() {
   if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
 
   const TABS: { key: Tab; label: string; Icon: React.ElementType }[] = [
-    { key: 'academy', label: '학원 정보', Icon: Building2 },
+    { key: 'academy', label: '학원 설정', Icon: Building2 },
     { key: 'profile', label: '내 정보',   Icon: User },
     { key: 'fun',     label: '재밌는 기능', Icon: Sparkles },
   ]

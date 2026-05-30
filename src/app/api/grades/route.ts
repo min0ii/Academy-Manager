@@ -128,13 +128,13 @@ export async function GET(req: NextRequest) {
     if (allExams.length) {
       const examIds = allExams.map(e => e.id)
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited').eq('student_id', studentId).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited, note').eq('student_id', studentId).in('exam_id', examIds),
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score').eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
       const maxScoreByExam: Record<string, number> = {}
       for (const q of (examQuestions ?? [])) { const acc = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score); maxScoreByExam[q.exam_id] = Math.round(acc * 100) / 100 }
-      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean }> = {}
+      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean; note: string | null }> = {}
       for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
       const allScoresByExam: Record<string, number[]> = {}
       for (const s of (allSubmissions ?? [])) {
@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
           absent: false,
           examFormat,
           category: (exam as any).category ?? null,
+          note: mySub?.note ?? null,
         })
       }
     }
@@ -438,7 +439,7 @@ export async function GET(req: NextRequest) {
       const examIds = exams.map(e => e.id)
 
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited')
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited, note')
           .eq('student_id', studentId).in('exam_id', examIds),
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score')
           .eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
@@ -452,9 +453,9 @@ export async function GET(req: NextRequest) {
       }
 
       // 내 제출 맵
-      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean }> = {}
+      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean; note: string | null }> = {}
       for (const s of (mySubmissions ?? [])) {
-        mySubMap[s.exam_id] = { auto_score: s.auto_score, adjusted_score: s.adjusted_score, is_submitted: s.is_submitted, is_forfeited: s.is_forfeited ?? false }
+        mySubMap[s.exam_id] = { auto_score: s.auto_score, adjusted_score: s.adjusted_score, is_submitted: s.is_submitted, is_forfeited: s.is_forfeited ?? false, note: (s as any).note ?? null }
       }
 
       // 시험별 전체 점수 목록 (평균·최고·최저용)
@@ -509,6 +510,7 @@ export async function GET(req: NextRequest) {
           category:       exam.category ?? null,
           rank,
           totalSubmitted,
+          note:           mySub?.note ?? null,
         })
       }
     }
@@ -667,13 +669,13 @@ export async function GET(req: NextRequest) {
     if (allExams2.length) {
       const examIds = allExams2.map(e => e.id)
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited').eq('student_id', studentId).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited, note').eq('student_id', studentId).in('exam_id', examIds),
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score').eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
       const maxScoreByExam: Record<string, number> = {}
       for (const q of (examQuestions ?? [])) { const acc = (maxScoreByExam[q.exam_id] ?? 0) + Number(q.score); maxScoreByExam[q.exam_id] = Math.round(acc * 100) / 100 }
-      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean }> = {}
+      const mySubMap: Record<string, { auto_score: number | null; adjusted_score: number | null; is_submitted: boolean; is_forfeited: boolean; note: string | null }> = {}
       for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
       const allScoresByExam: Record<string, number[]> = {}
       for (const s of (allSubmissions ?? [])) {

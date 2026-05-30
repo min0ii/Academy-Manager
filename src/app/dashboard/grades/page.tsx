@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, Trash2, AlertTriangle,
-  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical,
+  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical, MessageSquare,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
@@ -58,6 +58,7 @@ type StudentSubmission = {
   autoScore: number | null
   adjustedScore: number | null
   finalScore: number | null
+  note: string | null
   answers: {
     question_id: string
     student_answer: string | null
@@ -72,6 +73,7 @@ type ManualEntry = {
   studentName: string
   status: 'submitted' | 'not_submitted' | 'absent'
   score: string
+  note: string | null
 }
 
 type WizardQuestion = {
@@ -386,7 +388,7 @@ function WizardQuestionCard({
 // ── ManualScoreView ─────────────────────────────────────────────────────────
 
 function ManualScoreView({
-  entries, setEntries, maxScore, setMaxScore, onSave, saving, saved, setSaved, examFormat,
+  entries, setEntries, maxScore, setMaxScore, onSave, saving, saved, setSaved, examFormat, onSaveNote,
 }: {
   entries: ManualEntry[]
   setEntries: React.Dispatch<React.SetStateAction<ManualEntry[]>>
@@ -397,8 +399,11 @@ function ManualScoreView({
   saved: boolean
   setSaved: React.Dispatch<React.SetStateAction<boolean>>
   examFormat: 'score' | 'pass_fail'
+  onSaveNote: (studentId: string, note: string) => void
 }) {
   const [filter, setFilter] = useState<'all' | 'submitted' | 'not_submitted'>('all')
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set())
+  const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({})
 
   const isPassFail = examFormat === 'pass_fail'
 
@@ -529,14 +534,23 @@ function ManualScoreView({
             {filtered.map(entry => {
               const scoreNum = parseFloat(entry.score)
               const p = (entry.status === 'submitted' && !isNaN(scoreNum) && maxNum) ? pct(scoreNum, maxNum) : null
+              const noteOpen = expandedNotes.has(entry.studentId)
+              const noteVal = pendingNotes[entry.studentId] ?? (entry.note ?? '')
+              const hasNote = !!(entry.note || pendingNotes[entry.studentId])
               return (
-                <div key={entry.studentId} className="flex items-center gap-3 px-4 py-3 flex-wrap sm:flex-nowrap">
+                <div key={entry.studentId} className="px-4 py-3">
+                  <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${entry.status === 'submitted' ? scoreBg(p) : entry.status === 'absent' ? 'bg-amber-50' : 'bg-slate-100'}`}>
                     <span className={`font-bold text-sm ${entry.status === 'submitted' ? scoreColor(p) : entry.status === 'absent' ? 'text-amber-400' : 'text-slate-400'}`}>
                       {entry.studentName[0]}
                     </span>
                   </div>
                   <p className="flex-1 font-medium text-sm text-slate-800 min-w-0 truncate">{entry.studentName}</p>
+                  <button onClick={() => setExpandedNotes(prev => { const n = new Set(prev); n.has(entry.studentId) ? n.delete(entry.studentId) : n.add(entry.studentId); return n })}
+                    className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${hasNote ? 'text-blue-500 bg-blue-50' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'}`}
+                    title="코멘트">
+                    <MessageSquare size={14} />
+                  </button>
 
                   {/* 3-상태 토글 */}
                   <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs flex-shrink-0">
@@ -589,6 +603,23 @@ function ManualScoreView({
                       </span>
                     )}
                   </div>
+                  </div>
+                  {noteOpen && (
+                    <div className="mt-2 pl-12">
+                      <textarea
+                        value={noteVal}
+                        onChange={e => setPendingNotes(prev => ({ ...prev, [entry.studentId]: e.target.value }))}
+                        onBlur={() => {
+                          const note = pendingNotes[entry.studentId] ?? (entry.note ?? '')
+                          onSaveNote(entry.studentId, note)
+                          setEntries(prev => prev.map(e => e.studentId === entry.studentId ? { ...e, note: note || null } : e))
+                        }}
+                        placeholder="코멘트 입력..."
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-300"
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -604,7 +635,7 @@ function ManualScoreView({
 function AutoMonitorView({
   examDetail, submissions, maxScore, submittedCount, avgScore,
   onRefresh, refreshing, lastRefresh, editAdjusted, setEditAdjusted,
-  onSaveAdj, savingAdj, adjSaved, setAdjSaved, status, onToggleOverride,
+  onSaveAdj, savingAdj, adjSaved, setAdjSaved, status, onToggleOverride, onSaveNote,
 }: {
   examDetail: ExamDetail | null
   submissions: StudentSubmission[]
@@ -622,11 +653,14 @@ function AutoMonitorView({
   setAdjSaved: React.Dispatch<React.SetStateAction<boolean>>
   status: 'scheduled' | 'active' | 'closed'
   onToggleOverride?: (submissionId: string, questionId: string, override: boolean) => void
+  onSaveNote: (studentId: string, note: string) => void
 }) {
   const totalStudents = submissions.length
   const avgP = pct(avgScore, maxScore)
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set())
   const [showQuestions, setShowQuestions] = useState(false)
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set())
+  const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({})
 
   // Per-question wrong rate analysis
   const questionAnalysis = (examDetail?.questions ?? []).map(q => {
@@ -749,6 +783,9 @@ function AutoMonitorView({
             .map(s => {
             const p = pct(s.finalScore, maxScore)
             const adjVal = editAdjusted[s.studentId] ?? (s.adjustedScore !== null ? String(s.adjustedScore) : '')
+            const noteOpen = expandedNotes.has(s.studentId)
+            const noteVal = pendingNotes[s.studentId] ?? (s.note ?? '')
+            const hasNote = !!(s.note || pendingNotes[s.studentId])
             return (
               <div key={s.studentId} className="px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -761,6 +798,11 @@ function AutoMonitorView({
                       <p className="text-xs text-slate-400 mt-0.5">{formatDT(s.submittedAt)} 제출</p>
                     )}
                   </div>
+                  <button onClick={() => setExpandedNotes(prev => { const n = new Set(prev); n.has(s.studentId) ? n.delete(s.studentId) : n.add(s.studentId); return n })}
+                    className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${hasNote ? 'text-blue-500 bg-blue-50' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-50'}`}
+                    title="코멘트">
+                    <MessageSquare size={14} />
+                  </button>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {s.isForfeited ? (
                       <div className="flex items-center gap-1.5 text-orange-400">
@@ -876,6 +918,18 @@ function AutoMonitorView({
                       </div>
                     )}
                   </>
+                )}
+                {noteOpen && (
+                  <div className="mt-2 pl-12">
+                    <textarea
+                      value={noteVal}
+                      onChange={e => setPendingNotes(prev => ({ ...prev, [s.studentId]: e.target.value }))}
+                      onBlur={() => onSaveNote(s.studentId, pendingNotes[s.studentId] ?? (s.note ?? ''))}
+                      placeholder="코멘트 입력..."
+                      rows={2}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-300"
+                    />
+                  </div>
                 )}
               </div>
             )
@@ -1141,11 +1195,22 @@ function GradesContent() {
         const status = s.submissionId === null ? (isPassFail ? 'not_submitted' : 'submitted') : s.isAbsent ? 'absent' : s.isSubmitted ? 'submitted' : 'not_submitted'
         // pass/fail: finalScore 1='1', 0='0', null=''
         const score = s.finalScore !== null ? String(s.finalScore) : ''
-        return { studentId: s.studentId, studentName: s.studentName, status, score }
+        return { studentId: s.studentId, studentName: s.studentName, status, score, note: s.note ?? null }
       }))
       setManualMaxScore(subJson.maxScore !== null && subJson.maxScore !== undefined ? String(subJson.maxScore) : '')
     }
     setLoadingDetail(false)
+  }
+
+  async function saveExamNote(studentId: string, note: string) {
+    if (!selectedExam) return
+    const token = await getToken()
+    if (!token) return
+    await fetch(`/api/exams/${selectedExam.id}/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ saveNote: { studentId, note: note.trim() || null } }),
+    })
   }
 
   async function refreshSubmissions() {
@@ -2164,6 +2229,7 @@ function GradesContent() {
           saved={manualSaved}
           setSaved={setManualSaved}
           examFormat={selectedExam.exam_format ?? 'score'}
+          onSaveNote={saveExamNote}
         />
       ) : (
         <AutoMonitorView
@@ -2183,6 +2249,7 @@ function GradesContent() {
           setAdjSaved={setAdjSaved}
           status={currentStatus}
           onToggleOverride={overrideAnswer}
+          onSaveNote={saveExamNote}
         />
       )}
 

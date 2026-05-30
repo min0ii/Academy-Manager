@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   // 제출 현황
   const { data: submissions } = await db
     .from('exam_submissions')
-    .select('id, student_id, is_submitted, is_forfeited, submitted_at, auto_score, adjusted_score')
+    .select('id, student_id, is_submitted, is_forfeited, submitted_at, auto_score, adjusted_score, note')
     .eq('exam_id', examId)
 
   const subMap = new Map((submissions ?? []).map(s => [s.student_id, s as typeof s & { is_forfeited: boolean }]))
@@ -89,6 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
       autoScore: sub?.auto_score ?? null,
       adjustedScore: sub?.adjusted_score ?? null,
       finalScore,
+      note: (sub as any)?.note ?? null,
       answers: sub ? (answersBySubmission.get(sub.id) ?? []) : [],
     }
   })
@@ -287,6 +288,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
       }
     }
 
+    return NextResponse.json({ success: true })
+  }
+
+  // 코멘트 저장
+  if (body.saveNote !== undefined) {
+    const { studentId, note } = body.saveNote as { studentId: string; note: string | null }
+    if (!studentId) return NextResponse.json({ error: 'studentId 필요' }, { status: 400 })
+    await db.from('exam_submissions').upsert(
+      { exam_id: examId, student_id: studentId, note: note || null },
+      { onConflict: 'exam_id,student_id' }
+    )
     return NextResponse.json({ success: true })
   }
 

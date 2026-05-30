@@ -35,6 +35,7 @@ type TestRecord = {
   isForfeited?: boolean; noDeadline?: boolean; isAdjusted?: boolean; category?: string | null
   rank?: number | null; totalSubmitted?: number | null
   examId?: string; examType?: string; examFormat?: string; answerReveal?: string
+  note?: string | null
 }
 
 type StudentContext = {
@@ -978,6 +979,9 @@ export default function StudentPage() {
                                   <span><span className="text-slate-400">{t.totalSubmitted}명 중</span> <strong className="text-blue-600">{t.rank}위</strong></span>
                                 </>}
                               </div>
+                            )}
+                            {t.note && (
+                              <p className="text-xs text-slate-500 mt-1.5 bg-slate-50 rounded-xl px-3 py-2 break-words">💬 {t.note}</p>
                             )}
                           </div>
                         )
