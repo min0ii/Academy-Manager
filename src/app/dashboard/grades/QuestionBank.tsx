@@ -189,6 +189,7 @@ export default function QuestionBank() {
   const [questions, setQuestions] = useState<QBQuestion[]>([newQ(1)])
   const [savingSet, setSavingSet] = useState(false)
   const [savedSet, setSavedSet] = useState(false)
+  const [openingExam, setOpeningExam] = useState(false)  // 시험 생성 모달 열기 중 (중복 실행 방지)
 
   // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -398,7 +399,9 @@ export default function QuestionBank() {
   }
 
   async function openCreateExam() {
-    if (!editingSetId) return
+    if (!editingSetId || openingExam) return  // 중복 실행 방지
+    setOpeningExam(true)
+    try {
     if (!savedSet) await saveSet()
 
     // 전체 선택 초기화
@@ -420,6 +423,9 @@ export default function QuestionBank() {
     const { data: classData } = await supabase.from('classes').select('id, name').eq('academy_id', acadId).order('name')
     setClasses(classData ?? [])
     setLoadingClasses(false)
+    } finally {
+      setOpeningExam(false)
+    }
   }
 
   async function doCreateExam() {
@@ -500,9 +506,9 @@ export default function QuestionBank() {
             <Save size={14} />
             {savingSet ? '저장 중' : savedSet ? '저장됨 ✓' : '저장'}
           </button>
-          <button onClick={openCreateExam}
-            className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors flex-shrink-0">
-            <GraduationCap size={14} /> 시험 생성
+          <button onClick={openCreateExam} disabled={openingExam || savingSet}
+            className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-xl transition-colors flex-shrink-0 ${openingExam || savingSet ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+            <GraduationCap size={14} /> {openingExam ? '준비 중...' : '시험 생성'}
           </button>
         </div>
 

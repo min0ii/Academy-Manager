@@ -134,27 +134,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ setI
       })
       .select('id')
       .single()
-    if (qErr || !newQ) continue
+    if (qErr || !newQ)
+      return NextResponse.json({ error: `문항 ${i + 1} 저장 실패: ${qErr?.message}` }, { status: 500 })
 
     // 보기 insert
     if (q.choices?.length) {
-      await db.from('qb_choices').insert(
+      const { error: cErr } = await db.from('qb_choices').insert(
         q.choices.map((c: any, ci: number) => ({
           question_id: newQ.id,
           choice_num: c.choice_num ?? ci + 1,
           choice_text: c.choice_text ?? '',
         }))
       )
+      if (cErr) return NextResponse.json({ error: `문항 ${i + 1} 선택지 저장 실패: ${cErr.message}` }, { status: 500 })
     }
     // 정답 insert
     if (q.answers?.length) {
-      await db.from('qb_answers').insert(
+      const { error: aErr } = await db.from('qb_answers').insert(
         q.answers.map((a: any, ai: number) => ({
           question_id: newQ.id,
           answer_text: a.answer_text ?? '',
           order_num: a.order_num ?? ai + 1,
         }))
       )
+      if (aErr) return NextResponse.json({ error: `문항 ${i + 1} 정답 저장 실패: ${aErr.message}` }, { status: 500 })
     }
   }
 
