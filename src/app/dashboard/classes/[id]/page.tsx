@@ -2396,7 +2396,12 @@ function LivesIcons({ lives, max = 5 }: { lives: number; max?: number }) {
   )
 }
 
-const RANK_MEDAL = ['🥇', '🥈', '🥉', '', '']
+function rankMedal(rank: number) {
+  if (rank === 1) return '🥇'
+  if (rank === 2) return '🥈'
+  if (rank === 3) return '🥉'
+  return String(rank)
+}
 
 function BillboardCard({ billboard, minLives, showLast }: {
   billboard: { rank: number; name: string; lives: number }[]
@@ -2409,7 +2414,7 @@ function BillboardCard({ billboard, minLives, showLast }: {
       <div className="bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 border-b border-amber-100 flex items-center gap-2">
         <span className="text-lg">🏅</span>
         <p className="font-bold text-amber-800 text-sm">목숨 빌보드</p>
-        <p className="text-xs text-amber-500 ml-auto">1~5위</p>
+        <p className="text-xs text-amber-500 ml-auto">전체 순위</p>
       </div>
 
       {/* 순위 목록 */}
@@ -2417,9 +2422,11 @@ function BillboardCard({ billboard, minLives, showLast }: {
         <div className="px-4 py-6 text-center text-sm text-slate-400">학생 데이터가 없어요</div>
       ) : (
         <div className="divide-y divide-slate-50">
-          {billboard.map(entry => (
-            <div key={entry.rank} className={`flex items-center gap-3 px-4 py-3 ${entry.rank === 1 ? 'bg-amber-50/50' : ''}`}>
-              <span className="text-base w-6 text-center flex-shrink-0">{RANK_MEDAL[entry.rank - 1] || entry.rank}</span>
+          {billboard.map((entry, i) => (
+            <div key={i} className={`flex items-center gap-3 px-4 py-3 ${entry.rank === 1 ? 'bg-amber-50/50' : ''}`}>
+              <span className={`w-8 text-center flex-shrink-0 ${entry.rank <= 3 ? 'text-base' : 'text-xs font-bold text-slate-400'}`}>
+                {rankMedal(entry.rank)}
+              </span>
               <span className={`flex-1 text-sm font-semibold ${entry.rank === 1 ? 'text-amber-700' : 'text-slate-700'}`}>{entry.name}</span>
               <LivesIcons lives={entry.lives} />
             </div>
@@ -2427,16 +2434,16 @@ function BillboardCard({ billboard, minLives, showLast }: {
         </div>
       )}
 
-      {/* 꼴찌 섹션 */}
+      {/* 최소 목숨 섹션 */}
       {showLast && minLives !== null && (
         <div className="border-t border-dashed border-slate-200 px-4 py-3 bg-slate-50/50">
-          <p className="text-xs text-slate-500">
-            가장 목숨이 적은 학생은&nbsp;
-            <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
+          <p className="text-xs text-slate-500 flex items-center gap-1 flex-wrap">
+            가장 목숨이 적은 학생은
+            <span className="inline-flex items-center gap-0.5 font-semibold text-slate-700">
               <LivesIcons lives={minLives} max={10} />
               &nbsp;{minLives}개
             </span>
-            &nbsp;예요.
+            예요.
           </p>
         </div>
       )}

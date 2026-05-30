@@ -9,9 +9,16 @@ function admin() {
   )
 }
 
+// 스포츠식 공동등수: 동점이면 같은 rank, 다음은 건너뜀 (1,1,3,4...)
+function assignRanks(entries: { id: string; name: string; lives: number }[]) {
+  return entries.map((e, i) => {
+    const rank = entries.findIndex(x => x.lives === e.lives) + 1
+    return { rank, name: e.name, lives: e.lives }
+  })
+}
+
 // GET /api/lives/billboard?classId=xxx
-// 선생님 또는 학생 모두 호출 가능
-// → { billboard: [{rank, name, lives}], minLives, minLivesCount, billboardEnabled, showLast }
+// 선생님: 전체 순위 반환 / 학생: 상위 5개 항목 반환
 export async function GET(req: NextRequest) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -24,7 +31,7 @@ export async function GET(req: NextRequest) {
   const classId = searchParams.get('classId')
   if (!classId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
-  // 토큰 검증 (선생님 or 학생 모두 허용)
+  // 토큰 → 사용자 확인
   const { data: { user }, error: authErr } = await db.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
@@ -33,18 +40,28 @@ export async function GET(req: NextRequest) {
   if (!cls?.academy_id) return NextResponse.json({ error: '반을 찾을 수 없어요.' }, { status: 404 })
   const academyId = cls.academy_id
 
+  // 선생님 여부 확인
+  const { data: teacherRow } = await db.from('academy_teachers')
+    .select('academy_id').eq('teacher_id', user.id).eq('academy_id', academyId).maybeSingle()
+  const isTeacher = !!teacherRow
+
   // 빌보드 설정 조회
   const { data: academy } = await db.from('academies')
     .select('lives_billboard_enabled, lives_billboard_show_last, lives_default')
     .eq('id', academyId).single()
 
-  if (!academy?.lives_billboard_enabled)
+  // 선생님은 빌보드 설정 무관하게 항상 전체 순위 반환
+  if (!isTeacher && !academy?.lives_billboard_enabled)
     return NextResponse.json({ billboardEnabled: false })
 
   // 반 소속 학생 목록
   const { data: cs } = await db.from('class_students')
     .select('student_id').eq('class_id', classId)
-  if (!cs?.length) return NextResponse.json({ billboardEnabled: true, billboard: [], minLives: null, showLast: academy.lives_billboard_show_last })
+  if (!cs?.length) return NextResponse.json({
+    billboardEnabled: true, isTeacher,
+    billboard: [], minLives: null,
+    showLast: academy?.lives_billboard_show_last ?? true,
+  })
 
   const studentIds = cs.map(r => r.student_id)
 
@@ -60,32 +77,29 @@ export async function GET(req: NextRequest) {
   const livesMap: Record<string, number> = {}
   for (const r of (livesRows ?? [])) livesMap[r.student_id] = r.lives
 
-  // 전체 학생 목숨 계산 (student_lives에 없으면 기본값)
-  const livesDefault = academy.lives_default ?? 3
+  const livesDefault = academy?.lives_default ?? 3
   const allEntries = studentIds.map(id => ({
     id,
     name: nameMap[id] ?? '?',
     lives: livesMap[id] ?? livesDefault,
   }))
 
-  // 내림차순 정렬
+  // 내림차순 정렬 후 공동등수 계산
   allEntries.sort((a, b) => b.lives - a.lives)
+  const ranked = assignRanks(allEntries)
 
-  // 상위 5명
-  const top5 = allEntries.slice(0, 5).map((e, i) => ({
-    rank: i + 1,
-    name: e.name,
-    lives: e.lives,
-  }))
+  // 선생님: 전체 / 학생: 상위 5개 항목
+  const billboard = isTeacher ? ranked : ranked.slice(0, 5)
 
-  // 꼴찌 목숨 수 (가장 낮은 값)
+  // 꼴찌 목숨 수
   const minLives = allEntries.length > 0 ? allEntries[allEntries.length - 1].lives : null
 
   return NextResponse.json({
     billboardEnabled: true,
-    billboard: top5,
+    isTeacher,
+    billboard,
     minLives,
-    showLast: academy.lives_billboard_show_last,
+    showLast: academy?.lives_billboard_show_last ?? true,
     livesDefault,
   })
 }

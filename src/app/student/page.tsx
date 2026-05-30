@@ -1721,7 +1721,12 @@ function LivesIconsStudent({ lives, max = 5 }: { lives: number; max?: number }) 
   )
 }
 
-const RANK_MEDAL_S = ['🥇', '🥈', '🥉', '', '']
+function rankMedalS(rank: number) {
+  if (rank === 1) return '🥇'
+  if (rank === 2) return '🥈'
+  if (rank === 3) return '🥉'
+  return String(rank)
+}
 
 function StudentBillboardCard({ billboard, minLives, showLast }: {
   billboard: { rank: number; name: string; lives: number }[]
@@ -1739,9 +1744,11 @@ function StudentBillboardCard({ billboard, minLives, showLast }: {
         <div className="px-4 py-6 text-center text-sm text-slate-400">데이터가 없어요</div>
       ) : (
         <div className="divide-y divide-slate-50">
-          {billboard.map(entry => (
-            <div key={entry.rank} className={`flex items-center gap-3 px-4 py-3 ${entry.rank === 1 ? 'bg-amber-50/50' : ''}`}>
-              <span className="text-base w-6 text-center flex-shrink-0">{RANK_MEDAL_S[entry.rank - 1] || entry.rank}</span>
+          {billboard.map((entry, i) => (
+            <div key={i} className={`flex items-center gap-3 px-4 py-3 ${entry.rank === 1 ? 'bg-amber-50/50' : ''}`}>
+              <span className={`w-8 text-center flex-shrink-0 ${entry.rank <= 3 ? 'text-base' : 'text-xs font-bold text-slate-400'}`}>
+                {rankMedalS(entry.rank)}
+              </span>
               <span className={`flex-1 text-sm font-semibold ${entry.rank === 1 ? 'text-amber-700' : 'text-slate-700'}`}>{entry.name}</span>
               <LivesIconsStudent lives={entry.lives} />
             </div>
