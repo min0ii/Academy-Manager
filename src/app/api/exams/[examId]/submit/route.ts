@@ -66,10 +66,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
   let submissionId = existingSub?.id
   if (!submissionId) {
-    const { data: newSub } = await db.from('exam_submissions').insert({
-      exam_id: examId, student_id: studentId, is_submitted: false,
-    }).select('id').single()
-    submissionId = newSub?.id
+    // upsert로 생성하여 동시 요청 충돌 방지
+    await db.from('exam_submissions').upsert(
+      { exam_id: examId, student_id: studentId, is_submitted: false },
+      { onConflict: 'exam_id,student_id', ignoreDuplicates: true }
+    )
+    const { data: sub } = await db.from('exam_submissions')
+      .select('id').eq('exam_id', examId).eq('student_id', studentId).single()
+    submissionId = sub?.id
   }
   if (!submissionId) return NextResponse.json({ error: '제출 실패' }, { status: 500 })
 

@@ -81,20 +81,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   if (exam.status !== 'active')
     return NextResponse.json({ error: '시험이 시작되지 않았거나 마감됐어요.' }, { status: 403 })
 
-  // 이미 제출 확인
-  const { data: existing } = await db.from('exam_submissions')
-    .select('id, is_submitted').eq('exam_id', examId).eq('student_id', studentId).maybeSingle()
-  if (existing?.is_submitted) return NextResponse.json({ error: '이미 제출된 시험이에요.' }, { status: 403 })
-
-  // 제출 레코드 없으면 생성
-  let submissionId = existing?.id
-  if (!submissionId) {
-    const { data: newSub } = await db.from('exam_submissions').insert({
-      exam_id: examId, student_id: studentId, is_submitted: false,
-    }).select('id').single()
-    submissionId = newSub?.id
-  }
-  if (!submissionId) return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+  // 동시 요청 레이스 컨디션 방지: upsert(ignoreDuplicates) 후 select
+  await db.from('exam_submissions').upsert(
+    { exam_id: examId, student_id: studentId, is_submitted: false },
+    { onConflict: 'exam_id,student_id', ignoreDuplicates: true }
+  )
+  const { data: sub } = await db.from('exam_submissions')
+    .select('id, is_submitted').eq('exam_id', examId).eq('student_id', studentId).single()
+  if (!sub) return NextResponse.json({ error: '저장 실패' }, { status: 500 })
+  if (sub.is_submitted) return NextResponse.json({ error: '이미 제출된 시험이에요.' }, { status: 403 })
+  const submissionId = sub.id
 
   // 답안 upsert
   await db.from('exam_student_answers').upsert({
