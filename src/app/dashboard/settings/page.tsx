@@ -134,6 +134,11 @@ export default function SettingsPage() {
   const [savingRule, setSavingRule]               = useState(false)
   const [examCategories, setExamCategories]       = useState<string[]>([])
 
+  // 코멘트 공개 설정
+  type CommentVis = { attStudent: boolean; attParent: boolean; hwStudent: boolean; hwParent: boolean; clinicStudent: boolean; clinicParent: boolean; examStudent: boolean; examParent: boolean }
+  const [commentVis, setCommentVis]     = useState<CommentVis>({ attStudent: true, attParent: true, hwStudent: true, hwParent: true, clinicStudent: true, clinicParent: true, examStudent: true, examParent: true })
+  const [savingCommentVis, setSavingCommentVis] = useState(false)
+
   // 보안 질문
   const [currentSQ, setCurrentSQ]     = useState<string | null>(null)
   const [sqLoaded, setSqLoaded]       = useState(false)
@@ -167,9 +172,20 @@ export default function SettingsPage() {
 
   async function loadLivesSettings(aId: string) {
     const { data } = await supabase.from('academies')
-      .select('lives_enabled, lives_default').eq('id', aId).single()
+      .select('lives_enabled, lives_default, comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent')
+      .eq('id', aId).single()
     setLivesEnabled(data?.lives_enabled ?? false)
     setLivesDefault(data?.lives_default ?? 3)
+    if (data) setCommentVis({
+      attStudent:    data.comment_vis_att_student    ?? true,
+      attParent:     data.comment_vis_att_parent     ?? true,
+      hwStudent:     data.comment_vis_hw_student     ?? true,
+      hwParent:      data.comment_vis_hw_parent      ?? true,
+      clinicStudent: data.comment_vis_clinic_student ?? true,
+      clinicParent:  data.comment_vis_clinic_parent  ?? true,
+      examStudent:   data.comment_vis_exam_student   ?? true,
+      examParent:    data.comment_vis_exam_parent    ?? true,
+    })
     setLivesLoaded(true)
   }
 
@@ -441,6 +457,28 @@ export default function SettingsPage() {
     setTimeout(() => setLogoSaved(false), 2000)
   }
 
+  async function saveCommentVis(next: CommentVis) {
+    if (!academyId) return
+    setSavingCommentVis(true)
+    await supabase.from('academies').update({
+      comment_vis_att_student:    next.attStudent,
+      comment_vis_att_parent:     next.attParent,
+      comment_vis_hw_student:     next.hwStudent,
+      comment_vis_hw_parent:      next.hwParent,
+      comment_vis_clinic_student: next.clinicStudent,
+      comment_vis_clinic_parent:  next.clinicParent,
+      comment_vis_exam_student:   next.examStudent,
+      comment_vis_exam_parent:    next.examParent,
+    }).eq('id', academyId)
+    setSavingCommentVis(false)
+  }
+
+  function toggleCommentVis(key: keyof CommentVis) {
+    const next = { ...commentVis, [key]: !commentVis[key] }
+    setCommentVis(next)
+    void saveCommentVis(next)
+  }
+
   async function saveAcademyName() {
     if (!academyName.trim()) return
     setSavingAcademy(true)
@@ -604,6 +642,44 @@ export default function SettingsPage() {
               <p className="text-xs text-slate-400 mt-1.5">학원 정보는 원장만 수정할 수 있어요</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── 코멘트 공개 설정 카드 ── */}
+      {tab === 'academy' && livesLoaded && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-slate-800">코멘트 공개 설정</h2>
+            {savingCommentVis && <span className="text-xs text-slate-400">저장 중...</span>}
+          </div>
+          <p className="text-xs text-slate-400">항목별로 학생·학부모에게 코멘트를 공개할지 설정해요.</p>
+
+          {([
+            { label: '출결', keys: ['attStudent', 'attParent'] as const },
+            { label: '과제', keys: ['hwStudent', 'hwParent'] as const },
+            { label: '클리닉', keys: ['clinicStudent', 'clinicParent'] as const },
+            { label: '시험', keys: ['examStudent', 'examParent'] as const },
+          ] as { label: string; keys: [keyof CommentVis, keyof CommentVis] }[]).map(({ label, keys: [sk, pk] }) => (
+            <div key={label} className="flex items-center gap-4 py-3 border-t border-slate-100 first:border-t-0">
+              <span className="text-sm font-semibold text-slate-700 w-14 flex-shrink-0">{label}</span>
+              <div className="flex items-center gap-6 flex-1">
+                {/* 학생 토글 */}
+                <button onClick={() => toggleCommentVis(sk)} className="flex items-center gap-2.5 group">
+                  <div className={`w-11 h-6 rounded-full relative transition-colors duration-200 ${commentVis[sk] ? 'bg-blue-500' : 'bg-slate-200'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${commentVis[sk] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className={`text-xs font-medium transition-colors ${commentVis[sk] ? 'text-blue-600' : 'text-slate-400'}`}>학생 공개</span>
+                </button>
+                {/* 학부모 토글 */}
+                <button onClick={() => toggleCommentVis(pk)} className="flex items-center gap-2.5 group">
+                  <div className={`w-11 h-6 rounded-full relative transition-colors duration-200 ${commentVis[pk] ? 'bg-violet-500' : 'bg-slate-200'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${commentVis[pk] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className={`text-xs font-medium transition-colors ${commentVis[pk] ? 'text-violet-600' : 'text-slate-400'}`}>학부모 공개</span>
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

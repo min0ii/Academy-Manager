@@ -46,6 +46,26 @@ async function verifyClassAccess(db: ReturnType<typeof admin>, studentId: string
   return !!data
 }
 
+// 코멘트 공개 설정 조회 (classId → academyId 자동 조회)
+const DEFAULT_VIS = { attStudent: true, attParent: true, hwStudent: true, hwParent: true, clinicStudent: true, clinicParent: true, examStudent: true, examParent: true }
+async function getCommentVis(db: ReturnType<typeof admin>, classId: string) {
+  const { data: cls } = await db.from('classes').select('academy_id').eq('id', classId).single()
+  if (!cls?.academy_id) return DEFAULT_VIS
+  const { data } = await db.from('academies')
+    .select('comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent')
+    .eq('id', cls.academy_id).single()
+  return {
+    attStudent:    data?.comment_vis_att_student    ?? true,
+    attParent:     data?.comment_vis_att_parent     ?? true,
+    hwStudent:     data?.comment_vis_hw_student     ?? true,
+    hwParent:      data?.comment_vis_hw_parent      ?? true,
+    clinicStudent: data?.comment_vis_clinic_student ?? true,
+    clinicParent:  data?.comment_vis_clinic_parent  ?? true,
+    examStudent:   data?.comment_vis_exam_student   ?? true,
+    examParent:    data?.comment_vis_exam_parent    ?? true,
+  }
+}
+
 // GET ?action=tests&classId=xxx              → 시험 목록 + 통계
 // GET ?action=scores&testId=xxx&classId=xxx  → 특정 시험의 학생별 점수
 // GET ?action=student-chart&classId=xxx&studentId=xxx → 학생 상세 성적 그래프+목록
@@ -82,6 +102,7 @@ export async function GET(req: NextRequest) {
     const enrolledAt1 = _sr1?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
 
     const records: Record<string, unknown>[] = []
+    const vis = await getCommentVis(db, classId!)
 
     // 구시스템
     const { data: tests } = await db.from('tests')
@@ -162,7 +183,7 @@ export async function GET(req: NextRequest) {
           absent: false,
           examFormat,
           category: (exam as any).category ?? null,
-          note: mySub?.note ?? null,
+          note: vis.examParent ? (mySub?.note ?? null) : null,
         })
       }
     }
@@ -226,6 +247,7 @@ export async function GET(req: NextRequest) {
     const statusMap: Record<string, { status: string; note: string | null }> = {}
     for (const s of (statuses ?? [])) statusMap[s.homework_id] = { status: s.status, note: s.note ?? null }
 
+    const vis = await getCommentVis(db, classId!)
     const records = hwList.map((h: any) => ({
       id:            h.id,
       title:         h.title,
@@ -233,7 +255,7 @@ export async function GET(req: NextRequest) {
       due_date:      h.due_date ?? null,
       description:   h.description ?? null,
       status:        statusMap[h.id]?.status ?? null,
-      note:          statusMap[h.id]?.note ?? null,
+      note:          vis.hwParent ? (statusMap[h.id]?.note ?? null) : null,
     }))
 
     return NextResponse.json({ records })
@@ -260,11 +282,12 @@ export async function GET(req: NextRequest) {
     const attMap: Record<string, string> = {}
     for (const a of (myAtt ?? [])) attMap[a.clinic_session_id] = a.status
 
+    const vis = await getCommentVis(db, classId!)
     const records = (sessions ?? []).map((s: any) => ({
       id:          s.id,
       date:        s.date,
       clinic_name: s.name ?? null,
-      note:        s.note ?? null,
+      note:        vis.clinicParent ? (s.note ?? null) : null,
       status:      attMap[s.id] ?? null,
     }))
 
@@ -301,6 +324,7 @@ export async function GET(req: NextRequest) {
     const statusMap: Record<string, { status: string; note: string | null }> = {}
     for (const s of (statuses ?? [])) statusMap[s.homework_id] = { status: s.status, note: s.note ?? null }
 
+    const vis = await getCommentVis(db, classId!)
     const records = hwList.map((h: any) => ({
       id:            h.id,
       title:         h.title,
@@ -308,7 +332,7 @@ export async function GET(req: NextRequest) {
       due_date:      h.due_date ?? null,
       description:   h.description ?? null,
       status:        statusMap[h.id]?.status ?? null,
-      note:          statusMap[h.id]?.note ?? null,
+      note:          vis.hwStudent ? (statusMap[h.id]?.note ?? null) : null,
     }))
 
     return NextResponse.json({ records })
@@ -348,13 +372,14 @@ export async function GET(req: NextRequest) {
     const attMap: Record<string, any> = {}
     for (const a of (attRows ?? [])) attMap[a.session_id] = a
 
+    const vis = await getCommentVis(db, classId!)
     const records = sessions.map((s: any) => {
       if (s.status === 'cancelled') return { date: s.date, status: 'cancelled' }
       const a = attMap[s.id]
       return {
         date: s.date,
         status: a?.status ?? 'absent',
-        note: a?.note ?? null,
+        note: vis.attStudent ? (a?.note ?? null) : null,
         late_minutes: a?.late_minutes ?? null,
         early_leave_minutes: a?.early_leave_minutes ?? null,
       }
@@ -396,6 +421,7 @@ export async function GET(req: NextRequest) {
     }) as any[]
 
     const records: Record<string, unknown>[] = []
+    const vis = await getCommentVis(db, classId!)
 
     // ── 구시스템 점수 ──
     if (tests?.length) {
@@ -510,7 +536,7 @@ export async function GET(req: NextRequest) {
           category:       exam.category ?? null,
           rank,
           totalSubmitted,
-          note:           mySub?.note ?? null,
+          note:           vis.examStudent ? (mySub?.note ?? null) : null,
         })
       }
     }
@@ -542,11 +568,12 @@ export async function GET(req: NextRequest) {
     const attMap: Record<string, string> = {}
     for (const a of (myAtt ?? [])) attMap[a.clinic_session_id] = a.status
 
+    const vis = await getCommentVis(db, classId!)
     const records = (sessions ?? []).map((s: any) => ({
       id:          s.id,
       date:        s.date,
       clinic_name: s.name ?? null,
-      note:        s.note ?? null,
+      note:        vis.clinicStudent ? (s.note ?? null) : null,
       status:      attMap[s.id] ?? null,
     }))
 
