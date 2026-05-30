@@ -119,45 +119,55 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ setI
     await db.from('qb_questions').delete().eq('set_id', setId)
   }
 
-  // 새 문항 insert
-  for (let i = 0; i < questions.length; i++) {
-    const q = questions[i]
-    const { data: newQ, error: qErr } = await db
+  // 새 문항 배치 insert — 1개씩 순차 INSERT 시 부분 저장 가능성 차단
+  if (questions.length > 0) {
+    const { data: newQs, error: qErr } = await db
       .from('qb_questions')
-      .insert({
-        set_id: setId,
-        order_num: i + 1,
-        custom_label: q.custom_label ?? null,
-        question_text: q.question_text ?? '',
-        question_type: q.question_type ?? 'multiple_choice',
-        score: q.score ?? 1,
-      })
-      .select('id')
-      .single()
-    if (qErr || !newQ)
-      return NextResponse.json({ error: `문항 ${i + 1} 저장 실패: ${qErr?.message}` }, { status: 500 })
+      .insert(
+        questions.map((q: any, i: number) => ({
+          set_id: setId,
+          order_num: i + 1,
+          custom_label: q.custom_label ?? null,
+          question_text: q.question_text ?? '',
+          question_type: q.question_type ?? 'multiple_choice',
+          score: q.score ?? 1,
+        }))
+      )
+      .select('id, order_num')
+    if (qErr || !newQs?.length)
+      return NextResponse.json({ error: `문항 저장 실패: ${qErr?.message}` }, { status: 500 })
 
-    // 보기 insert
-    if (q.choices?.length) {
-      const { error: cErr } = await db.from('qb_choices').insert(
-        q.choices.map((c: any, ci: number) => ({
-          question_id: newQ.id,
+    // 문항 순서(order_num)로 새 ID 매핑
+    const idByOrder: Record<number, string> = {}
+    for (const nq of newQs) idByOrder[(nq as any).order_num] = (nq as any).id
+
+    // 보기·정답 배치 insert
+    const allChoices: any[] = []
+    const allAnswers: any[] = []
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+      const qId = idByOrder[i + 1]
+      if (!qId) continue
+      if (q.choices?.length)
+        allChoices.push(...q.choices.map((c: any, ci: number) => ({
+          question_id: qId,
           choice_num: c.choice_num ?? ci + 1,
           choice_text: c.choice_text ?? '',
-        }))
-      )
-      if (cErr) return NextResponse.json({ error: `문항 ${i + 1} 선택지 저장 실패: ${cErr.message}` }, { status: 500 })
-    }
-    // 정답 insert
-    if (q.answers?.length) {
-      const { error: aErr } = await db.from('qb_answers').insert(
-        q.answers.map((a: any, ai: number) => ({
-          question_id: newQ.id,
+        })))
+      if (q.answers?.length)
+        allAnswers.push(...q.answers.map((a: any, ai: number) => ({
+          question_id: qId,
           answer_text: a.answer_text ?? '',
           order_num: a.order_num ?? ai + 1,
-        }))
-      )
-      if (aErr) return NextResponse.json({ error: `문항 ${i + 1} 정답 저장 실패: ${aErr.message}` }, { status: 500 })
+        })))
+    }
+    if (allChoices.length) {
+      const { error: cErr } = await db.from('qb_choices').insert(allChoices)
+      if (cErr) return NextResponse.json({ error: `선택지 저장 실패: ${cErr.message}` }, { status: 500 })
+    }
+    if (allAnswers.length) {
+      const { error: aErr } = await db.from('qb_answers').insert(allAnswers)
+      if (aErr) return NextResponse.json({ error: `정답 저장 실패: ${aErr.message}` }, { status: 500 })
     }
   }
 
