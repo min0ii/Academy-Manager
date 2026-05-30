@@ -160,6 +160,14 @@ export default function StudentPage() {
   const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string }[]>([])
   const [livesLogLoading, setLivesLogLoading] = useState(false)
 
+  // 빌보드
+  type BillboardEntry = { rank: number; name: string; lives: number }
+  const [billboard, setBillboard]               = useState<BillboardEntry[]>([])
+  const [billboardEnabled, setBillboardEnabled] = useState(false)
+  const [billboardShowLast, setBillboardShowLast] = useState(false)
+  const [billboardMinLives, setBillboardMinLives] = useState<number | null>(null)
+  const [billboardLoaded, setBillboardLoaded]   = useState(false)
+
   // 과제·클리닉
   const [hwClinicSub, setHwClinicSub]   = useState<HwClinicSub>('homework')
   const [homeworks, setHomeworks]       = useState<HomeworkRecord[]>([])
@@ -230,6 +238,7 @@ export default function StudentPage() {
       setAcademyName(ctx.academyName)
       setAcademyLogo(ctx.academyLogo)
       loadLives(ctx.student.id, token)
+      if (ctx.classInfo?.id) loadBillboard(ctx.classInfo.id, token)
     }
 
     setLoading(false)
@@ -248,6 +257,21 @@ export default function StudentPage() {
       setLivesDefault(json.livesDefault)
       if (json.academyId) setMyAcademyId(json.academyId)
     }
+  }
+
+  async function loadBillboard(classId: string, token: string) {
+    const res = await fetch(`/api/lives/billboard?classId=${classId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return
+    const json = await res.json()
+    setBillboardEnabled(json.billboardEnabled ?? false)
+    if (json.billboardEnabled) {
+      setBillboard(json.billboard ?? [])
+      setBillboardShowLast(json.showLast ?? false)
+      setBillboardMinLives(json.minLives ?? null)
+    }
+    setBillboardLoaded(true)
   }
 
   async function loadLivesLog() {
@@ -631,6 +655,11 @@ export default function StudentPage() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* 빌보드 */}
+            {livesEnabled && billboardEnabled && billboardLoaded && (
+              <StudentBillboardCard billboard={billboard} minLives={billboardMinLives} showLast={billboardShowLast} />
             )}
 
             {/* 학원 선택기 (여러 학원에 다닐 때만 표시) */}
@@ -1668,4 +1697,69 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 function NoClass() {
   return <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-400 text-sm">배정된 반 정보가 없어요</div>
+}
+
+function LivesIconsStudent({ lives, max = 5 }: { lives: number; max?: number }) {
+  if (lives === 0) return <span className="text-xs text-slate-400 font-semibold">0개</span>
+  if (lives > 0) {
+    const count = Math.min(lives, max)
+    const overflow = lives > max ? lives - max : 0
+    return (
+      <span className="flex items-center gap-0.5">
+        {Array.from({ length: count }).map((_, i) => <Heart key={i} size={12} className="text-red-500 fill-red-500" />)}
+        {overflow > 0 && <span className="text-xs font-bold text-red-500 ml-0.5">+{overflow}</span>}
+      </span>
+    )
+  }
+  const count = Math.min(Math.abs(lives), max)
+  const overflow = Math.abs(lives) > max ? Math.abs(lives) - max : 0
+  return (
+    <span className="flex items-center gap-0.5">
+      {Array.from({ length: count }).map((_, i) => <Skull key={i} size={12} className="text-slate-700 fill-slate-700" />)}
+      {overflow > 0 && <span className="text-xs font-bold text-slate-700 ml-0.5">+{overflow}</span>}
+    </span>
+  )
+}
+
+const RANK_MEDAL_S = ['🥇', '🥈', '🥉', '', '']
+
+function StudentBillboardCard({ billboard, minLives, showLast }: {
+  billboard: { rank: number; name: string; lives: number }[]
+  minLives: number | null
+  showLast: boolean
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden">
+      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 border-b border-amber-100 flex items-center gap-2">
+        <span className="text-base">🏅</span>
+        <p className="font-bold text-amber-800 text-sm">목숨 빌보드</p>
+        <p className="text-xs text-amber-500 ml-auto">1~5위</p>
+      </div>
+      {billboard.length === 0 ? (
+        <div className="px-4 py-6 text-center text-sm text-slate-400">데이터가 없어요</div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {billboard.map(entry => (
+            <div key={entry.rank} className={`flex items-center gap-3 px-4 py-3 ${entry.rank === 1 ? 'bg-amber-50/50' : ''}`}>
+              <span className="text-base w-6 text-center flex-shrink-0">{RANK_MEDAL_S[entry.rank - 1] || entry.rank}</span>
+              <span className={`flex-1 text-sm font-semibold ${entry.rank === 1 ? 'text-amber-700' : 'text-slate-700'}`}>{entry.name}</span>
+              <LivesIconsStudent lives={entry.lives} />
+            </div>
+          ))}
+        </div>
+      )}
+      {showLast && minLives !== null && (
+        <div className="border-t border-dashed border-slate-200 px-4 py-3 bg-slate-50/50">
+          <p className="text-xs text-slate-500 flex items-center gap-1 flex-wrap">
+            가장 목숨이 적은 학생은
+            <span className="inline-flex items-center gap-0.5 font-semibold text-slate-700">
+              <LivesIconsStudent lives={minLives} max={10} />
+              &nbsp;{minLives}개
+            </span>
+            예요.
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }

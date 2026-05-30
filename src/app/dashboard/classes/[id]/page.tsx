@@ -167,6 +167,14 @@ export default function ClassDetailPage() {
   const [savingLivesId, setSavingLivesId]   = useState<string | null>(null)
   const [livesLoading, setLivesLoading]     = useState(false)
 
+  // ── 목숨 빌보드
+  type BillboardEntry = { rank: number; name: string; lives: number }
+  const [billboard, setBillboard]           = useState<BillboardEntry[]>([])
+  const [billboardEnabled, setBillboardEnabled] = useState(false)
+  const [billboardShowLast, setBillboardShowLast] = useState(false)
+  const [billboardMinLives, setBillboardMinLives] = useState<number | null>(null)
+  const [billboardLoaded, setBillboardLoaded] = useState(false)
+
   // ── 초기화
   const [showDangerZone, setShowDangerZone]   = useState(false)
   const [showResetModal, setShowResetModal]   = useState(false)
@@ -715,6 +723,23 @@ export default function ClassDetailPage() {
     setStudentLives(map)
     setPendingLivesMap(map)
     setLivesLoading(false)
+    // 빌보드 로드
+    await loadBillboard()
+  }
+
+  async function loadBillboard() {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    const res = await fetch(`/api/lives/billboard?classId=${classId}`, { headers: { Authorization: `Bearer ${token}` } })
+    const json = await res.json()
+    setBillboardEnabled(json.billboardEnabled ?? false)
+    if (json.billboardEnabled) {
+      setBillboard(json.billboard ?? [])
+      setBillboardShowLast(json.showLast ?? false)
+      setBillboardMinLives(json.minLives ?? null)
+    }
+    setBillboardLoaded(true)
   }
 
 function adjustLivesDelta(studentId: string, delta: number) {
@@ -2200,6 +2225,12 @@ async function resetAllLives() {
       {/* ════════ 목숨 탭 ════════ */}
       {tab === 'lives' && (
         <div className="space-y-4">
+
+          {/* 빌보드 카드 */}
+          {billboardEnabled && billboardLoaded && (
+            <BillboardCard billboard={billboard} minLives={billboardMinLives} showLast={billboardShowLast} />
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-slate-700">학생 목숨</h2>
@@ -2334,6 +2365,79 @@ async function resetAllLives() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 빌보드 컴포넌트 ──────────────────────────────────────────────────────────
+
+function LivesIcons({ lives, max = 5 }: { lives: number; max?: number }) {
+  if (lives === 0) return <span className="text-xs text-slate-400">0개</span>
+  if (lives > 0) {
+    const count = Math.min(lives, max)
+    const overflow = lives > max ? lives - max : 0
+    return (
+      <span className="flex items-center gap-0.5 flex-wrap">
+        {Array.from({ length: count }).map((_, i) => <Heart key={i} size={13} className="text-red-500 fill-red-500" />)}
+        {overflow > 0 && <span className="text-xs font-bold text-red-500 ml-0.5">+{overflow}</span>}
+      </span>
+    )
+  }
+  // 음수 → 해골
+  const count = Math.min(Math.abs(lives), max)
+  const overflow = Math.abs(lives) > max ? Math.abs(lives) - max : 0
+  return (
+    <span className="flex items-center gap-0.5 flex-wrap">
+      {Array.from({ length: count }).map((_, i) => <Skull key={i} size={13} className="text-slate-700 fill-slate-700" />)}
+      {overflow > 0 && <span className="text-xs font-bold text-slate-700 ml-0.5">+{overflow}</span>}
+    </span>
+  )
+}
+
+const RANK_MEDAL = ['🥇', '🥈', '🥉', '', '']
+
+function BillboardCard({ billboard, minLives, showLast }: {
+  billboard: { rank: number; name: string; lives: number }[]
+  minLives: number | null
+  showLast: boolean
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden">
+      {/* 헤더 */}
+      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 border-b border-amber-100 flex items-center gap-2">
+        <span className="text-lg">🏅</span>
+        <p className="font-bold text-amber-800 text-sm">목숨 빌보드</p>
+        <p className="text-xs text-amber-500 ml-auto">1~5위</p>
+      </div>
+
+      {/* 순위 목록 */}
+      {billboard.length === 0 ? (
+        <div className="px-4 py-6 text-center text-sm text-slate-400">학생 데이터가 없어요</div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {billboard.map(entry => (
+            <div key={entry.rank} className={`flex items-center gap-3 px-4 py-3 ${entry.rank === 1 ? 'bg-amber-50/50' : ''}`}>
+              <span className="text-base w-6 text-center flex-shrink-0">{RANK_MEDAL[entry.rank - 1] || entry.rank}</span>
+              <span className={`flex-1 text-sm font-semibold ${entry.rank === 1 ? 'text-amber-700' : 'text-slate-700'}`}>{entry.name}</span>
+              <LivesIcons lives={entry.lives} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 꼴찌 섹션 */}
+      {showLast && minLives !== null && (
+        <div className="border-t border-dashed border-slate-200 px-4 py-3 bg-slate-50/50">
+          <p className="text-xs text-slate-500">
+            가장 목숨이 적은 학생은&nbsp;
+            <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
+              <LivesIcons lives={minLives} max={10} />
+              &nbsp;{minLives}개
+            </span>
+            &nbsp;예요.
+          </p>
         </div>
       )}
     </div>

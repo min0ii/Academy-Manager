@@ -106,6 +106,11 @@ export default function SettingsPage() {
   const [savingLives, setSavingLives]   = useState(false)
   const [livesSaved, setLivesSaved]     = useState(false)
 
+  // 목숨 빌보드
+  const [billboardEnabled, setBillboardEnabled]     = useState(false)
+  const [billboardShowLast, setBillboardShowLast]   = useState(true)
+  const [savingBillboard, setSavingBillboard]       = useState(false)
+
   // 목숨 자동화
   const [livesAutoEnabled, setLivesAutoEnabled] = useState(false)
   const [livesAutoFrom, setLivesAutoFrom]       = useState('')
@@ -172,10 +177,12 @@ export default function SettingsPage() {
 
   async function loadLivesSettings(aId: string) {
     const { data } = await supabase.from('academies')
-      .select('lives_enabled, lives_default, comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent')
+      .select('lives_enabled, lives_default, lives_billboard_enabled, lives_billboard_show_last, comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent')
       .eq('id', aId).single()
     setLivesEnabled(data?.lives_enabled ?? false)
     setLivesDefault(data?.lives_default ?? 3)
+    setBillboardEnabled(data?.lives_billboard_enabled ?? false)
+    setBillboardShowLast(data?.lives_billboard_show_last ?? true)
     if (data) setCommentVis({
       attStudent:    data.comment_vis_att_student    ?? true,
       attParent:     data.comment_vis_att_parent     ?? true,
@@ -455,6 +462,13 @@ export default function SettingsPage() {
     setSavingLogo(false)
     setLogoSaved(true)
     setTimeout(() => setLogoSaved(false), 2000)
+  }
+
+  async function saveBillboard(enabled: boolean, showLast: boolean) {
+    if (!academyId) return
+    setSavingBillboard(true)
+    await supabase.from('academies').update({ lives_billboard_enabled: enabled, lives_billboard_show_last: showLast }).eq('id', academyId)
+    setSavingBillboard(false)
   }
 
   async function saveCommentVis(next: CommentVis) {
@@ -1053,6 +1067,47 @@ export default function SettingsPage() {
                   ? <><Loader2 size={14} className="animate-spin" /> 저장 중...</>
                   : '저장'}
               </button>
+            )}
+
+            {/* ── 빌보드 섹션 ── */}
+            {livesEnabled && (
+              <>
+                <div className="border-t border-slate-100" />
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🏅</span>
+                  <p className="text-sm font-bold text-slate-700">목숨 빌보드</p>
+                  <p className="text-xs text-slate-400">반별 목숨 순위를 학생에게 공개해요</p>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">빌보드 활성화</p>
+                    <p className="text-xs text-slate-400 mt-0.5">학생 앱·수업 탭 목숨 탭에서 1~5위 표시</p>
+                  </div>
+                  <button
+                    onClick={() => { if (!isAdmin) return; const next = !billboardEnabled; setBillboardEnabled(next); void saveBillboard(next, billboardShowLast) }}
+                    disabled={!isAdmin}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${billboardEnabled ? 'bg-amber-400' : 'bg-slate-200'} disabled:opacity-60`}
+                  >
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${billboardEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                {billboardEnabled && (
+                  <div className="flex items-center justify-between py-1 pl-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">최소 목숨 수 공개</p>
+                      <p className="text-xs text-slate-400 mt-0.5">가장 목숨이 적은 학생의 개수 표시 (이름 비공개)</p>
+                    </div>
+                    <button
+                      onClick={() => { if (!isAdmin) return; const next = !billboardShowLast; setBillboardShowLast(next); void saveBillboard(billboardEnabled, next) }}
+                      disabled={!isAdmin}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${billboardShowLast ? 'bg-amber-400' : 'bg-slate-200'} disabled:opacity-60`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${billboardShowLast ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                )}
+                {savingBillboard && <p className="text-xs text-slate-400">저장 중...</p>}
+              </>
             )}
 
             {/* ── 자동화 섹션 ── */}
