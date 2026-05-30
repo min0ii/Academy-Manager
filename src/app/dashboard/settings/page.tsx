@@ -664,18 +664,18 @@ export default function SettingsPage() {
               <span className="text-sm font-semibold text-slate-700 w-14 flex-shrink-0">{label}</span>
               <div className="flex items-center gap-6 flex-1">
                 {/* 학생 토글 */}
-                <button onClick={() => toggleCommentVis(sk)} className="flex items-center gap-2.5 group">
-                  <div className={`w-11 h-6 rounded-full relative transition-colors duration-200 ${commentVis[sk] ? 'bg-blue-500' : 'bg-slate-200'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${commentVis[sk] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                <button onClick={() => toggleCommentVis(sk)} className="flex items-center gap-2.5">
+                  <div className={`w-11 h-6 rounded-full relative flex-shrink-0 transition-colors duration-200 ${commentVis[sk] ? 'bg-blue-500' : 'bg-slate-200'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${commentVis[sk] ? 'translate-x-5' : 'translate-x-0'}`} />
                   </div>
-                  <span className={`text-xs font-medium transition-colors ${commentVis[sk] ? 'text-blue-600' : 'text-slate-400'}`}>학생 공개</span>
+                  <span className={`text-xs font-medium whitespace-nowrap transition-colors ${commentVis[sk] ? 'text-blue-600' : 'text-slate-400'}`}>학생 공개</span>
                 </button>
                 {/* 학부모 토글 */}
-                <button onClick={() => toggleCommentVis(pk)} className="flex items-center gap-2.5 group">
-                  <div className={`w-11 h-6 rounded-full relative transition-colors duration-200 ${commentVis[pk] ? 'bg-violet-500' : 'bg-slate-200'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${commentVis[pk] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                <button onClick={() => toggleCommentVis(pk)} className="flex items-center gap-2.5">
+                  <div className={`w-11 h-6 rounded-full relative flex-shrink-0 transition-colors duration-200 ${commentVis[pk] ? 'bg-violet-500' : 'bg-slate-200'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${commentVis[pk] ? 'translate-x-5' : 'translate-x-0'}`} />
                   </div>
-                  <span className={`text-xs font-medium transition-colors ${commentVis[pk] ? 'text-violet-600' : 'text-slate-400'}`}>학부모 공개</span>
+                  <span className={`text-xs font-medium whitespace-nowrap transition-colors ${commentVis[pk] ? 'text-violet-600' : 'text-slate-400'}`}>학부모 공개</span>
                 </button>
               </div>
             </div>
