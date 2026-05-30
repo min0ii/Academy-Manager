@@ -165,29 +165,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
       }
     }))
 
-    // 목숨 자동화 트리거: 신규 제출된 학생만 (점수형 + pass_fail 모두)
+    // 목숨 자동화 트리거: 점수가 변경된 모든 학생 재계산
     const examForLives = await db.from('exams')
-      .select('class_id, category, exam_format, max_score, start_at, created_at')
+      .select('class_id, start_at, created_at')
       .eq('id', examId).single()
     if (examForLives.data) {
-      const examFormat = (examForLives.data as any).exam_format ?? 'score'
-      const examDate = (examForLives.data as any).start_at
-        ? (examForLives.data as any).start_at.slice(0, 10)
-        : (examForLives.data as any).created_at.slice(0, 10)
       const { data: classData } = await db.from('classes')
         .select('academy_id').eq('id', (examForLives.data as any).class_id).single()
       if (classData) {
-        const finalMaxScore = maxScore !== undefined ? maxScore : (examForLives.data as any).max_score
-        for (const { studentId, status, score } of scores as { studentId: string; status: string; score: number | null }[]) {
-          if (status === 'submitted' && score !== null && score !== undefined && !currentSubMap.get(studentId)) {
-            void applyLivesRulesInternal(db, (classData as any).academy_id, studentId, 'exam_score', {
-              score: Number(score),
-              maxScore: finalMaxScore ? Number(finalMaxScore) : null,
-              date: examDate,
-              category: (examForLives.data as any).category ?? null,
-              examFormat,
-            })
-          }
+        const academyId = (classData as any).academy_id
+        for (const { studentId } of scores as { studentId: string; status: string; score: number | null }[]) {
+          void applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
         }
       }
     }
@@ -197,11 +185,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
   // 자동 시험: 점수 수동 조정
   if (adjustments) {
-    for (const { submissionId, adjustedScore } of adjustments) {
-      await db.from('exam_submissions')
-        .update({ adjusted_score: adjustedScore })
-        .eq('id', submissionId)
+    const submissionIds = (adjustments as { submissionId: string; adjustedScore: number | null }[]).map(a => a.submissionId)
+
+    await Promise.all((adjustments as { submissionId: string; adjustedScore: number | null }[]).map(({ submissionId, adjustedScore }) =>
+      db.from('exam_submissions').update({ adjusted_score: adjustedScore }).eq('id', submissionId)
+    ))
+
+    // 목숨 재계산: 조정된 학생들
+    const { data: affectedSubs } = await db.from('exam_submissions')
+      .select('student_id, exam_id').in('id', submissionIds)
+    if (affectedSubs?.length) {
+      const { data: examInfo } = await db.from('exams').select('class_id').eq('id', examId).single()
+      if (examInfo) {
+        const { data: classData } = await db.from('classes').select('academy_id').eq('id', (examInfo as any).class_id).single()
+        if (classData) {
+          const academyId = (classData as any).academy_id
+          const uniqueStudents = [...new Set(affectedSubs.map(s => s.student_id))]
+          for (const studentId of uniqueStudents) {
+            void applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
+          }
+        }
+      }
     }
+
     return NextResponse.json({ success: true })
   }
 
@@ -221,10 +227,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
     // auto_score 재계산 (adjusted_score는 건드리지 않음)
     const { data: allAnswers } = await db.from('exam_student_answers')
-      .select('score_earned')
-      .eq('submission_id', submissionId)
+      .select('score_earned').eq('submission_id', submissionId)
     const newAutoScore = (allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0)
     await db.from('exam_submissions').update({ auto_score: newAutoScore }).eq('id', submissionId)
+
+    // 목숨 재계산
+    const { data: sub } = await db.from('exam_submissions').select('student_id').eq('id', submissionId).single()
+    if (sub) {
+      const { data: examInfo } = await db.from('exams').select('class_id').eq('id', examId).single()
+      if (examInfo) {
+        const { data: classData } = await db.from('classes').select('academy_id').eq('id', (examInfo as any).class_id).single()
+        if (classData) void applyLivesRulesInternal(db, (classData as any).academy_id, (sub as any).student_id, 'exam_score', {})
+      }
+    }
 
     return NextResponse.json({ success: true })
   }
@@ -235,15 +250,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
     // 학생 답안 조회
     const { data: studentAns } = await db.from('exam_student_answers')
-      .select('student_answer')
-      .eq('submission_id', submissionId)
-      .eq('question_id', questionId)
-      .single()
+      .select('student_answer').eq('submission_id', submissionId).eq('question_id', questionId).single()
 
     // 정답 목록 조회
     const { data: correctAnswers } = await db.from('exam_correct_answers')
-      .select('answer_text')
-      .eq('question_id', questionId)
+      .select('answer_text').eq('question_id', questionId)
 
     // 문항 배점 조회
     const { data: question } = await db.from('exam_questions').select('score').eq('id', questionId).single()
@@ -262,10 +273,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
     // auto_score 재계산
     const { data: allAnswers } = await db.from('exam_student_answers')
-      .select('score_earned')
-      .eq('submission_id', submissionId)
+      .select('score_earned').eq('submission_id', submissionId)
     const newAutoScore = (allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0)
     await db.from('exam_submissions').update({ auto_score: newAutoScore }).eq('id', submissionId)
+
+    // 목숨 재계산
+    const { data: sub } = await db.from('exam_submissions').select('student_id').eq('id', submissionId).single()
+    if (sub) {
+      const { data: examInfo } = await db.from('exams').select('class_id').eq('id', examId).single()
+      if (examInfo) {
+        const { data: classData } = await db.from('classes').select('academy_id').eq('id', (examInfo as any).class_id).single()
+        if (classData) void applyLivesRulesInternal(db, (classData as any).academy_id, (sub as any).student_id, 'exam_score', {})
+      }
+    }
 
     return NextResponse.json({ success: true })
   }
