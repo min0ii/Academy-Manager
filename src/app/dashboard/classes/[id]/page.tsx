@@ -182,6 +182,14 @@ export default function ClassDetailPage() {
   const [resetting, setResetting]             = useState(false)
 
   useEffect(() => { loadData() }, [classId])
+  // 다른 탭에서 퇴원 처리 후 돌아왔을 때 학생 목록 갱신
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') loadData()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [classId])
   useEffect(() => { if (tab === 'stats' && !statsLoaded) loadAttendanceStats() }, [tab])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (tab === 'lives' && academyId) loadLives() }, [tab])
@@ -239,8 +247,9 @@ export default function ClassDetailPage() {
       supabase.from('class_schedules').select('*').eq('class_id', classId).order('day_of_week').order('start_time'),
       supabase.from('clinic_schedules').select('*').eq('class_id', classId).order('day_of_week').order('start_time'),
       supabase.from('class_students')
-        .select('students(id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at)')
-        .eq('class_id', classId),
+        .select('students!inner(id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status)')
+        .eq('class_id', classId)
+        .eq('students.status', 'active'),
     ])
     if (!classData) { router.push('/dashboard/classes'); return }
     const aId = (classData as any).academy_id
