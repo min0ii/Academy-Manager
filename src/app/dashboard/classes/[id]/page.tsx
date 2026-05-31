@@ -253,7 +253,7 @@ export default function ClassDetailPage() {
     const [{ data: allData }, { data: academyData }] = await Promise.all([
       supabase.from('students')
         .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at')
-        .eq('academy_id', aId).order('name'),
+        .eq('academy_id', aId).eq('status', 'active').order('name'),
       supabase.from('academies').select('lives_enabled, lives_default').eq('id', aId).single(),
     ])
     setAllStudents(allData ?? [])

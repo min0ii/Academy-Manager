@@ -256,6 +256,7 @@ function StudentReportContent() {
     }
 
     await loadStudent(ctx!.academyId)
+    router.refresh()  // 반 페이지 캐시 무효화 (퇴원 후 출석부에서 즉시 제거)
     setActionLoading(false)
   }
 
