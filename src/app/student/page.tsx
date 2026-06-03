@@ -85,7 +85,7 @@ const CLINIC_STYLE: Record<string, { label: string; color: string; bg: string }>
 }
 const HW_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   done:    { label: '완료',    color: 'text-emerald-700', bg: 'bg-emerald-50' },
-  partial: { label: '부분완료', color: 'text-amber-700',  bg: 'bg-amber-50' },
+  partial: { label: '오답(완벽) 완료', color: 'text-amber-700',  bg: 'bg-amber-50' },
   none:    { label: '미완료',  color: 'text-red-700',     bg: 'bg-red-50' },
 }
 
@@ -1212,7 +1212,7 @@ export default function StudentPage() {
                         <div className="grid grid-cols-3 gap-2">
                           {[
                             { label: '완료',    value: hwStats.done,    color: 'text-emerald-600' },
-                            { label: '부분완료', value: hwStats.partial, color: 'text-amber-600' },
+                            { label: '오답(완벽) 완료', value: hwStats.partial, color: 'text-amber-600' },
                             { label: '미완료',  value: hwStats.notDone, color: 'text-red-600' },
                           ].map(({ label, value, color }) => (
                             <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
