@@ -195,6 +195,10 @@ export default function QuestionBank() {
   const [dragFolderIdx, setDragFolderIdx] = useState<number | null>(null)
   const [dragOverFolderIdx, setDragOverFolderIdx] = useState<number | null>(null)
 
+  // 세트 드래그 순서 변경
+  const [dragSetIdx, setDragSetIdx] = useState<number | null>(null)
+  const [dragOverSetIdx, setDragOverSetIdx] = useState<number | null>(null)
+
   // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renamingType, setRenamingType] = useState<'folder' | 'set' | null>(null)
@@ -274,6 +278,30 @@ export default function QuestionBank() {
     setDragFolderIdx(null)
     setDragOverFolderIdx(null)
     void saveFolderOrder(next)
+  }
+
+  async function saveSetOrder(ordered: QBSet[]) {
+    const token = await getToken()
+    if (!token) return
+    await fetch('/api/question-bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'reorder_sets',
+        orders: ordered.map((s, i) => ({ id: s.id, order_num: i + 1 })),
+      }),
+    })
+  }
+
+  function handleSetReorder(toIdx: number) {
+    if (dragSetIdx === null || dragSetIdx === toIdx) return
+    const next = [...sets]
+    const [dragged] = next.splice(dragSetIdx, 1)
+    next.splice(toIdx, 0, dragged)
+    setSets(next)
+    setDragSetIdx(null)
+    setDragOverSetIdx(null)
+    void saveSetOrder(next)
   }
 
   async function createFolder() {
@@ -842,8 +870,20 @@ export default function QuestionBank() {
             </div>
           ))}
 
-          {sets.map(set => (
-            <div key={set.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          {sets.map((set, i) => (
+            <div
+              key={set.id}
+              draggable={renamingId !== set.id}
+              onDragStart={() => setDragSetIdx(i)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i) }}
+              onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
+              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null) }}
+              className={`bg-white border rounded-2xl overflow-hidden transition-all ${
+                dragSetIdx === i ? 'opacity-40' : ''
+              } ${
+                dragOverSetIdx === i && dragSetIdx !== i ? 'border-blue-400 border-2' : 'border-slate-200'
+              }`}
+            >
               {renamingId === set.id ? (
                 <div className="flex items-center gap-2 px-4 py-3">
                   <FileText size={18} className="text-blue-400 flex-shrink-0" />
@@ -854,20 +894,23 @@ export default function QuestionBank() {
                   <button onClick={() => setRenamingId(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16} /></button>
                 </div>
               ) : (
-                <button onClick={() => openEditSet(set)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors group">
-                  <FileText size={18} className="text-blue-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-700">{set.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{set.questionCount}문제</p>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1 px-2 py-3 hover:bg-slate-50 transition-colors group">
+                  <GripVertical size={16} className="text-slate-300 cursor-grab flex-shrink-0 mx-1" />
+                  <button onClick={() => openEditSet(set)} className="flex items-center gap-3 flex-1 text-left min-w-0">
+                    <FileText size={18} className="text-blue-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-700">{set.title}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{set.questionCount}문제</p>
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={e => { e.stopPropagation(); setRenamingId(set.id); setRenamingType('set'); setRenameValue(set.title) }}
                       className="p-1.5 text-slate-300 hover:text-slate-500 rounded-lg transition-colors"><Pencil size={14} /></button>
                     <button onClick={e => { e.stopPropagation(); deleteItem('set', set.id, set.title) }}
                       className="p-1.5 text-slate-300 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
-                  <ChevronRight size={16} className="text-slate-300 flex-shrink-0" />
-                </button>
+                  <ChevronRight size={16} className="text-slate-300 flex-shrink-0 mr-2" />
+                </div>
               )}
             </div>
           ))}

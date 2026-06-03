@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   let setQ = db.from('qb_sets').select('id, title, folder_id, created_at, updated_at').eq('academy_id', academyId)
   if (folderId) setQ = setQ.eq('folder_id', folderId)
   else setQ = setQ.is('folder_id', null)
-  const { data: sets } = await setQ.order('updated_at', { ascending: false })
+  const { data: sets } = await setQ.order('order_num', { ascending: true, nullsFirst: false })
 
   // 세트별 문제 수
   const setIds = (sets ?? []).map((s: any) => s.id)
@@ -116,6 +116,16 @@ export async function POST(req: NextRequest) {
     await Promise.all(
       (orders as { id: string; order_num: number }[]).map(({ id, order_num }) =>
         db.from('qb_folders').update({ order_num }).eq('id', id).eq('academy_id', academyId)
+      )
+    )
+    return NextResponse.json({ success: true })
+  }
+
+  if (action === 'reorder_sets') {
+    const { orders } = body  // [{ id, order_num }]
+    await Promise.all(
+      (orders as { id: string; order_num: number }[]).map(({ id, order_num }) =>
+        db.from('qb_sets').update({ order_num }).eq('id', id).eq('academy_id', academyId)
       )
     )
     return NextResponse.json({ success: true })
