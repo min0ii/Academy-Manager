@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   let folderQ = db.from('qb_folders').select('id, name, parent_id, created_at').eq('academy_id', academyId)
   if (folderId) folderQ = folderQ.eq('parent_id', folderId)
   else folderQ = folderQ.is('parent_id', null)
-  const { data: folders } = await folderQ.order('name')
+  const { data: folders } = await folderQ.order('order_num', { ascending: true, nullsFirst: false })
 
   // 세트 목록
   let setQ = db.from('qb_sets').select('id, title, folder_id, created_at, updated_at').eq('academy_id', academyId)
@@ -108,6 +108,16 @@ export async function POST(req: NextRequest) {
   if (action === 'rename_set') {
     const { id, title } = body
     await db.from('qb_sets').update({ title: title.trim(), updated_at: new Date().toISOString() }).eq('id', id).eq('academy_id', academyId)
+    return NextResponse.json({ success: true })
+  }
+
+  if (action === 'reorder_folders') {
+    const { orders } = body  // [{ id, order_num }]
+    await Promise.all(
+      (orders as { id: string; order_num: number }[]).map(({ id, order_num }) =>
+        db.from('qb_folders').update({ order_num }).eq('id', id).eq('academy_id', academyId)
+      )
+    )
     return NextResponse.json({ success: true })
   }
 

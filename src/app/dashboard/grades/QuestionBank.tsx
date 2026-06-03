@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Folder, FileText, Plus, ChevronRight, ChevronLeft,
   Pencil, Trash2, X, Check, BookOpen, ArrowLeft, Save,
-  GraduationCap,
+  GraduationCap, GripVertical,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDialog } from '@/components/AppDialog'
@@ -191,6 +191,10 @@ export default function QuestionBank() {
   const [savedSet, setSavedSet] = useState(false)
   const [openingExam, setOpeningExam] = useState(false)  // 시험 생성 모달 열기 중 (중복 실행 방지)
 
+  // 폴더 드래그 순서 변경
+  const [dragFolderIdx, setDragFolderIdx] = useState<number | null>(null)
+  const [dragOverFolderIdx, setDragOverFolderIdx] = useState<number | null>(null)
+
   // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renamingType, setRenamingType] = useState<'folder' | 'set' | null>(null)
@@ -246,6 +250,30 @@ export default function QuestionBank() {
     setBreadcrumbs(prev => prev.slice(0, idx + 1))
     setFolderId(item.id)
     setEditingSetId(null)
+  }
+
+  async function saveFolderOrder(ordered: QBFolder[]) {
+    const token = await getToken()
+    if (!token) return
+    await fetch('/api/question-bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'reorder_folders',
+        orders: ordered.map((f, i) => ({ id: f.id, order_num: i + 1 })),
+      }),
+    })
+  }
+
+  function handleFolderReorder(toIdx: number) {
+    if (dragFolderIdx === null || dragFolderIdx === toIdx) return
+    const next = [...folders]
+    const [dragged] = next.splice(dragFolderIdx, 1)
+    next.splice(toIdx, 0, dragged)
+    setFolders(next)
+    setDragFolderIdx(null)
+    setDragOverFolderIdx(null)
+    void saveFolderOrder(next)
   }
 
   async function createFolder() {
@@ -774,8 +802,20 @@ export default function QuestionBank() {
         </div>
       ) : (
         <div className="space-y-2">
-          {folders.map(folder => (
-            <div key={folder.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          {folders.map((folder, i) => (
+            <div
+              key={folder.id}
+              draggable={renamingId !== folder.id}
+              onDragStart={() => setDragFolderIdx(i)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverFolderIdx(i) }}
+              onDrop={(e) => { e.preventDefault(); handleFolderReorder(i) }}
+              onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null) }}
+              className={`bg-white border rounded-2xl overflow-hidden transition-all ${
+                dragFolderIdx === i ? 'opacity-40' : ''
+              } ${
+                dragOverFolderIdx === i && dragFolderIdx !== i ? 'border-blue-400 border-2' : 'border-slate-200'
+              }`}
+            >
               {renamingId === folder.id ? (
                 <div className="flex items-center gap-2 px-4 py-3">
                   <Folder size={18} className="text-amber-400 flex-shrink-0" />
@@ -787,6 +827,7 @@ export default function QuestionBank() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3 px-4 py-3">
+                  <GripVertical size={16} className="text-slate-300 cursor-grab flex-shrink-0" />
                   <button onClick={() => enterFolder(folder)} className="flex items-center gap-3 flex-1 text-left">
                     <Folder size={18} className="text-amber-400 flex-shrink-0" />
                     <span className="text-sm font-semibold text-slate-700">{folder.name}</span>
