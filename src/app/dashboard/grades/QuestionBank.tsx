@@ -882,6 +882,8 @@ export default function QuestionBank() {
           {folders.map((folder, i) => (
             <div
               key={folder.id}
+              draggable={renamingId !== folder.id}
+              onDragStart={() => setDragFolderIdx(i)}
               onDragOver={(e) => {
                 e.preventDefault()
                 if (dragSetIdx !== null) setDragOverFolderIdForSet(folder.id)
@@ -891,11 +893,11 @@ export default function QuestionBank() {
                 e.preventDefault()
                 if (dragSetIdx !== null) {
                   handleMoveSetIntoFolder(folder.id)
-                  setDragSetIdx(null); setDragOverFolderIdForSet(null)
                 } else {
                   handleFolderReorder(i)
                 }
               }}
+              onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null); setDragOverFolderIdForSet(null) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragFolderIdx === i ? 'opacity-40' : ''
               } ${
@@ -915,13 +917,7 @@ export default function QuestionBank() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <div
-                    draggable
-                    onDragStart={(e) => { e.dataTransfer.setData('text/plain', `folder-${i}`); setDragFolderIdx(i) }}
-                    className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0"
-                  >
-                    <GripVertical size={16} />
-                  </div>
+                  <GripVertical size={16} className="text-slate-300 flex-shrink-0" />
                   <button onClick={() => enterFolder(folder)} className="flex items-center gap-3 flex-1 text-left">
                     <Folder size={18} className="text-amber-400 flex-shrink-0" />
                     <span className="text-sm font-semibold text-slate-700">{folder.name}</span>
@@ -939,12 +935,11 @@ export default function QuestionBank() {
           {sets.map((set, i) => (
             <div
               key={set.id}
+              draggable={renamingId !== set.id}
+              onDragStart={() => setDragSetIdx(i)}
               onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i); setDragOverFolderIdForSet(null) }}
-              onDrop={(e) => {
-                e.preventDefault()
-                handleSetReorder(i)
-                setDragSetIdx(null); setDragOverSetIdx(null)
-              }}
+              onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
+              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null); setDragOverParentZone(false) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragSetIdx === i ? 'opacity-40' : ''
               } ${
@@ -962,13 +957,7 @@ export default function QuestionBank() {
                 </div>
               ) : (
                 <div className="flex items-center gap-1 px-2 py-3 hover:bg-slate-50 transition-colors group">
-                  <div
-                    draggable
-                    onDragStart={(e) => { e.dataTransfer.setData('text/plain', `set-${i}`); setDragSetIdx(i) }}
-                    className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0 mx-1"
-                  >
-                    <GripVertical size={16} />
-                  </div>
+                  <GripVertical size={16} className="text-slate-300 flex-shrink-0 mx-1" />
                   <button onClick={() => openEditSet(set)} className="flex items-center gap-3 flex-1 text-left min-w-0">
                     <FileText size={18} className="text-blue-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
