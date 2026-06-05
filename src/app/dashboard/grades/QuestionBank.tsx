@@ -199,6 +199,7 @@ export default function QuestionBank() {
   const [dragSetIdx, setDragSetIdx] = useState<number | null>(null)
   const [dragOverSetIdx, setDragOverSetIdx] = useState<number | null>(null)
   const [dragOverFolderIdForSet, setDragOverFolderIdForSet] = useState<string | null>(null)
+  const [dragOverParentZone, setDragOverParentZone] = useState(false)
 
   // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -317,6 +318,22 @@ export default function QuestionBank() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action: 'move_set', id: set.id, folderId: targetFolderId }),
+    })
+  }
+
+  async function handleMoveSetToParent() {
+    if (dragSetIdx === null) return
+    const set = sets[dragSetIdx]
+    const parentId = breadcrumbs[breadcrumbs.length - 2]?.id ?? null  // 상위 폴더 id
+    setSets(prev => prev.filter((_, i) => i !== dragSetIdx))
+    setDragSetIdx(null)
+    setDragOverParentZone(false)
+    const token = await getToken()
+    if (!token) return
+    await fetch('/api/question-bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'move_set', id: set.id, folderId: parentId }),
     })
   }
 
@@ -835,6 +852,22 @@ export default function QuestionBank() {
         </div>
       )}
 
+      {/* 상위 폴더로 내보내기 드롭존 — 폴더 안 + 세트 드래그 중일 때만 표시 */}
+      {folderId !== null && dragSetIdx !== null && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOverParentZone(true); setDragOverFolderIdForSet(null) }}
+          onDragLeave={() => setDragOverParentZone(false)}
+          onDrop={(e) => { e.preventDefault(); void handleMoveSetToParent() }}
+          className={`flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed text-sm font-medium transition-all ${
+            dragOverParentZone
+              ? 'border-orange-400 bg-orange-50 text-orange-600'
+              : 'border-slate-300 text-slate-400'
+          }`}
+        >
+          ↑ 여기에 놓으면 상위 폴더로 이동
+        </div>
+      )}
+
       {/* 콘텐츠 */}
       {loading ? (
         <div className="text-center py-12 text-slate-400 text-sm">불러오는 중...</div>
@@ -909,7 +942,7 @@ export default function QuestionBank() {
               onDragStart={() => setDragSetIdx(i)}
               onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i); setDragOverFolderIdForSet(null) }}
               onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
-              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null) }}
+              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null); setDragOverParentZone(false) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragSetIdx === i ? 'opacity-40' : ''
               } ${
