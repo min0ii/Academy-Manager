@@ -852,13 +852,15 @@ export default function QuestionBank() {
         </div>
       )}
 
-      {/* 상위 폴더로 내보내기 드롭존 — 폴더 안 + 세트 드래그 중일 때만 표시 */}
-      {folderId !== null && dragSetIdx !== null && (
+      {/* 상위 폴더로 내보내기 드롭존 — 항상 DOM에 존재, CSS만으로 표시/숨김 (조건부 렌더링하면 drag 끊김) */}
+      {folderId !== null && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOverParentZone(true); setDragOverFolderIdForSet(null) }}
           onDragLeave={() => setDragOverParentZone(false)}
           onDrop={(e) => { e.preventDefault(); void handleMoveSetToParent(); setDragSetIdx(null); setDragOverParentZone(false) }}
-          className={`flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed text-sm font-medium transition-all ${
+          className={`items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed text-sm font-medium transition-all ${
+            dragSetIdx !== null ? 'flex' : 'hidden'
+          } ${
             dragOverParentZone
               ? 'border-orange-400 bg-orange-50 text-orange-600'
               : 'border-slate-300 text-slate-400'
