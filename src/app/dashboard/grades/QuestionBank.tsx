@@ -889,16 +889,13 @@ export default function QuestionBank() {
                   setDragOverSetIdx(null)
                 } else {
                   setDragOverFolderIdx(i)
-                  setDragOverFolderIdForSet(null)
                 }
               }}
-              onDragLeave={() => { if (dragSetIdx !== null) setDragOverFolderIdForSet(null) }}
               onDrop={(e) => {
                 e.preventDefault()
                 if (dragSetIdx !== null) handleMoveSetIntoFolder(folder.id)
                 else handleFolderReorder(i)
               }}
-              onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null); setDragOverFolderIdForSet(null) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragFolderIdx === i ? 'opacity-40' : ''
               } ${
@@ -920,7 +917,8 @@ export default function QuestionBank() {
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div
                     draggable
-                    onDragStart={() => setDragFolderIdx(i)}
+                    onDragStart={(e) => { e.stopPropagation(); setDragFolderIdx(i) }}
+                    onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null) }}
                     className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0"
                   >
                     <GripVertical size={16} />
@@ -944,7 +942,6 @@ export default function QuestionBank() {
               key={set.id}
               onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i); setDragOverFolderIdForSet(null) }}
               onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
-              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null); setDragOverParentZone(false) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragSetIdx === i ? 'opacity-40' : ''
               } ${
@@ -964,7 +961,8 @@ export default function QuestionBank() {
                 <div className="flex items-center gap-1 px-2 py-3 hover:bg-slate-50 transition-colors group">
                   <div
                     draggable
-                    onDragStart={() => setDragSetIdx(i)}
+                    onDragStart={(e) => { e.stopPropagation(); setDragSetIdx(i) }}
+                    onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null); setDragOverParentZone(false) }}
                     className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0 mx-1"
                   >
                     <GripVertical size={16} />
