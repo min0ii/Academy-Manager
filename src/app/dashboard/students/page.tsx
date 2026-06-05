@@ -488,9 +488,41 @@ export default function StudentsPage() {
     )) return
 
     setWithdrawProcessing(true)
+
+    // 1. 앱 계정 삭제 (학생 + 학부모)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ student_ids: ids, target: 'both' }),
+      })
+    }
+
+    // 2. 관련 데이터 전체 삭제 후 학생 row 삭제
     for (const id of ids) {
+      // exam_student_answers는 submission_id 기준이므로 먼저 조회
+      const { data: subs } = await supabase.from('exam_submissions').select('id').eq('student_id', id)
+      const subIds = (subs ?? []).map((s: any) => s.id)
+      if (subIds.length > 0) {
+        await supabase.from('exam_student_answers').delete().in('submission_id', subIds)
+      }
+      await Promise.all([
+        supabase.from('attendance').delete().eq('student_id', id),
+        supabase.from('grades').delete().eq('student_id', id),
+        supabase.from('homework_status').delete().eq('student_id', id),
+        supabase.from('clinic_attendance').delete().eq('student_id', id),
+        supabase.from('test_scores').delete().eq('student_id', id),
+        supabase.from('exam_submissions').delete().eq('student_id', id),
+        supabase.from('student_lives').delete().eq('student_id', id),
+        supabase.from('student_lives_log').delete().eq('student_id', id),
+        supabase.from('class_students').delete().eq('student_id', id),
+        supabase.from('parent_students').delete().eq('student_id', id),
+        supabase.from('comments').delete().eq('student_id', id),
+      ])
       await supabase.from('students').delete().eq('id', id)
     }
+
     await loadData(academyId!)
     setWithdrawProcessing(false)
     setShowWithdrawModal(false)
@@ -1340,20 +1372,30 @@ export default function StudentsPage() {
                     닫기
                   </button>
                 ) : withdrawTab === 'active' ? (
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedWithdrawIds(new Set())}
+                        className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
+                      >
+                        선택 해제
+                      </button>
+                      <button
+                        onClick={handleBulkWithdraw}
+                        disabled={withdrawProcessing}
+                        className="flex-1 py-3 bg-slate-700 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {withdrawProcessing ? <Loader2 size={15} className="animate-spin" /> : <UserMinus size={15} />}
+                        기록보존 퇴원 ({selectedWithdrawIds.size}명)
+                      </button>
+                    </div>
                     <button
-                      onClick={() => setSelectedWithdrawIds(new Set())}
-                      className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors text-sm"
-                    >
-                      선택 해제
-                    </button>
-                    <button
-                      onClick={handleBulkWithdraw}
+                      onClick={handleBulkHardDelete}
                       disabled={withdrawProcessing}
-                      className="flex-1 py-3 bg-slate-700 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 border border-red-200 text-red-500 text-sm font-medium rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      {withdrawProcessing ? <Loader2 size={15} className="animate-spin" /> : <UserMinus size={15} />}
-                      기록보존 퇴원 ({selectedWithdrawIds.size}명)
+                      <Trash2 size={14} />
+                      완전 삭제 — 모든 기록 영구 삭제 ({selectedWithdrawIds.size}명)
                     </button>
                   </div>
                 ) : (
