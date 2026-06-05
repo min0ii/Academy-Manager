@@ -89,7 +89,7 @@ function StudentReportContent() {
   const [livesDefault, setLivesDefault]   = useState(3)
   const [currentLives, setCurrentLives]   = useState(0)
   const [showLivesLog, setShowLivesLog]   = useState(false)
-  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string }[]>([])
+  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string; triggered_at: string }[]>([])
   const [livesLogLoading, setLivesLogLoading] = useState(false)
   // 수동 조정 (디바운스)
   const [pendingLives, setPendingLives]   = useState<number | null>(null)
@@ -616,14 +616,14 @@ function StudentReportContent() {
                 <div className="p-4 text-center text-xs text-slate-400">변동 내역이 없어요</div>
               ) : (
                 <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto">
-                  {[...livesLog].reverse().map(log => (
+                  {livesLog.map(log => (
                     <div key={log.id} className="flex items-center gap-3 px-3 py-2">
                       <span className={`text-sm font-bold flex-shrink-0 w-10 text-right ${log.delta > 0 ? 'text-emerald-600' : log.delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
                         {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-slate-700 truncate">{log.reason}</p>
-                        <p className="text-xs text-slate-400">{log.created_at.slice(0, 10)}</p>
+                        <p className="text-xs text-slate-400">{new Date(log.triggered_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                       <span className="text-xs text-slate-400 flex-shrink-0">→ {log.lives_after}</span>
                     </div>

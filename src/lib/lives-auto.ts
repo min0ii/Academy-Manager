@@ -93,21 +93,21 @@ function buildRuleReason(rule: LivesRule & { name?: string }): string {
 type LogEntry = {
   academy_id: string; student_id: string
   delta: number; reason: string; source: string
-  lives_after: number; created_at: string
+  lives_after: number; created_at: string; triggered_at: string
 }
 
-function makeEntry(academyId: string, studentId: string, rule: any, created_at: string): LogEntry {
+function makeEntry(academyId: string, studentId: string, rule: any, created_at: string, triggered_at: string): LogEntry {
   return {
     academy_id: academyId, student_id: studentId,
     delta: rule.delta, reason: buildRuleReason(rule),
-    source: 'rule', lives_after: 0, created_at,
+    source: 'rule', lives_after: 0, created_at, triggered_at,
   }
 }
 
-async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[]) {
+async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[], triggeredAt: string) {
   logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
   let acc = 0
-  for (const e of logEntries) { acc += e.delta; e.lives_after = acc }
+  for (const e of logEntries) { acc += e.delta; e.lives_after = acc; e.triggered_at = triggeredAt }
 
   await db.from('student_lives').upsert(
     { academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() },
@@ -127,7 +127,8 @@ function applyExamRules(
   academyId: string,
   studentId: string,
   examDate: string,
-  logEntries: LogEntry[]
+  logEntries: LogEntry[],
+  triggeredAt: string
 ) {
   const isSubmitted = !!(sub && sub.is_submitted && !sub.is_forfeited)
 
@@ -135,7 +136,7 @@ function applyExamRules(
   for (const rule of examRules) {
     if ((rule.condition_detail.examSubType as string) !== 'not_submitted') continue
     if (checkCondition(rule, 'exam_score', { isSubmitted, category: exam.category ?? null })) {
-      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
+      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`, triggeredAt))
       return
     }
   }
@@ -151,7 +152,7 @@ function applyExamRules(
       score, maxScore, category: exam.category ?? null,
       examFormat: exam.exam_format ?? 'score', isSubmitted,
     })) {
-      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`))
+      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`, triggeredAt))
       return
     }
   }
@@ -172,6 +173,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   const livesDefault = (academy.lives_default ?? 3) as number
   const autoFrom = academy.lives_auto_from as string | null
   const autoEnabled = academy.lives_auto_enabled as boolean
+  const triggeredAt = new Date().toISOString()  // 이벤트 트리거 시각
 
   // 학생 등록일 조회 → effectiveFrom = max(autoFrom, 등록일)
   const { data: studentRow } = await db.from('students').select('created_at').eq('id', studentId).single()
@@ -193,10 +195,11 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
     source: 'init', lives_after: livesDefault,
     created_at: effectiveFrom ? `${effectiveFrom}T00:00:00.000Z` : new Date(0).toISOString(),
+    triggered_at: triggeredAt,
   })
 
   if (!autoEnabled || !effectiveFrom) {
-    await flushStudent(db, academyId, studentId, logEntries)
+    await flushStudent(db, academyId, studentId, logEntries, triggeredAt)
     return
   }
 
@@ -208,7 +211,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     .order('order_num')
     .order('created_at')
   if (!rules || rules.length === 0) {
-    await flushStudent(db, academyId, studentId, logEntries)
+    await flushStudent(db, academyId, studentId, logEntries, triggeredAt)
     return
   }
 
@@ -216,7 +219,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
   const { data: classStudents } = await db.from('class_students').select('class_id').eq('student_id', studentId)
   const classIds = (classStudents ?? []).map((cs: any) => cs.class_id) as string[]
   if (classIds.length === 0) {
-    await flushStudent(db, academyId, studentId, logEntries)
+    await flushStudent(db, academyId, studentId, logEntries, triggeredAt)
     return
   }
 
@@ -235,7 +238,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const date = sessDateMap[att.session_id]
         for (const rule of attRules) {
           if (checkCondition(rule, 'attendance', { status: att.status, date })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
             break
           }
         }
@@ -257,7 +260,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
         for (const rule of hwRules) {
           if (checkCondition(rule, 'homework', { status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`, triggeredAt))
             break
           }
         }
@@ -280,7 +283,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const date = csDateMap[ca.clinic_session_id]
         for (const rule of clinicRules) {
           if (checkCondition(rule, 'clinic', { status: ca.status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
             break
           }
         }
@@ -315,12 +318,12 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
       for (const exam of exams) {
         const maxScore = exam.exam_type === 'manual' ? exam.max_score : (maxScoreByExam[exam.id] ?? null)
         const examDate = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
-        applyExamRules(examRules, exam, subByExam.get(exam.id), maxScore, academyId, studentId, examDate, logEntries)
+        applyExamRules(examRules, exam, subByExam.get(exam.id), maxScore, academyId, studentId, examDate, logEntries, triggeredAt)
       }
     }
   }
 
-  await flushStudent(db, academyId, studentId, logEntries)
+  await flushStudent(db, academyId, studentId, logEntries, triggeredAt)
 }
 
 // 실시간 단건 트리거 → 재계산으로 위임
@@ -348,6 +351,7 @@ export async function recalculate(db: DB, academyId: string) {
 
   const livesDefault = (academy.lives_default ?? 3) as number
   const autoFrom = academy.lives_auto_from as string
+  const triggeredAt = new Date().toISOString()  // 이벤트 트리거 시각
 
   const [{ data: allStudents }, { data: rules }, { data: classes }] = await Promise.all([
     db.from('students').select('id, created_at').eq('academy_id', academyId),
@@ -467,6 +471,7 @@ export async function recalculate(db: DB, academyId: string) {
       delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
       source: 'init', lives_after: livesDefault,
       created_at: `${effectiveFrom}T00:00:00.000Z`,
+      triggered_at: triggeredAt,
     })
 
     // 이 학생이 속한 반 ID 집합
@@ -481,7 +486,7 @@ export async function recalculate(db: DB, academyId: string) {
         if (!session || !studentClassSet.has(session.class_id)) continue
         for (const rule of attRules) {
           if (checkCondition(rule, 'attendance', { status: att.status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
             break
           }
         }
@@ -496,7 +501,7 @@ export async function recalculate(db: DB, academyId: string) {
         const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
         for (const rule of hwRules) {
           if (checkCondition(rule, 'homework', { status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`, triggeredAt))
             break
           }
         }
@@ -512,7 +517,7 @@ export async function recalculate(db: DB, academyId: string) {
         if (!cs || !studentClassSet.has(cs.class_id)) continue
         for (const rule of clinicRules) {
           if (checkCondition(rule, 'clinic', { status: ca.status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
             break
           }
         }
@@ -529,7 +534,7 @@ export async function recalculate(db: DB, academyId: string) {
       for (const exam of studentExams) {
         const maxScore = exam.exam_type === 'manual' ? exam.max_score : (maxScoreByExam[exam.id] ?? null)
         const examDate = exam.start_at ? exam.start_at.slice(0, 10) : exam.created_at.slice(0, 10)
-        applyExamRules(examRules, exam, subMap.get(exam.id), maxScore, academyId, studentId, examDate, logEntries)
+        applyExamRules(examRules, exam, subMap.get(exam.id), maxScore, academyId, studentId, examDate, logEntries, triggeredAt)
       }
     }
 

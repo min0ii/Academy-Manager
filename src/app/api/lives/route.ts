@@ -88,10 +88,10 @@ export async function GET(req: NextRequest) {
     }
 
     const { data: logs } = await db.from('student_lives_log')
-      .select('id, delta, reason, source, lives_after, created_at')
+      .select('id, delta, reason, source, lives_after, created_at, triggered_at')
       .eq('academy_id', academyId)
       .eq('student_id', studentId)
-      .order('created_at', { ascending: true })
+      .order('triggered_at', { ascending: false, nullsFirst: false })
 
     return NextResponse.json({ logs: logs ?? [] })
   }
@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
       source: 'manual',
       lives_after: newLives,
       created_at: new Date().toISOString(),
+      triggered_at: new Date().toISOString(),
     })
 
     return NextResponse.json({ success: true, lives: newLives })
