@@ -857,7 +857,7 @@ export default function QuestionBank() {
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOverParentZone(true); setDragOverFolderIdForSet(null) }}
           onDragLeave={() => setDragOverParentZone(false)}
-          onDrop={(e) => { e.preventDefault(); void handleMoveSetToParent() }}
+          onDrop={(e) => { e.preventDefault(); void handleMoveSetToParent(); setDragSetIdx(null); setDragOverParentZone(false) }}
           className={`flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed text-sm font-medium transition-all ${
             dragOverParentZone
               ? 'border-orange-400 bg-orange-50 text-orange-600'
@@ -884,17 +884,17 @@ export default function QuestionBank() {
               key={folder.id}
               onDragOver={(e) => {
                 e.preventDefault()
-                if (dragSetIdx !== null) {
-                  setDragOverFolderIdForSet(folder.id)
-                  setDragOverSetIdx(null)
-                } else {
-                  setDragOverFolderIdx(i)
-                }
+                if (dragSetIdx !== null) setDragOverFolderIdForSet(folder.id)
+                else setDragOverFolderIdx(i)
               }}
               onDrop={(e) => {
                 e.preventDefault()
-                if (dragSetIdx !== null) handleMoveSetIntoFolder(folder.id)
-                else handleFolderReorder(i)
+                if (dragSetIdx !== null) {
+                  handleMoveSetIntoFolder(folder.id)
+                  setDragSetIdx(null); setDragOverFolderIdForSet(null)
+                } else {
+                  handleFolderReorder(i)
+                }
               }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragFolderIdx === i ? 'opacity-40' : ''
@@ -917,8 +917,7 @@ export default function QuestionBank() {
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div
                     draggable
-                    onDragStart={(e) => { e.stopPropagation(); setDragFolderIdx(i) }}
-                    onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null) }}
+                    onDragStart={(e) => { e.dataTransfer.setData('text/plain', `folder-${i}`); setDragFolderIdx(i) }}
                     className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0"
                   >
                     <GripVertical size={16} />
@@ -941,7 +940,11 @@ export default function QuestionBank() {
             <div
               key={set.id}
               onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i); setDragOverFolderIdForSet(null) }}
-              onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
+              onDrop={(e) => {
+                e.preventDefault()
+                handleSetReorder(i)
+                setDragSetIdx(null); setDragOverSetIdx(null)
+              }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragSetIdx === i ? 'opacity-40' : ''
               } ${
@@ -961,8 +964,7 @@ export default function QuestionBank() {
                 <div className="flex items-center gap-1 px-2 py-3 hover:bg-slate-50 transition-colors group">
                   <div
                     draggable
-                    onDragStart={(e) => { e.stopPropagation(); setDragSetIdx(i) }}
-                    onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null); setDragOverParentZone(false) }}
+                    onDragStart={(e) => { e.dataTransfer.setData('text/plain', `set-${i}`); setDragSetIdx(i) }}
                     className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0 mx-1"
                   >
                     <GripVertical size={16} />
