@@ -938,7 +938,7 @@ export default function QuestionBank() {
             <div
               key={set.id}
               draggable={renamingId !== set.id}
-              onDragStart={() => setDragSetIdx(i)}
+              onDragStart={() => requestAnimationFrame(() => setDragSetIdx(i))}
               onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i); setDragOverFolderIdForSet(null) }}
               onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
               onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null); setDragOverParentZone(false) }}
