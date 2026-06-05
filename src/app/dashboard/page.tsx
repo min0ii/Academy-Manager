@@ -51,7 +51,7 @@ export default function DashboardPage() {
       const dayOfWeek = now.getDay()
 
       const [{ count: studentCount }, { count: classCount }, { data: classData }] = await Promise.all([
-        supabase.from('students').select('*', { count: 'exact', head: true }).eq('academy_id', ctx.academyId),
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('academy_id', ctx.academyId).eq('status', 'active'),
         supabase.from('classes').select('*', { count: 'exact', head: true }).eq('academy_id', ctx.academyId),
         supabase.from('classes').select('id, name').eq('academy_id', ctx.academyId),
       ])
