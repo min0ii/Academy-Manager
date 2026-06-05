@@ -468,6 +468,22 @@ export async function recalculate(db: DB, academyId: string) {
   const caByStudent     = groupBy(caData, 'student_id')
   const subByStudent    = groupBy(subData, 'student_id')
 
+  // 삭제 전 기존 로그 조회 → event_key + delta 동일하면 triggered_at 유지
+  const existingLogs = await fetchAll((f, t) =>
+    db.from('student_lives_log')
+      .select('student_id, event_key, delta, triggered_at')
+      .eq('academy_id', academyId)
+      .in('source', ['rule', 'init'])
+      .range(f, t)
+  )
+  // Map<studentId, Map<event_key, {delta, triggered_at}>>
+  const existingByStudent = new Map<string, Map<string, { delta: number; triggered_at: string }>>()
+  for (const e of existingLogs) {
+    if (!e.event_key) continue
+    if (!existingByStudent.has(e.student_id)) existingByStudent.set(e.student_id, new Map())
+    existingByStudent.get(e.student_id)!.set(e.event_key, { delta: e.delta, triggered_at: e.triggered_at })
+  }
+
   // 로그 삭제: 학원 전체 한 번에
   await db.from('student_lives_log')
     .delete()
@@ -558,10 +574,16 @@ export async function recalculate(db: DB, academyId: string) {
       }
     }
 
-    // 날짜 순 정렬 + lives_after 재계산
+    // 날짜 순 정렬 + lives_after 재계산 + triggered_at 보존 처리
     logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
+    const studentExistingMap = existingByStudent.get(studentId)
     let acc = 0
-    for (const e of logEntries) { acc += e.delta; e.lives_after = acc }
+    for (const e of logEntries) {
+      acc += e.delta
+      e.lives_after = acc
+      const prev = studentExistingMap?.get(e.event_key)
+      e.triggered_at = (prev !== undefined && prev.delta === e.delta) ? prev.triggered_at : triggeredAt
+    }
 
     allLogEntries.push(...logEntries)
     livesUpserts.push({ academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() })
