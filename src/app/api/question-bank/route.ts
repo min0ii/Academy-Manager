@@ -121,6 +121,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
+  if (action === 'move_set') {
+    const { id, folderId } = body
+    await db.from('qb_sets').update({ folder_id: folderId, order_num: null }).eq('id', id).eq('academy_id', academyId)
+    return NextResponse.json({ success: true })
+  }
+
   if (action === 'reorder_sets') {
     const { orders } = body  // [{ id, order_num }]
     await Promise.all(

@@ -198,6 +198,7 @@ export default function QuestionBank() {
   // 세트 드래그 순서 변경
   const [dragSetIdx, setDragSetIdx] = useState<number | null>(null)
   const [dragOverSetIdx, setDragOverSetIdx] = useState<number | null>(null)
+  const [dragOverFolderIdForSet, setDragOverFolderIdForSet] = useState<string | null>(null)
 
   // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -302,6 +303,21 @@ export default function QuestionBank() {
     setDragSetIdx(null)
     setDragOverSetIdx(null)
     void saveSetOrder(next)
+  }
+
+  async function handleMoveSetIntoFolder(targetFolderId: string) {
+    if (dragSetIdx === null) return
+    const set = sets[dragSetIdx]
+    setSets(prev => prev.filter((_, i) => i !== dragSetIdx))
+    setDragSetIdx(null)
+    setDragOverFolderIdForSet(null)
+    const token = await getToken()
+    if (!token) return
+    await fetch('/api/question-bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'move_set', id: set.id, folderId: targetFolderId }),
+    })
   }
 
   async function createFolder() {
@@ -835,13 +851,29 @@ export default function QuestionBank() {
               key={folder.id}
               draggable={renamingId !== folder.id}
               onDragStart={() => setDragFolderIdx(i)}
-              onDragOver={(e) => { e.preventDefault(); setDragOverFolderIdx(i) }}
-              onDrop={(e) => { e.preventDefault(); handleFolderReorder(i) }}
-              onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null) }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (dragSetIdx !== null) {
+                  setDragOverFolderIdForSet(folder.id)
+                  setDragOverSetIdx(null)
+                } else {
+                  setDragOverFolderIdx(i)
+                  setDragOverFolderIdForSet(null)
+                }
+              }}
+              onDragLeave={() => { if (dragSetIdx !== null) setDragOverFolderIdForSet(null) }}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragSetIdx !== null) handleMoveSetIntoFolder(folder.id)
+                else handleFolderReorder(i)
+              }}
+              onDragEnd={() => { setDragFolderIdx(null); setDragOverFolderIdx(null); setDragOverFolderIdForSet(null) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragFolderIdx === i ? 'opacity-40' : ''
               } ${
-                dragOverFolderIdx === i && dragFolderIdx !== i ? 'border-blue-400 border-2' : 'border-slate-200'
+                dragOverFolderIdForSet === folder.id ? 'border-emerald-400 border-2 bg-emerald-50' :
+                dragOverFolderIdx === i && dragFolderIdx !== i ? 'border-blue-400 border-2' :
+                'border-slate-200'
               }`}
             >
               {renamingId === folder.id ? (
@@ -875,9 +907,9 @@ export default function QuestionBank() {
               key={set.id}
               draggable={renamingId !== set.id}
               onDragStart={() => setDragSetIdx(i)}
-              onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i) }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverSetIdx(i); setDragOverFolderIdForSet(null) }}
               onDrop={(e) => { e.preventDefault(); handleSetReorder(i) }}
-              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null) }}
+              onDragEnd={() => { setDragSetIdx(null); setDragOverSetIdx(null); setDragOverFolderIdForSet(null) }}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 dragSetIdx === i ? 'opacity-40' : ''
               } ${
