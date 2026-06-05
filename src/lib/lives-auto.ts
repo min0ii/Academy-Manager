@@ -93,21 +93,47 @@ function buildRuleReason(rule: LivesRule & { name?: string }): string {
 type LogEntry = {
   academy_id: string; student_id: string
   delta: number; reason: string; source: string
-  lives_after: number; created_at: string; triggered_at: string
+  lives_after: number; created_at: string; triggered_at: string; event_key: string
 }
 
-function makeEntry(academyId: string, studentId: string, rule: any, created_at: string, triggered_at: string): LogEntry {
+function makeEntry(academyId: string, studentId: string, rule: any, created_at: string, triggeredAt: string, eventKey: string): LogEntry {
   return {
     academy_id: academyId, student_id: studentId,
     delta: rule.delta, reason: buildRuleReason(rule),
-    source: 'rule', lives_after: 0, created_at, triggered_at,
+    source: 'rule', lives_after: 0, created_at,
+    triggered_at: triggeredAt, event_key: eventKey,
   }
 }
 
 async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[], triggeredAt: string) {
+  // 삭제 전에 기존 항목 조회 → event_key + delta가 동일하면 triggered_at 유지 (실제 변경 없음)
+  const { data: existing } = await db
+    .from('student_lives_log')
+    .select('event_key, delta, triggered_at')
+    .eq('academy_id', academyId)
+    .eq('student_id', studentId)
+    .in('source', ['rule', 'init'])
+  const existingMap = new Map<string, { delta: number; triggered_at: string }>()
+  for (const e of existing ?? []) {
+    if (e.event_key) existingMap.set(e.event_key as string, { delta: e.delta as number, triggered_at: e.triggered_at as string })
+  }
+
+  await db.from('student_lives_log')
+    .delete()
+    .eq('academy_id', academyId)
+    .eq('student_id', studentId)
+    .in('source', ['rule', 'init'])
+
   logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
   let acc = 0
-  for (const e of logEntries) { acc += e.delta; e.lives_after = acc; e.triggered_at = triggeredAt }
+  for (const e of logEntries) {
+    acc += e.delta
+    e.lives_after = acc
+    const prev = existingMap.get(e.event_key)
+    // 이전과 delta가 같으면 → 실제 변경 없음 → 기존 triggered_at 유지
+    // delta가 달라졌거나 새 항목 → 지금 시각으로 갱신
+    e.triggered_at = (prev !== undefined && prev.delta === e.delta) ? prev.triggered_at : triggeredAt
+  }
 
   await db.from('student_lives').upsert(
     { academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() },
@@ -136,7 +162,7 @@ function applyExamRules(
   for (const rule of examRules) {
     if ((rule.condition_detail.examSubType as string) !== 'not_submitted') continue
     if (checkCondition(rule, 'exam_score', { isSubmitted, category: exam.category ?? null })) {
-      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`, triggeredAt))
+      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`, triggeredAt, `exam:${exam.id}`))
       return
     }
   }
@@ -152,7 +178,7 @@ function applyExamRules(
       score, maxScore, category: exam.category ?? null,
       examFormat: exam.exam_format ?? 'score', isSubmitted,
     })) {
-      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`, triggeredAt))
+      logEntries.push(makeEntry(academyId, studentId, rule, `${examDate}T12:00:00.000Z`, triggeredAt, `exam:${exam.id}`))
       return
     }
   }
@@ -182,12 +208,6 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     ? (studentDate && studentDate > autoFrom ? studentDate : autoFrom)
     : null
 
-  await db.from('student_lives_log')
-    .delete()
-    .eq('academy_id', academyId)
-    .eq('student_id', studentId)
-    .in('source', ['rule', 'init'])
-
   const logEntries: LogEntry[] = []
 
   logEntries.push({
@@ -195,7 +215,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
     source: 'init', lives_after: livesDefault,
     created_at: effectiveFrom ? `${effectiveFrom}T00:00:00.000Z` : new Date(0).toISOString(),
-    triggered_at: triggeredAt,
+    triggered_at: triggeredAt, event_key: 'init',
   })
 
   if (!autoEnabled || !effectiveFrom) {
@@ -238,7 +258,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const date = sessDateMap[att.session_id]
         for (const rule of attRules) {
           if (checkCondition(rule, 'attendance', { status: att.status, date })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt, `att:${att.session_id}`))
             break
           }
         }
@@ -260,7 +280,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
         for (const rule of hwRules) {
           if (checkCondition(rule, 'homework', { status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`, triggeredAt))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`, triggeredAt, `hw:${hw.id}`))
             break
           }
         }
@@ -283,7 +303,7 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
         const date = csDateMap[ca.clinic_session_id]
         for (const rule of clinicRules) {
           if (checkCondition(rule, 'clinic', { status: ca.status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt, `clinic:${ca.clinic_session_id}`))
             break
           }
         }
@@ -471,7 +491,7 @@ export async function recalculate(db: DB, academyId: string) {
       delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
       source: 'init', lives_after: livesDefault,
       created_at: `${effectiveFrom}T00:00:00.000Z`,
-      triggered_at: triggeredAt,
+      triggered_at: triggeredAt, event_key: 'init',
     })
 
     // 이 학생이 속한 반 ID 집합
@@ -486,7 +506,7 @@ export async function recalculate(db: DB, academyId: string) {
         if (!session || !studentClassSet.has(session.class_id)) continue
         for (const rule of attRules) {
           if (checkCondition(rule, 'attendance', { status: att.status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt, `att:${att.session_id}`))
             break
           }
         }
@@ -501,7 +521,7 @@ export async function recalculate(db: DB, academyId: string) {
         const status = hwStatusMap.get(hw.id) ?? 'unrecorded'
         for (const rule of hwRules) {
           if (checkCondition(rule, 'homework', { status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`, triggeredAt))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${hw.assigned_date}T12:00:00.000Z`, triggeredAt, `hw:${hw.id}`))
             break
           }
         }
@@ -517,7 +537,7 @@ export async function recalculate(db: DB, academyId: string) {
         if (!cs || !studentClassSet.has(cs.class_id)) continue
         for (const rule of clinicRules) {
           if (checkCondition(rule, 'clinic', { status: ca.status })) {
-            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt))
+            logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt, `clinic:${ca.clinic_session_id}`))
             break
           }
         }
