@@ -647,7 +647,7 @@ export default function StudentsPage() {
       {/* 페이지 제목 */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">학생 관리</h1>
-        <p className="text-sm text-slate-500 mt-0.5">재원 {activeStudents.length}명 / 전체 {students.length}명</p>
+        <p className="text-sm text-slate-500 mt-0.5">재원 {activeStudents.length}명</p>
       </div>
 
       {/* 탭 */}
