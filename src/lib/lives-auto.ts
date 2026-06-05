@@ -113,9 +113,13 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     .eq('academy_id', academyId)
     .eq('student_id', studentId)
     .in('source', ['rule', 'init'])
+  // event_key 기준 맵 (신규 데이터용)
   const existingMap = new Map<string, { delta: number; triggered_at: string }>()
+  // (created_at + delta) 기준 맵 — event_key 없는 기존 데이터 매칭용
+  const existingByDateDelta = new Map<string, string>()
   for (const e of existing ?? []) {
     if (e.event_key) existingMap.set(e.event_key as string, { delta: e.delta as number, triggered_at: e.triggered_at as string })
+    if (e.triggered_at) existingByDateDelta.set(`${e.created_at}:${e.delta}`, e.triggered_at as string)
   }
 
   await db.from('student_lives_log')
@@ -130,9 +134,14 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     acc += e.delta
     e.lives_after = acc
     const prev = existingMap.get(e.event_key)
-    // 이전과 delta가 같으면 → 실제 변경 없음 → 기존 triggered_at 유지
-    // delta가 달라졌거나 새 항목 → 지금 시각으로 갱신
-    e.triggered_at = (prev !== undefined && prev.delta === e.delta) ? prev.triggered_at : triggeredAt
+    if (prev !== undefined) {
+      // event_key 매칭: delta 동일 → 유지 / 변경 → 지금 시각
+      e.triggered_at = prev.delta === e.delta ? prev.triggered_at : triggeredAt
+    } else {
+      // event_key 없는 기존 데이터: (created_at + delta)로 매칭 → triggered_at 보존
+      // 완전히 새 항목이면 지금 시각
+      e.triggered_at = existingByDateDelta.get(`${e.created_at}:${e.delta}`) ?? triggeredAt
+    }
   }
 
   await db.from('student_lives').upsert(
@@ -476,12 +485,15 @@ export async function recalculate(db: DB, academyId: string) {
       .in('source', ['rule', 'init'])
       .range(f, t)
   )
-  // Map<studentId, Map<event_key, {delta, triggered_at}>>
+  // Map<studentId, Map<event_key, {delta, triggered_at}>> — 신규 데이터용
   const existingByStudent = new Map<string, Map<string, { delta: number; triggered_at: string }>>()
+  // Map<studentId, Map<created_at:delta, triggered_at>> — event_key 없는 기존 데이터용
+  const existingDateDeltaByStudent = new Map<string, Map<string, string>>()
   for (const e of existingLogs) {
-    if (!e.event_key) continue
     if (!existingByStudent.has(e.student_id)) existingByStudent.set(e.student_id, new Map())
-    existingByStudent.get(e.student_id)!.set(e.event_key, { delta: e.delta, triggered_at: e.triggered_at })
+    if (!existingDateDeltaByStudent.has(e.student_id)) existingDateDeltaByStudent.set(e.student_id, new Map())
+    if (e.event_key) existingByStudent.get(e.student_id)!.set(e.event_key, { delta: e.delta, triggered_at: e.triggered_at })
+    if (e.triggered_at) existingDateDeltaByStudent.get(e.student_id)!.set(`${e.created_at}:${e.delta}`, e.triggered_at)
   }
 
   // 로그 삭제: 학원 전체 한 번에
@@ -577,12 +589,17 @@ export async function recalculate(db: DB, academyId: string) {
     // 날짜 순 정렬 + lives_after 재계산 + triggered_at 보존 처리
     logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
     const studentExistingMap = existingByStudent.get(studentId)
+    const studentDateDeltaMap = existingDateDeltaByStudent.get(studentId)
     let acc = 0
     for (const e of logEntries) {
       acc += e.delta
       e.lives_after = acc
       const prev = studentExistingMap?.get(e.event_key)
-      e.triggered_at = (prev !== undefined && prev.delta === e.delta) ? prev.triggered_at : triggeredAt
+      if (prev !== undefined) {
+        e.triggered_at = prev.delta === e.delta ? prev.triggered_at : triggeredAt
+      } else {
+        e.triggered_at = studentDateDeltaMap?.get(`${e.created_at}:${e.delta}`) ?? triggeredAt
+      }
     }
 
     allLogEntries.push(...logEntries)
