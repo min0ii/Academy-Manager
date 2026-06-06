@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X, Heart, ChevronDown, ChevronUp, Check, Loader2 } from 'lucide-react'
+import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X, Heart, ChevronDown, ChevronUp, Check, Loader2, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import { useAcademy } from '@/lib/academy-context'
@@ -258,6 +258,54 @@ function StudentReportContent() {
     await loadStudent(ctx!.academyId)
     router.refresh()  // 반 페이지 캐시 무효화 (퇴원 후 출석부에서 즉시 제거)
     setActionLoading(false)
+  }
+
+  // ── 완전 삭제 ──
+  async function hardDeleteStudent() {
+    if (!student) return
+    if (!await showConfirm(
+      `${student.name} 학생을 완전 삭제할까요?\n\n출결·성적·과제 등 모든 데이터가 영구 삭제돼요.\n되돌릴 수 없어요.`,
+      { destructive: true, confirmText: '완전 삭제' }
+    )) return
+    setActionLoading(true)
+
+    // 1. 앱 계정 삭제 (학생 + 학부모)
+    const token = await getToken()
+    if (token) {
+      await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ student_ids: [studentId], target: 'both' }),
+      })
+    }
+
+    // 2. exam_student_answers는 submission_id 기준이므로 먼저 조회
+    const { data: subs } = await supabase.from('exam_submissions').select('id').eq('student_id', studentId)
+    const subIds = (subs ?? []).map((s: any) => s.id)
+    if (subIds.length > 0) {
+      await supabase.from('exam_student_answers').delete().in('submission_id', subIds)
+    }
+
+    // 3. 관련 데이터 전체 삭제
+    await Promise.all([
+      supabase.from('attendance').delete().eq('student_id', studentId),
+      supabase.from('grades').delete().eq('student_id', studentId),
+      supabase.from('homework_status').delete().eq('student_id', studentId),
+      supabase.from('clinic_attendance').delete().eq('student_id', studentId),
+      supabase.from('test_scores').delete().eq('student_id', studentId),
+      supabase.from('exam_submissions').delete().eq('student_id', studentId),
+      supabase.from('student_lives').delete().eq('student_id', studentId),
+      supabase.from('student_lives_log').delete().eq('student_id', studentId),
+      supabase.from('class_students').delete().eq('student_id', studentId),
+      supabase.from('parent_students').delete().eq('student_id', studentId),
+      supabase.from('comments').delete().eq('student_id', studentId),
+    ])
+
+    // 4. 학생 row 삭제
+    await supabase.from('students').delete().eq('id', studentId)
+
+    setActionLoading(false)
+    router.push('/dashboard/students')
   }
 
   // ── 재원 복귀 ──
@@ -544,22 +592,40 @@ function StudentReportContent() {
                   >
                     <ArrowRightLeft size={14} /> 소속반 변경
                   </button>
-                  <button
-                    onClick={withdrawStudent}
-                    disabled={actionLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors ml-auto"
-                  >
-                    <LogOut size={14} /> 퇴원 처리
-                  </button>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={withdrawStudent}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut size={14} /> 퇴원 처리
+                    </button>
+                    <button
+                      onClick={hardDeleteStudent}
+                      disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 size={14} /> 완전 삭제
+                    </button>
+                  </div>
                 </>
               ) : (
-                <button
-                  onClick={restoreStudent}
-                  disabled={actionLoading}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
-                >
-                  <RotateCcw size={14} /> 재원 복귀
-                </button>
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    onClick={restoreStudent}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                  >
+                    <RotateCcw size={14} /> 재원 복귀
+                  </button>
+                  <button
+                    onClick={hardDeleteStudent}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 size={14} /> 완전 삭제
+                  </button>
+                </div>
               )}
             </div>
           </>
