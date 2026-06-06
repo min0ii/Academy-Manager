@@ -1652,7 +1652,7 @@ function GradesContent() {
     <div className="max-w-4xl mx-auto space-y-6">
       {dialog}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">시험 관리</h1>
+        <h1 className="text-2xl font-bold text-slate-800">성적 관리</h1>
         <p className="text-sm text-slate-500 mt-0.5">문제은행에서 문제를 관리하고, 반별 시험을 만들어요</p>
       </div>
 
