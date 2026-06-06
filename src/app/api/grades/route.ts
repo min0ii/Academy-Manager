@@ -135,14 +135,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 신시스템 (마감된 시험 + 마감없는 시험 중 제출 완료)
-    const [{ data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
+    // 신시스템 (마감된 시험 + 마감없는 시험 + 수동채점 active 시험)
+    const [{ data: closedExams }, { data: noDeadlineExams }, { data: manualActiveExams }] = await Promise.all([
       db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, exam_format, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
       db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, exam_format, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, exam_format, no_deadline, category')
+        .eq('class_id', classId).eq('status', 'active').eq('exam_type', 'manual').order('start_at', { ascending: true }),
     ])
-    const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? [])].filter((e: any) => {
+    const seenExamIds1 = new Set<string>()
+    const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? []), ...(manualActiveExams ?? [])].filter((e: any) => {
+      if (seenExamIds1.has(e.id)) return false
+      seenExamIds1.add(e.id)
       const d = e.start_at ? e.start_at.slice(0, 10) : e.created_at?.slice(0, 10) ?? '2000-01-01'
       return d >= enrolledAt1
     })
@@ -150,7 +155,7 @@ export async function GET(req: NextRequest) {
       const examIds = allExams.map(e => e.id)
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited, note').eq('student_id', studentId).in('exam_id', examIds),
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score').eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_forfeited').eq('is_submitted', true).in('exam_id', examIds),
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
       const maxScoreByExam: Record<string, number> = {}
@@ -159,13 +164,14 @@ export async function GET(req: NextRequest) {
       for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
       const allScoresByExam: Record<string, number[]> = {}
       for (const s of (allSubmissions ?? [])) {
+        if (s.is_forfeited) continue
         const score = s.adjusted_score ?? s.auto_score
         if (score !== null) { if (!allScoresByExam[s.exam_id]) allScoresByExam[s.exam_id] = []; allScoresByExam[s.exam_id].push(score) }
       }
       for (const exam of allExams) {
         const mySub = mySubMap[exam.id]
-        // 마감없는 시험은 본인이 제출한 경우에만 차트에 포함
-        if ((exam as any).no_deadline && (!mySub?.is_submitted || mySub?.is_forfeited)) continue
+        // 마감없는 시험은 본인이 제출한 경우에만 차트에 포함 (수동채점 제외)
+        if ((exam as any).no_deadline && (exam as any).exam_type !== 'manual' && (!mySub?.is_submitted || mySub?.is_forfeited)) continue
         const myScore = mySub?.is_submitted && !mySub?.is_forfeited ? (mySub.adjusted_score ?? mySub.auto_score) : null
         const examFormat = (exam as any).exam_format ?? 'score'
         // 통과/불통형은 숫자 통계 제외
@@ -402,20 +408,25 @@ export async function GET(req: NextRequest) {
     const enrolledAt5 = _sr5?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
 
     // 구시스템(tests) + 신시스템(exams) 병렬 조회
-    // exams: 마감된 시험 OR 마감없는 시험(active 상태, 학생이 제출했을 경우 표시)
-    const [{ data: tests }, { data: closedExams }, { data: noDeadlineExams }] = await Promise.all([
+    // exams: 마감된 시험 OR 마감없는 시험 OR 수동채점 active 시험
+    const [{ data: tests }, { data: closedExams }, { data: noDeadlineExams }, { data: manualActiveExams5 }] = await Promise.all([
       db.from('tests').select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt5).order('date', { ascending: true }),
       db.from('exams').select('id, title, status, exam_type, exam_format, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
       db.from('exams').select('id, title, status, exam_type, exam_format, answer_reveal, start_at, created_at, max_score, no_deadline, category')
         .eq('class_id', classId).eq('no_deadline', true).eq('status', 'active').order('start_at', { ascending: true }),
+      db.from('exams').select('id, title, status, exam_type, exam_format, answer_reveal, start_at, created_at, max_score, no_deadline, category')
+        .eq('class_id', classId).eq('exam_type', 'manual').eq('status', 'active').order('start_at', { ascending: true }),
     ])
     // 중복 제거 + 등록일 이전 시험 제외
-    const closedIds = new Set((closedExams ?? []).map((e: any) => e.id))
+    const seenExamIds5 = new Set<string>()
     const exams = [
       ...(closedExams ?? []),
-      ...(noDeadlineExams ?? []).filter((e: any) => !closedIds.has(e.id)),
+      ...(noDeadlineExams ?? []),
+      ...(manualActiveExams5 ?? []),
     ].filter((e: any) => {
+      if (seenExamIds5.has(e.id)) return false
+      seenExamIds5.add(e.id)
       const d = e.start_at ? e.start_at.slice(0, 10) : e.created_at?.slice(0, 10) ?? '2000-01-01'
       return d >= enrolledAt5
     }) as any[]
@@ -467,8 +478,8 @@ export async function GET(req: NextRequest) {
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited, note')
           .eq('student_id', studentId).in('exam_id', examIds),
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score')
-          .eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_forfeited')
+          .eq('is_submitted', true).in('exam_id', examIds),
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
 
@@ -487,6 +498,7 @@ export async function GET(req: NextRequest) {
       // 시험별 전체 점수 목록 (평균·최고·최저용)
       const allScoresByExam: Record<string, number[]> = {}
       for (const s of (allSubmissions ?? [])) {
+        if (s.is_forfeited) continue
         const score = s.adjusted_score ?? s.auto_score
         if (score !== null) {
           if (!allScoresByExam[s.exam_id]) allScoresByExam[s.exam_id] = []
@@ -498,8 +510,8 @@ export async function GET(req: NextRequest) {
         const mySub   = mySubMap[exam.id]
         // 포기한 시험은 성적 표시 안 하고 별도 표시
         const isForfeited = mySub?.is_forfeited ?? false
-        // 마감없는 시험은 제출한 경우만 표시 (미제출이면 exam tab에서 볼 수 있음)
-        if (exam.no_deadline && !mySub?.is_submitted) continue
+        // 마감없는 자동채점 시험은 제출한 경우만 표시 (미제출이면 exam tab에서 볼 수 있음)
+        if (exam.no_deadline && exam.exam_type !== 'manual' && !mySub?.is_submitted) continue
         const myScore = (mySub?.is_submitted && !isForfeited) ? (mySub.adjusted_score ?? mySub.auto_score) : null
         const isAdjusted = !!(mySub?.is_submitted && !isForfeited && mySub.adjusted_score !== null && mySub.adjusted_score !== mySub.auto_score)
         const examFormat = exam.exam_format ?? 'score'
@@ -682,14 +694,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 신시스템 (마감된 시험 + 마감없는 시험 중 제출 완료)
-    const [{ data: closedExams2 }, { data: noDeadlineExams2 }] = await Promise.all([
+    // 신시스템 (마감된 시험 + 마감없는 시험 + 수동채점 active 시험)
+    const [{ data: closedExams2 }, { data: noDeadlineExams2 }, { data: manualActiveExams2 }] = await Promise.all([
       db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'closed').order('start_at', { ascending: true }),
       db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
         .eq('class_id', classId).eq('status', 'active').eq('no_deadline', true).order('start_at', { ascending: true }),
+      db.from('exams').select('id, title, status, start_at, created_at, max_score, exam_type, no_deadline, category')
+        .eq('class_id', classId).eq('status', 'active').eq('exam_type', 'manual').order('start_at', { ascending: true }),
     ])
-    const allExams2 = [...(closedExams2 ?? []), ...(noDeadlineExams2 ?? [])].filter((e: any) => {
+    const seenExamIds2 = new Set<string>()
+    const allExams2 = [...(closedExams2 ?? []), ...(noDeadlineExams2 ?? []), ...(manualActiveExams2 ?? [])].filter((e: any) => {
+      if (seenExamIds2.has(e.id)) return false
+      seenExamIds2.add(e.id)
       const d = e.start_at ? e.start_at.slice(0, 10) : e.created_at?.slice(0, 10) ?? '2000-01-01'
       return d >= enrolledAt7
     })
@@ -697,7 +714,7 @@ export async function GET(req: NextRequest) {
       const examIds = allExams2.map(e => e.id)
       const [{ data: mySubmissions }, { data: allSubmissions }, { data: examQuestions }] = await Promise.all([
         db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_submitted, is_forfeited, note').eq('student_id', studentId).in('exam_id', examIds),
-        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score').eq('is_submitted', true).eq('is_forfeited', false).in('exam_id', examIds),
+        db.from('exam_submissions').select('exam_id, auto_score, adjusted_score, is_forfeited').eq('is_submitted', true).in('exam_id', examIds),
         db.from('exam_questions').select('exam_id, score').in('exam_id', examIds),
       ])
       const maxScoreByExam: Record<string, number> = {}
@@ -706,13 +723,14 @@ export async function GET(req: NextRequest) {
       for (const s of (mySubmissions ?? [])) mySubMap[s.exam_id] = s
       const allScoresByExam: Record<string, number[]> = {}
       for (const s of (allSubmissions ?? [])) {
+        if (s.is_forfeited) continue
         const score = s.adjusted_score ?? s.auto_score
         if (score !== null) { if (!allScoresByExam[s.exam_id]) allScoresByExam[s.exam_id] = []; allScoresByExam[s.exam_id].push(score) }
       }
       for (const exam of allExams2) {
         const mySub = mySubMap[exam.id]
-        // 마감없는 시험은 본인이 제출한 경우에만 차트에 포함
-        if ((exam as any).no_deadline && (!mySub?.is_submitted || mySub?.is_forfeited)) continue
+        // 마감없는 자동채점 시험은 본인이 제출한 경우에만 차트에 포함
+        if ((exam as any).no_deadline && (exam as any).exam_type !== 'manual' && (!mySub?.is_submitted || mySub?.is_forfeited)) continue
         const myScore = mySub?.is_submitted && !mySub?.is_forfeited ? (mySub.adjusted_score ?? mySub.auto_score) : null
         const maxScore = (exam as any).max_score ?? maxScoreByExam[exam.id] ?? null
         const arr = allScoresByExam[exam.id] ?? []
