@@ -839,29 +839,30 @@ function AutoMonitorView({
                 {/* 문항별 칩 + 자세히 보기 */}
                 {s.isSubmitted && s.answers.length > 0 && examDetail && (
                   <>
-                    <div className="mt-2 flex flex-wrap gap-1.5 pl-12">
-                      {examDetail.questions.map((q, qi) => {
-                        const ans = s.answers.find(a => a.question_id === q.id)
-                        const ok = ans?.is_correct
-                        const overridden = ans?.manually_overridden
-                        return (
-                          <div key={q.id}
-                            title={`${q.question_label ?? (qi + 1)}번: ${ans?.student_answer ?? '미답'}${overridden ? ' (정답처리됨)' : ''}`}
-                            className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center cursor-default ${overridden ? 'bg-violet-100 text-violet-600' : ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
-                            {q.question_label ?? (qi + 1)}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div className="pl-12 mt-1.5">
+                    <div className="mt-2.5 flex items-center gap-2 pl-12">
+                      <div className="flex flex-wrap gap-1">
+                        {examDetail.questions.map((q, qi) => {
+                          const ans = s.answers.find(a => a.question_id === q.id)
+                          const ok = ans?.is_correct
+                          const overridden = ans?.manually_overridden
+                          const label = q.question_label ?? String(qi + 1)
+                          return (
+                            <div key={q.id}
+                              title={`${label}번: ${ans?.student_answer ?? '미답'}${overridden ? ' (정답처리됨)' : ''}`}
+                              className={`h-6 px-2 rounded-md text-xs font-bold flex items-center justify-center cursor-default whitespace-nowrap ${overridden ? 'bg-violet-100 text-violet-600' : ok === true ? 'bg-emerald-100 text-emerald-600' : ok === false ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
+                              {label}
+                            </div>
+                          )
+                        })}
+                      </div>
                       <button
                         onClick={() => setExpandedStudents(prev => {
                           const next = new Set(prev)
                           next.has(s.studentId) ? next.delete(s.studentId) : next.add(s.studentId)
                           return next
                         })}
-                        className="text-xs text-slate-400 hover:text-blue-500 transition-colors">
-                        {expandedStudents.has(s.studentId) ? '접기' : '자세히 보기'}
+                        className="flex-shrink-0 text-xs px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors font-medium">
+                        {expandedStudents.has(s.studentId) ? '접기' : '자세히'}
                       </button>
                     </div>
                     {expandedStudents.has(s.studentId) && (
