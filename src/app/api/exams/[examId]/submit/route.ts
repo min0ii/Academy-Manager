@@ -10,12 +10,19 @@ function admin() {
   )
 }
 
-async function verifyStudent(db: ReturnType<typeof admin>, token: string) {
+// 멀티 학원 지원: examId → class_id → class_students로 올바른 학생 특정
+async function verifyStudent(db: ReturnType<typeof admin>, token: string, examId: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return null
-  const { data: student } = await db.from('students').select('id, status').eq('user_id', user.id).maybeSingle()
-  if (!student || student.status === 'inactive') return null
-  return student.id
+  const { data: students } = await db.from('students').select('id, status').eq('user_id', user.id)
+  if (!students?.length) return null
+  const active = students.filter((s: any) => s.status !== 'inactive')
+  if (!active.length) return null
+  if (active.length === 1) return active[0].id
+  const { data: exam } = await db.from('exams').select('class_id').eq('id', examId).single()
+  if (!exam) return null
+  const { data: cs } = await db.from('class_students').select('student_id').eq('class_id', (exam as any).class_id).in('student_id', active.map((s: any) => s.id)).maybeSingle()
+  return cs?.student_id ?? null
 }
 
 function gradeAnswer(studentAns: string, correctList: string[]): boolean {
@@ -33,11 +40,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
+  const { examId } = await params
   const db = admin()
-  const studentId = await verifyStudent(db, token)
+  const studentId = await verifyStudent(db, token, examId)
   if (!studentId) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
 
-  const { examId } = await params
   const body = await req.json().catch(() => ({}))
   const action = body?.action  // 'forfeit' or undefined (= normal submit)
 

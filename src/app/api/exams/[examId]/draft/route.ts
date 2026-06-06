@@ -9,11 +9,17 @@ function admin() {
   )
 }
 
-async function verifyStudent(db: ReturnType<typeof admin>, token: string) {
+// 멀티 학원 지원: examId → class_id → class_students로 올바른 학생 특정
+async function verifyStudent(db: ReturnType<typeof admin>, token: string, examId: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return null
-  const { data: student } = await db.from('students').select('id').eq('user_id', user.id).maybeSingle()
-  return student?.id ?? null
+  const { data: students } = await db.from('students').select('id').eq('user_id', user.id)
+  if (!students?.length) return null
+  if (students.length === 1) return students[0].id
+  const { data: exam } = await db.from('exams').select('class_id').eq('id', examId).single()
+  if (!exam) return null
+  const { data: cs } = await db.from('class_students').select('student_id').eq('class_id', (exam as any).class_id).in('student_id', students.map((s: any) => s.id)).maybeSingle()
+  return cs?.student_id ?? null
 }
 
 // GET /api/exams/[examId]/draft
@@ -25,11 +31,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
-  const db = admin()
-  const studentId = await verifyStudent(db, token)
-  if (!studentId) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
-
   const { examId } = await params
+  const db = admin()
+  const studentId = await verifyStudent(db, token, examId)
+  if (!studentId) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
 
   // 시험 상태 확인
   const { data: exam } = await db.from('exams').select('start_at, end_at, status').eq('id', examId).single()
@@ -68,11 +73,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
-  const db = admin()
-  const studentId = await verifyStudent(db, token)
-  if (!studentId) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
-
   const { examId } = await params
+  const db = admin()
+  const studentId = await verifyStudent(db, token, examId)
+  if (!studentId) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
   const { questionId, answer } = await req.json()
 
   // 마감 확인
