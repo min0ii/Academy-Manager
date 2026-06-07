@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import { useAcademy } from '@/lib/academy-context'
 import { useDialog } from '@/components/AppDialog'
+import { PageLoading, ListSkeleton } from '@/components/Skeleton'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -440,7 +441,7 @@ function StudentReportContent() {
   const _allGradeNames = gradeRecords.map(r => r.name)
   const duplicateGradeNames = new Set(_allGradeNames.filter((n, i) => _allGradeNames.indexOf(n) !== i))
 
-  if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+  if (loading) return <PageLoading />
   if (!student) return null
 
   return (
@@ -726,7 +727,7 @@ function StudentReportContent() {
           )}
 
           {loadingDetail ? (
-            <div className="text-center py-10 text-slate-400 text-sm">불러오는 중...</div>
+            <ListSkeleton cards={3} rows={3} />
           ) : (
             <>
               {/* ── 출결 현황 ── */}
@@ -1099,7 +1100,7 @@ function StudentReportContent() {
 
 export default function StudentReportPage() {
   return (
-    <Suspense fallback={<div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>}>
+    <Suspense fallback={<PageLoading />}>
       <StudentReportContent />
     </Suspense>
   )

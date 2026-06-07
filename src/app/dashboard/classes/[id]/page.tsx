@@ -10,6 +10,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import { todayKST } from '@/lib/date'
+import { PageLoading, ListSkeleton } from '@/components/Skeleton'
 import { useDialog } from '@/components/AppDialog'
 
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
@@ -1019,7 +1020,7 @@ async function resetAllLives() {
     }
   }
 
-  if (loading) return <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+  if (loading) return <PageLoading />
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1058,7 +1059,7 @@ async function resetAllLives() {
       {tab === 'stats' && (
         <div className="space-y-6">
           {statsLoading ? (
-            <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+            <ListSkeleton cards={2} rows={3} />
           ) : statsSessions.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
               <TrendingUp size={32} className="mx-auto mb-3 opacity-30" />
@@ -1600,7 +1601,7 @@ async function resetAllLives() {
                 )}
 
                 {loadingAtt ? (
-                  <div className="py-10 text-center text-slate-400 text-sm">불러오는 중...</div>
+                  <div className="p-4"><ListSkeleton cards={1} rows={5} /></div>
                 ) : (
                   <>
                     {/* ── 출결 탭 ── */}
@@ -2255,7 +2256,7 @@ async function resetAllLives() {
           </div>
 
           {livesLoading ? (
-            <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+            <ListSkeleton cards={2} rows={3} />
           ) : students.length === 0 ? (
             <div className="text-center py-14 text-slate-400">
               <Heart size={32} className="mx-auto mb-2 opacity-20" />

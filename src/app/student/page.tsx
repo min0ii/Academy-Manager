@@ -9,6 +9,7 @@ import {
   KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart, Skull, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import ExamTab from './ExamTab'
+import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
@@ -122,6 +123,7 @@ export default function StudentPage() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [calMonth, setCalMonth]     = useState(() => new Date())
   const [attendLoaded, setAttendLoaded] = useState(false)
+  const [attendLoading, setAttendLoading] = useState(false)
 
   // 성적
   const [tests, setTests]             = useState<TestRecord[]>([])
@@ -237,11 +239,25 @@ export default function StudentPage() {
       setClassInfo(ctx.classInfo)
       setAcademyName(ctx.academyName)
       setAcademyLogo(ctx.academyLogo)
-      loadLives(ctx.student.id, token)
-      if (ctx.classInfo?.id) loadBillboard(ctx.classInfo.id, token)
+      // 목숨·빌보드를 병렬로 받고, 둘 다 끝난 뒤 화면을 한 번에 표시 (홈 카드가 따로따로 뜨지 않도록)
+      await Promise.all([
+        loadLives(ctx.student.id, token),
+        ctx.classInfo?.id ? loadBillboard(ctx.classInfo.id, token) : Promise.resolve(),
+      ])
+      // 탭 데이터 백그라운드 프리페치 — 탭 진입 시 로딩이 안 보이도록
+      prefetchTabs(ctx)
     }
 
     setLoading(false)
+  }
+
+  // 선택된 컨텍스트의 모든 탭 데이터를 미리(병렬) 받아둠
+  function prefetchTabs(ctx: StudentContext) {
+    if (!ctx.classInfo) return
+    loadAttendance(ctx)
+    loadGrades(ctx)
+    loadHomework(ctx)
+    loadClinics(ctx)
   }
 
   async function loadLives(studentId: string, token: string) {
@@ -308,17 +324,25 @@ export default function StudentPage() {
     setShowAllAttend(false); setShowAllGrades(false)
     setShowAllHomework(false); setShowAllClinics(false)
     setLivesEnabled(false); setMyLives(0)
+    setBillboardLoaded(false); setBillboard([])
     setTab('home')
     const token = await getToken()
-    if (token) loadLives(ctx.student.id, token)
+    if (token) {
+      loadLives(ctx.student.id, token)
+      if (ctx.classInfo?.id) loadBillboard(ctx.classInfo.id, token)
+    }
+    // 전환한 컨텍스트의 탭 데이터도 미리 받아둠
+    prefetchTabs(ctx)
   }
 
-  async function loadAttendance() {
-    if (!student || !classInfo) return
-    setAttendLoaded(true)
-    const token = await getToken(); if (!token) return
+  async function loadAttendance(ovr?: StudentContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
+    setAttendLoaded(true); setAttendLoading(true)
+    const token = await getToken(); if (!token) { setAttendLoading(false); return }
     const res = await fetch(
-      `/api/grades?action=my-attendance&classId=${classInfo.id}&studentId=${student.id}`,
+      `/api/grades?action=my-attendance&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
     const json = await res.json()
@@ -326,13 +350,16 @@ export default function StudentPage() {
       date: r.date, status: r.status as AttendanceRecord['status'],
       note: r.note ?? null, late_minutes: r.late_minutes ?? undefined, early_leave_minutes: r.early_leave_minutes ?? undefined,
     })))
+    setAttendLoading(false)
   }
 
-  async function loadGrades() {
-    if (!student || !classInfo) return
+  async function loadGrades(ovr?: StudentContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
     setGradesLoaded(true); setGradesLoading(true)
     const token = await getToken(); if (!token) { setGradesLoading(false); return }
-    const res = await fetch(`/api/grades?action=my-grades&classId=${classInfo.id}&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=my-grades&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setTests(json.records ?? []); setGradesLoading(false)
@@ -352,21 +379,25 @@ export default function StudentPage() {
     setLoadingExamResult(false)
   }
 
-  async function loadHomework() {
-    if (!student || !classInfo) return
+  async function loadHomework(ovr?: StudentContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
     setHwLoaded(true); setHwLoading(true)
     const token = await getToken(); if (!token) { setHwLoading(false); return }
-    const res = await fetch(`/api/grades?action=my-homework&classId=${classInfo.id}&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=my-homework&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setHomeworks(json.records ?? []); setHwLoading(false)
   }
 
-  async function loadClinics() {
-    if (!student || !classInfo) return
+  async function loadClinics(ovr?: StudentContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
     setClinicLoaded(true); setClinicLoading(true)
     const token = await getToken(); if (!token) { setClinicLoading(false); return }
-    const res = await fetch(`/api/grades?action=my-clinic&classId=${classInfo.id}&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=my-clinic&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setClinics(json.records ?? []); setClinicLoading(false)
@@ -511,7 +542,7 @@ export default function StudentPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-slate-400 text-sm">불러오는 중...</div>
+      <PageLoading />
     </div>
   )
 
@@ -748,7 +779,7 @@ export default function StudentPage() {
         {/* ── 출석 ── */}
         {tab === 'attendance' && (
           <>
-            {!classInfo ? <NoClass /> : (
+            {!classInfo ? <NoClass /> : (!attendLoaded || attendLoading) ? <ListSkeleton cards={2} rows={4} /> : (
               <>
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                   <h2 className="font-bold text-slate-800 text-sm">출석 현황</h2>
@@ -931,7 +962,7 @@ export default function StudentPage() {
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">전체 성적 기록</h2></div>
                   {gradesLoading ? (
-                    <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
+                    <RowsSkeleton rows={4} />
                   ) : tests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
@@ -1210,7 +1241,7 @@ export default function StudentPage() {
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                       <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">과제 목록</h2></div>
                       {hwLoading ? (
-                        <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
+                        <RowsSkeleton rows={4} />
                       ) : homeworks.length === 0 ? (
                         <div className="px-5 py-8 text-center text-slate-400 text-sm">과제 기록이 없어요</div>
                       ) : (
@@ -1285,7 +1316,7 @@ export default function StudentPage() {
                 {hwClinicSub === 'clinic' && (
                   <>
                     {clinicLoading ? (
-                      <div className="bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">불러오는 중...</div>
+                      <ListSkeleton cards={2} rows={3} />
                     ) : (
                       <>
                         {clinics.some(c => c.status !== null) && (

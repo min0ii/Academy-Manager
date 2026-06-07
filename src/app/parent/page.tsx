@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { monthsAgoKST } from '@/lib/date'
+import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
@@ -103,6 +104,7 @@ export default function ParentPage() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [calMonth, setCalMonth]     = useState(() => new Date())
   const [attendLoaded, setAttendLoaded] = useState(false)
+  const [attendLoading, setAttendLoading] = useState(false)
 
   // 성적
   const [tests, setTests]           = useState<TestRecord[]>([])
@@ -171,8 +173,14 @@ export default function ParentPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data: profile } = await supabase
-      .from('profiles').select('name, phone, must_change_password, security_question').eq('id', user.id).single()
+    const token = await getToken()
+    if (!token) { setLoading(false); return }
+
+    // 프로필(비번/보안질문 플래그) + 자녀 전체 정보(집계 API)를 병렬로 조회
+    const [{ data: profile }, overview] = await Promise.all([
+      supabase.from('profiles').select('name, must_change_password, security_question').eq('id', user.id).single(),
+      fetch('/api/parent/overview', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ contexts: [] })),
+    ])
 
     if (profile) {
       setParentName(profile.name)
@@ -181,49 +189,28 @@ export default function ParentPage() {
       setSqLoaded(true)
     }
 
-    const parentPhone = profile?.phone ?? ''
-    // maybeSingle 대신 배열로 조회 — 자녀가 여럿이거나 한 자녀가 여러 학원에 다닐 수 있음
-    const { data: allStudents } = await supabase
-      .from('students').select('id, name, school_name, grade, phone, enrolled_at')
-      .eq('parent_phone', parentPhone)
-
-    if (allStudents && allStudents.length > 0) {
-      const ctxs: ChildContext[] = []
-      for (const s of allStudents) {
-        const { classInfo: ci, academyName: an, academyLogo: al } = await fetchClassInfo(s.id)
-        ctxs.push({ student: s, classInfo: ci, academyName: an, academyLogo: al })
-      }
+    const ctxs: ChildContext[] = overview?.contexts ?? []
+    if (ctxs.length > 0) {
       setAllContexts(ctxs)
       setSelectedCtxIdx(0)
       setStudent(ctxs[0].student)
       setClassInfo(ctxs[0].classInfo)
       setAcademyName(ctxs[0].academyName)
       setAcademyLogo(ctxs[0].academyLogo)
+      // 탭 데이터 백그라운드 프리페치 — 탭 진입 시 로딩이 안 보이도록 미리 받아둠
+      prefetchTabs(ctxs[0])
     }
     setLoading(false)
   }
 
-  // 반·학원 정보를 반환하는 함수 (state 직접 설정 X)
-  async function fetchClassInfo(studentId: string): Promise<{ classInfo: ClassInfo | null; academyName: string; academyLogo: string | null }> {
-    const { data: cs } = await supabase
-      .from('class_students')
-      .select('classes(id, name, academy_id, teacher_id, academies(name, logo_url), class_schedules(day_of_week, start_time, end_time))')
-      .eq('student_id', studentId)
-
-    if (!cs?.length) return { classInfo: null, academyName: '', academyLogo: null }
-    const cls = (cs[0] as any).classes
-    if (!cls) return { classInfo: null, academyName: '', academyLogo: null }
-
-    let teacherName: string | null = null
-    if (cls.teacher_id) {
-      const { data: tp } = await supabase.from('profiles').select('name').eq('id', cls.teacher_id).single()
-      teacherName = tp?.name ?? null
-    }
-    return {
-      classInfo: { id: cls.id, name: cls.name, teacher_name: teacherName, schedules: cls.class_schedules ?? [] },
-      academyName: cls.academies?.name ?? '',
-      academyLogo: (cls.academies as any)?.logo_url ?? null,
-    }
+  // 선택된 자녀의 모든 탭 데이터를 미리(병렬) 받아둠
+  function prefetchTabs(ctx: ChildContext) {
+    loadComments(ctx)
+    if (!ctx.classInfo) return
+    loadAttendance(ctx)
+    loadGrades(ctx)
+    loadHomework(ctx)
+    loadClinics(ctx)
   }
 
   function switchContext(idx: number) {
@@ -245,63 +232,75 @@ export default function ParentPage() {
     setShowAllAttend(false); setShowAllGrades(false)
     setShowAllHomework(false); setShowAllClinics(false)
     setTab('home')
+    // 전환한 자녀의 탭 데이터도 미리 받아둠
+    prefetchTabs(ctx)
   }
 
-  async function loadAttendance() {
-    if (!student || !classInfo) return
-    setAttendLoaded(true)
+  async function loadAttendance(ovr?: ChildContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
+    setAttendLoaded(true); setAttendLoading(true)
     const sixMonthsAgoStr = monthsAgoKST(6)
-    const enrolledAt = student.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
+    const enrolledAt = s.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
     const fromDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
     const { data: sessions } = await supabase
       .from('sessions')
       .select('id, date, status, attendance(student_id, status, note, late_minutes, early_leave_minutes)')
-      .eq('class_id', classInfo.id).gte('date', fromDate)
+      .eq('class_id', ci.id).gte('date', fromDate)
       .order('date', { ascending: false })
 
-    setAttendance((sessions ?? []).map((s: any) => {
-      if (s.status === 'cancelled') return { date: s.date, status: 'cancelled' as const }
-      const my = (s.attendance ?? []).find((a: any) => a.student_id === student.id)
-      return { date: s.date, status: (my?.status ?? 'absent') as AttendanceRecord['status'],
+    setAttendance((sessions ?? []).map((sn: any) => {
+      if (sn.status === 'cancelled') return { date: sn.date, status: 'cancelled' as const }
+      const my = (sn.attendance ?? []).find((a: any) => a.student_id === s.id)
+      return { date: sn.date, status: (my?.status ?? 'absent') as AttendanceRecord['status'],
         note: my?.note ?? null, late_minutes: my?.late_minutes, early_leave_minutes: my?.early_leave_minutes }
     }))
+    setAttendLoading(false)
   }
 
-  async function loadGrades() {
-    if (!student || !classInfo) return
+  async function loadGrades(ovr?: ChildContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
     setGradesLoaded(true); setGradesLoading(true)
     const token = await getToken(); if (!token) { setGradesLoading(false); return }
-    const res = await fetch(`/api/grades?action=parent-chart&classId=${classInfo.id}&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=parent-chart&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setTests(json.records ?? []); setGradesLoading(false)
   }
 
-  async function loadHomework() {
-    if (!student || !classInfo) return
+  async function loadHomework(ovr?: ChildContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
     setHwLoaded(true); setHwLoading(true)
     const token = await getToken(); if (!token) { setHwLoading(false); return }
-    const res = await fetch(`/api/grades?action=parent-homework&classId=${classInfo.id}&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=parent-homework&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setHomeworks(json.records ?? []); setHwLoading(false)
   }
 
-  async function loadClinics() {
-    if (!student || !classInfo) return
+  async function loadClinics(ovr?: ChildContext) {
+    const s = ovr?.student ?? student
+    const ci = ovr?.classInfo ?? classInfo
+    if (!s || !ci) return
     setClinicLoaded(true); setClinicLoading(true)
     const token = await getToken(); if (!token) { setClinicLoading(false); return }
-    const res = await fetch(`/api/grades?action=parent-clinic&classId=${classInfo.id}&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=parent-clinic&classId=${ci.id}&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setClinics(json.records ?? []); setClinicLoading(false)
   }
 
-  async function loadComments() {
-    if (!student) return
+  async function loadComments(ovr?: ChildContext) {
+    const s = ovr?.student ?? student
+    if (!s) return
     setCommentsLoaded(true); setCommentsLoading(true)
     const token = await getToken(); if (!token) { setCommentsLoading(false); return }
-    const res = await fetch(`/api/grades?action=parent-comments&studentId=${student.id}`,
+    const res = await fetch(`/api/grades?action=parent-comments&studentId=${s.id}`,
       { headers: { Authorization: `Bearer ${token}` } })
     const json = await res.json()
     setCommentList(json.records ?? []); setCommentsLoading(false)
@@ -443,7 +442,7 @@ export default function ParentPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-slate-400 text-sm">불러오는 중...</div>
+      <PageLoading />
     </div>
   )
 
@@ -575,7 +574,7 @@ export default function ParentPage() {
         {/* ── 출석 ── */}
         {tab === 'attendance' && (
           <>
-            {!classInfo ? <NoClass /> : (
+            {!classInfo ? <NoClass /> : (!attendLoaded || attendLoading) ? <ListSkeleton cards={2} rows={4} /> : (
               <>
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                   <h2 className="font-bold text-slate-800 text-sm">출석 현황</h2>
@@ -758,7 +757,7 @@ export default function ParentPage() {
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">전체 성적 기록</h2></div>
                   {gradesLoading ? (
-                    <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
+                    <RowsSkeleton rows={4} />
                   ) : filteredTests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
@@ -865,7 +864,7 @@ export default function ParentPage() {
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                       <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">과제 목록</h2></div>
                       {hwLoading ? (
-                        <div className="px-5 py-8 text-center text-slate-400 text-sm">불러오는 중...</div>
+                        <RowsSkeleton rows={4} />
                       ) : homeworks.length === 0 ? (
                         <div className="px-5 py-8 text-center text-slate-400 text-sm">과제 기록이 없어요</div>
                       ) : (
@@ -940,7 +939,7 @@ export default function ParentPage() {
                 {hwClinicSub === 'clinic' && (
                   <>
                     {clinicLoading ? (
-                      <div className="bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">불러오는 중...</div>
+                      <ListSkeleton cards={2} rows={3} />
                     ) : (
                       <>
                         {clinics.some(c => c.status !== null) && (
@@ -1024,7 +1023,7 @@ export default function ParentPage() {
         {tab === 'comments' && (
           <>
             {!student ? <NoClass /> : commentsLoading ? (
-              <div className="bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">불러오는 중...</div>
+              <ListSkeleton cards={2} rows={3} />
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">

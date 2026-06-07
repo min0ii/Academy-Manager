@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import QuestionBank from './QuestionBank'
 import { useDialog } from '@/components/AppDialog'
+import { ListSkeleton } from '@/components/Skeleton'
 import { todayKST } from '@/lib/date'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -1682,7 +1683,7 @@ function GradesContent() {
       {mainTab === 'exams' && (
         <>
           {loadingClasses ? (
-            <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+            <ListSkeleton cards={3} rows={1} />
           ) : classes.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
               <p className="text-lg mb-1">등록된 반이 없어요</p>
@@ -1751,7 +1752,7 @@ function GradesContent() {
       })()}
 
       {loadingExams ? (
-        <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+        <ListSkeleton cards={3} rows={1} />
       ) : exams.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <p className="text-lg mb-1">아직 시험이 없어요</p>
@@ -2225,7 +2226,7 @@ function GradesContent() {
       )}
 
       {loadingDetail ? (
-        <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+        <ListSkeleton cards={3} rows={3} />
       ) : selectedExam?.exam_type === 'manual' ? (
         <ManualScoreView
           entries={manualEntries}
