@@ -14,7 +14,17 @@ async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return null
   const { data: p } = await db.from('profiles').select('role').eq('id', user.id).single()
-  return p?.role === 'teacher' ? user.id : null
+  if (p?.role !== 'teacher') return null
+  const { data: m } = await db.from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+  return { teacherId: user.id, academyId: m?.academy_id ?? null }
+}
+
+// 시험이 이 선생님의 학원 소속인지 검증
+async function examInAcademy(db: ReturnType<typeof admin>, examId: string, academyId: string) {
+  const { data: exam } = await db.from('exams').select('class_id').eq('id', examId).single()
+  if (!exam) return false
+  const { data: cls } = await db.from('classes').select('id').eq('id', (exam as any).class_id).eq('academy_id', academyId).maybeSingle()
+  return !!cls
 }
 
 // GET /api/exams/[examId]/submissions
@@ -27,14 +37,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { examId } = await params
 
   // 시험 정보
   const { data: exam } = await db.from('exams').select('class_id, exam_type, exam_format, status, max_score').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
+
+  // 다른 학원 시험 접근 차단
+  const { data: ownCls } = await db.from('classes').select('id').eq('id', (exam as any).class_id).eq('academy_id', auth.academyId).maybeSingle()
+  if (!ownCls) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   // 반 학생 전체 (재원 학생만)
   const { data: classStudents } = await db
@@ -108,10 +122,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { examId } = await params
+
+  // 다른 학원 시험 점수 수정 차단
+  if (!await examInAcademy(db, examId, auth.academyId))
+    return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
   const body = await req.json()
   // scores: [{ studentId, status: 'submitted'|'not_submitted'|'absent', score: number|null }]
   // adjustments: [{ submissionId, adjustedScore }]

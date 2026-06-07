@@ -14,7 +14,14 @@ async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
   if (error || !user) return null
   const { data: profile } = await db.from('profiles').select('role, id').eq('id', user.id).single()
   if (!profile || profile.role !== 'teacher') return null
-  return profile.id
+  const { data: m } = await db.from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+  return { teacherId: profile.id, academyId: m?.academy_id ?? null }
+}
+
+// classId가 이 선생님의 학원 소속인지 검증
+async function classInAcademy(db: ReturnType<typeof admin>, classId: string, academyId: string) {
+  const { data } = await db.from('classes').select('id').eq('id', classId).eq('academy_id', academyId).maybeSingle()
+  return !!data
 }
 
 // GET /api/exams?classId=xxx
@@ -27,11 +34,13 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '선생님 계정만 접근할 수 있어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '선생님 계정만 접근할 수 있어요.' }, { status: 403 })
 
   const classId = req.nextUrl.searchParams.get('classId')
   if (!classId) return NextResponse.json({ error: 'classId가 필요해요.' }, { status: 400 })
+  if (!await classInAcademy(db, classId, auth.academyId))
+    return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { data: exams, error } = await db
     .from('exams')
@@ -53,14 +62,17 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '선생님 계정만 접근할 수 있어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '선생님 계정만 접근할 수 있어요.' }, { status: 403 })
+  const teacherId = auth.teacherId
 
   const body = await req.json()
   const { classId, title, examType, startAt, endAt, answerReveal, questions, maxScore, noDeadline, category, examFormat, parentExamId } = body
 
   if (!classId || !title?.trim())
     return NextResponse.json({ error: '반과 시험 제목은 필수예요.' }, { status: 400 })
+  if (!await classInAcademy(db, classId, auth.academyId))
+    return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   // 마감 시간이 현재보다 이전이면 거부
   if (endAt && new Date(endAt) <= new Date())

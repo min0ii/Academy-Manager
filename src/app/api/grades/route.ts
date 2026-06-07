@@ -636,6 +636,10 @@ export async function GET(req: NextRequest) {
     const classId = searchParams.get('classId')
     if (!testId || !classId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
 
+    // 다른 학원 반 점수 접근 차단
+    const { data: clsOwn } = await db.from('classes').select('id').eq('id', classId).eq('academy_id', academyId).maybeSingle()
+    if (!clsOwn) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+
     const [{ data: students }, { data: scores }] = await Promise.all([
       db.from('class_students').select('students(id, name)').eq('class_id', classId),
       db.from('test_scores').select('student_id, score, absent').eq('test_id', testId),
@@ -648,6 +652,10 @@ export async function GET(req: NextRequest) {
     const classId   = searchParams.get('classId')
     const studentId = searchParams.get('studentId')
     if (!classId || !studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+
+    // 다른 학원 반·학생 성적 접근 차단
+    const { data: clsOwn } = await db.from('classes').select('id').eq('id', classId).eq('academy_id', academyId).maybeSingle()
+    if (!clsOwn) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
     const { data: _sr7 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
     const enrolledAt7 = _sr7?.enrolled_at?.slice(0, 10) ?? '2000-01-01'

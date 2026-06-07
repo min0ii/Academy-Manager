@@ -14,7 +14,16 @@ async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
   if (error || !user) return null
   const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).single()
   if (!profile || profile.role !== 'teacher') return null
-  return user.id
+  const { data: m } = await db.from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+  return { teacherId: user.id, academyId: m?.academy_id ?? null }
+}
+
+// 시험이 이 선생님의 학원 소속인지 검증
+async function examInAcademy(db: ReturnType<typeof admin>, examId: string, academyId: string) {
+  const { data: exam } = await db.from('exams').select('class_id').eq('id', examId).single()
+  if (!exam) return false
+  const { data: cls } = await db.from('classes').select('id').eq('id', (exam as any).class_id).eq('academy_id', academyId).maybeSingle()
+  return !!cls
 }
 
 // GET /api/exams/[examId]
@@ -27,14 +36,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { examId } = await params
 
   const { data: exam } = await db.from('exams')
     .select('*').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
+
+  // 다른 학원 시험 접근 차단
+  const { data: ownCls } = await db.from('classes').select('id').eq('id', (exam as any).class_id).eq('academy_id', auth.academyId).maybeSingle()
+  if (!ownCls) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { data: questions } = await db.from('exam_questions')
     .select('*').eq('exam_id', examId).order('order_num')
@@ -62,10 +75,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ e
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { examId } = await params
+
+  // 다른 학원 시험 삭제 차단
+  if (!await examInAcademy(db, examId, auth.academyId))
+    return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { error } = await db.from('exams').delete().eq('id', examId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -84,12 +101,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { examId } = await params
   const body = await req.json()
   const { action } = body
+
+  // 다른 학원 시험 수정 차단 (모든 action 공통)
+  if (!await examInAcademy(db, examId, auth.academyId))
+    return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   // ── 시험 시작 ──
   if (action === 'start') {

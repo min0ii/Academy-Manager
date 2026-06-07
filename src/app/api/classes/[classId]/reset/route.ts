@@ -14,7 +14,8 @@ async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
   if (error || !user) return null
   const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).single()
   if (!profile || profile.role !== 'teacher') return null
-  return user.id
+  const { data: m } = await db.from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+  return { teacherId: user.id, academyId: m?.academy_id ?? null }
 }
 
 // POST /api/classes/[classId]/reset
@@ -27,13 +28,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cla
   if (!token) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   const db = admin()
-  const teacherId = await verifyTeacher(db, token)
-  if (!teacherId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+  const auth = await verifyTeacher(db, token)
+  if (!auth?.academyId) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   const { classId } = await params
 
-  // 반이 실제로 존재하는지 확인
-  const { data: cls } = await db.from('classes').select('id, name').eq('id', classId).single()
+  // 반이 이 선생님의 학원 소속인지 확인 (다른 학원 반 초기화 차단)
+  const { data: cls } = await db.from('classes').select('id, name').eq('id', classId).eq('academy_id', auth.academyId).single()
   if (!cls) return NextResponse.json({ error: '반을 찾을 수 없어요.' }, { status: 404 })
 
   // 1. 시험 관련 (exam_submissions → exam_student_answers는 cascade 가정)

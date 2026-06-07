@@ -10,11 +10,20 @@ function admin() {
   )
 }
 
+// 선생님 인증 + 소속 학원 ID 반환 (없으면 null)
 async function verifyTeacher(db: ReturnType<typeof admin>, token: string) {
   const { data: { user }, error } = await db.auth.getUser(token)
   if (error || !user) return null
   const { data: p } = await db.from('profiles').select('role').eq('id', user.id).single()
-  return p?.role === 'teacher' ? user.id : null
+  if (p?.role !== 'teacher') return null
+  const { data: m } = await db.from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+  return m?.academy_id ?? null
+}
+
+// 규칙 ID가 이 선생님의 학원 소속인지 검증
+async function ruleInAcademy(db: ReturnType<typeof admin>, ruleId: string, academyId: string) {
+  const { data } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
+  return (data as any)?.academy_id === academyId ? academyId : null
 }
 
 export async function GET(req: NextRequest) {
@@ -48,11 +57,12 @@ export async function GET(req: NextRequest) {
   }
 
   if (action === 'rules') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const academyId = searchParams.get('academyId')
     if (!academyId) return NextResponse.json({ error: 'academyId 필요' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const [{ data: academy }, { data: rules }] = await Promise.all([
       db.from('academies').select('lives_auto_enabled, lives_auto_from').eq('id', academyId).single(),
@@ -83,7 +93,11 @@ export async function GET(req: NextRequest) {
     } else if (profile?.role === 'parent') {
       const { data: ps } = await db.from('parent_students').select('student_id').eq('parent_id', user.id).eq('student_id', studentId).single()
       if (!ps) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
-    } else if (profile?.role !== 'teacher') {
+    } else if (profile?.role === 'teacher') {
+      // 선생님은 본인 학원 학생만 열람 가능
+      const { data: m } = await db.from('academy_teachers').select('academy_id').eq('teacher_id', user.id).single()
+      if (!m || m.academy_id !== academyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    } else {
       return NextResponse.json({ error: '권한 없음' }, { status: 403 })
     }
 
@@ -111,12 +125,13 @@ export async function POST(req: NextRequest) {
   const action = body?.action
 
   if (action === 'apply-rules') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { academyId, studentId, eventType, eventDetail } = body
     if (!academyId || !studentId || !eventType || !eventDetail)
       return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     await applyLivesRulesInternal(db, academyId, studentId, eventType, eventDetail)
     return NextResponse.json({ success: true })
@@ -124,12 +139,13 @@ export async function POST(req: NextRequest) {
 
   // 선생님 수동 목숨 조정 (디바운스 후 최종값으로 호출)
   if (action === 'manual-adjust') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { academyId, studentId, delta, reason } = body
     if (!academyId || !studentId || delta === undefined || delta === 0)
       return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { data: academy } = await db.from('academies').select('lives_default').eq('id', academyId).single()
     const { data: current } = await db.from('student_lives').select('lives')
@@ -156,11 +172,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'save-auto-settings') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { academyId, livesAutoEnabled, livesAutoFrom } = body
     if (!academyId) return NextResponse.json({ error: 'academyId 필요' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { data: prev } = await db
       .from('academies').select('lives_auto_enabled, lives_auto_from').eq('id', academyId).single()
@@ -179,12 +196,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'create-rule') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { academyId, name, condition_type, condition_detail, delta } = body
     if (!academyId || !name || !condition_type || !condition_detail || delta === undefined)
       return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { data: existing } = await db.from('lives_rules').select('id').eq('academy_id', academyId)
     const orderNum = (existing ?? []).length
@@ -200,37 +218,45 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'update-rule') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { ruleId, enabled } = body
     if (!ruleId) return NextResponse.json({ error: 'ruleId 필요' }, { status: 400 })
 
     const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
+    if (!rule || (rule as any).academy_id !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
     await db.from('lives_rules').update({ enabled }).eq('id', ruleId)
-    if (rule) void recalculate(db, (rule as any).academy_id)
+    void recalculate(db, (rule as any).academy_id)
     return NextResponse.json({ success: true })
   }
 
   if (action === 'delete-rule') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { ruleId } = body
     if (!ruleId) return NextResponse.json({ error: 'ruleId 필요' }, { status: 400 })
 
     const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
+    if (!rule || (rule as any).academy_id !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
     await db.from('lives_rules').delete().eq('id', ruleId)
-    if (rule) void recalculate(db, (rule as any).academy_id)
+    void recalculate(db, (rule as any).academy_id)
     return NextResponse.json({ success: true })
   }
 
   if (action === 'reorder-rules') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { ruleIds } = body
     if (!Array.isArray(ruleIds)) return NextResponse.json({ error: 'ruleIds 필요' }, { status: 400 })
+
+    // 모든 규칙이 내 학원 소속인지 확인
+    const { data: rulesToReorder } = await db.from('lives_rules').select('id, academy_id').in('id', ruleIds)
+    const allMine = (rulesToReorder ?? []).length === ruleIds.length &&
+      (rulesToReorder ?? []).every((r: any) => r.academy_id === myAcademyId)
+    if (!allMine) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     await Promise.all(
       ruleIds.map((id: string, idx: number) =>
@@ -241,11 +267,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'recalculate') {
-    const teacherId = await verifyTeacher(db, token)
-    if (!teacherId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const { academyId, studentId } = body
     if (!academyId) return NextResponse.json({ error: 'academyId 필요' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     if (studentId) await recalculateStudent(db, academyId, studentId)
     else await recalculate(db, academyId)

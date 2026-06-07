@@ -61,9 +61,14 @@ export async function GET(
 
   // 시험 정보
   const { data: exam } = await db.from('exams')
-    .select('id, title, status, answer_reveal, exam_type, start_at, created_at, max_score, no_deadline')
+    .select('id, title, status, answer_reveal, exam_type, start_at, created_at, max_score, no_deadline, class_id')
     .eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
+
+  // 이 학생이 시험의 반에 실제로 속해 있는지 확인 (다른 반/학원 시험 내용 열람 차단)
+  const { data: enrolled } = await db.from('class_students')
+    .select('class_id').eq('class_id', (exam as any).class_id).eq('student_id', studentId).maybeSingle()
+  if (!enrolled) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
   // 마감없는 시험은 제출 완료 학생만 결과 조회 가능 / 일반 시험은 마감 후만 조회 가능
   if (!exam.no_deadline && exam.status !== 'closed')
