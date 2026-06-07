@@ -165,8 +165,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 빠른 메뉴 */}
-      <div>
+      {/* 빠른 메뉴 — PC에선 사이드바와 중복이라 모바일에서만 표시 */}
+      <div className="lg:hidden">
         <h2 className="text-base font-bold text-slate-700 mb-3">메뉴</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {QUICK_LINKS.map((item, idx) => {

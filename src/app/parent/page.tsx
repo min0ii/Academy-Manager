@@ -125,6 +125,12 @@ export default function ParentPage() {
   const [commentsLoaded, setCommentsLoaded] = useState(false)
   const [commentsLoading, setCommentsLoading] = useState(false)
 
+  // 더보기
+  const [showAllAttend, setShowAllAttend]     = useState(false)
+  const [showAllGrades, setShowAllGrades]     = useState(false)
+  const [showAllHomework, setShowAllHomework] = useState(false)
+  const [showAllClinics, setShowAllClinics]   = useState(false)
+
   // 설정 — 계정 탈퇴
   const [showDeleteModal, setShowDeleteModal]     = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -235,6 +241,9 @@ export default function ParentPage() {
     setClinicLoaded(false); setClinics([])
     setCommentsLoaded(false); setCommentList([])
     setExpandedHwId(null)
+    setExpandedNotes(new Set())
+    setShowAllAttend(false); setShowAllGrades(false)
+    setShowAllHomework(false); setShowAllClinics(false)
     setTab('home')
   }
 
@@ -560,22 +569,6 @@ export default function ParentPage() {
               </div>
             )}
 
-            {student && classInfo && (
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { key: 'attendance'      as Tab, label: '출석 확인',  colorCls: 'bg-emerald-50 text-emerald-700', Icon: Calendar },
-                  { key: 'grades'          as Tab, label: '성적 확인',  colorCls: 'bg-blue-50 text-blue-700',       Icon: BarChart2 },
-                  { key: 'homework-clinic' as Tab, label: '과제·클리닉', colorCls: 'bg-amber-50 text-amber-700',     Icon: ClipboardList },
-                  { key: 'comments'        as Tab, label: '코멘트',     colorCls: 'bg-violet-50 text-violet-700',   Icon: MessageSquare },
-                ].map(({ key, label, colorCls, Icon }) => (
-                  <button key={key} onClick={() => setTab(key)}
-                    className={`rounded-xl p-4 text-center space-y-1.5 hover:opacity-80 transition-opacity ${colorCls}`}>
-                    <Icon size={20} className="mx-auto" />
-                    <p className="text-xs font-semibold">{label}</p>
-                  </button>
-                ))}
-              </div>
-            )}
           </>
         )}
 
@@ -649,8 +642,9 @@ export default function ParentPage() {
                   {heldAttend.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">출결 기록이 없어요</div>
                   ) : (
+                    <>
                     <div className="divide-y divide-slate-50">
-                      {heldAttend.slice(0, 30).map((a, i) => {
+                      {(showAllAttend ? heldAttend : heldAttend.slice(0, 5)).map((a, i) => {
                         const style = ATTEND_STYLE[a.status]
                         return (
                           <div key={i} className="flex items-center gap-3 px-5 py-3">
@@ -682,6 +676,13 @@ export default function ParentPage() {
                         )
                       })}
                     </div>
+                    {heldAttend.length > 5 && (
+                      <button onClick={() => setShowAllAttend(v => !v)}
+                        className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                        {showAllAttend ? '접기' : `더보기 (${heldAttend.length - 5}개 더)`}
+                      </button>
+                    )}
+                    </>
                   )}
                 </div>
               </>
@@ -761,8 +762,9 @@ export default function ParentPage() {
                   ) : filteredTests.length === 0 ? (
                     <div className="px-5 py-8 text-center text-slate-400 text-sm">성적 기록이 없어요</div>
                   ) : (
+                    <>
                     <div className="divide-y divide-slate-100">
-                      {[...filteredTests].reverse().map((t, i) => (
+                      {(showAllGrades ? [...filteredTests].reverse() : [...filteredTests].reverse().slice(0, 5)).map((t, i) => (
                         <div key={i} className="px-5 py-4">
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1 min-w-0">
@@ -809,6 +811,13 @@ export default function ParentPage() {
                         </div>
                       ))}
                     </div>
+                    {filteredTests.length > 5 && (
+                      <button onClick={() => setShowAllGrades(v => !v)}
+                        className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                        {showAllGrades ? '접기' : `더보기 (${filteredTests.length - 5}개 더)`}
+                      </button>
+                    )}
+                    </>
                   )}
                 </div>
               </>
@@ -860,8 +869,9 @@ export default function ParentPage() {
                       ) : homeworks.length === 0 ? (
                         <div className="px-5 py-8 text-center text-slate-400 text-sm">과제 기록이 없어요</div>
                       ) : (
+                        <>
                         <div className="divide-y divide-slate-100">
-                          {homeworks.map(h => {
+                          {(showAllHomework ? homeworks : homeworks.slice(0, 5)).map(h => {
                             const style = h.status ? HW_STYLE[h.status] : null
                             const isExpanded = expandedHwId === h.id
                             return (
@@ -914,6 +924,13 @@ export default function ParentPage() {
                             )
                           })}
                         </div>
+                        {homeworks.length > 5 && (
+                          <button onClick={() => setShowAllHomework(v => !v)}
+                            className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                            {showAllHomework ? '접기' : `더보기 (${homeworks.length - 5}개 더)`}
+                          </button>
+                        )}
+                        </>
                       )}
                     </div>
                   </>
@@ -951,15 +968,30 @@ export default function ParentPage() {
                           {clinics.length === 0 ? (
                             <div className="px-5 py-8 text-center text-slate-400 text-sm">클리닉 기록이 없어요</div>
                           ) : (
+                            <>
                             <div className="divide-y divide-slate-50">
-                              {clinics.map((c, i) => {
+                              {(showAllClinics ? clinics : clinics.slice(0, 5)).map((c, i) => {
                                 const style = c.status ? CLINIC_STYLE[c.status] : null
                                 return (
-                                  <div key={c.id ?? i} className="flex items-center gap-3 px-5 py-3.5">
+                                  <div key={c.id ?? i} className="flex items-start gap-3 px-5 py-3.5">
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-semibold text-slate-800 truncate">{c.clinic_name ?? '클리닉'}</p>
                                       <p className="text-xs text-slate-400 mt-0.5">{c.date.replace(/-/g,'. ')}</p>
-                                      {c.note && <p className="text-xs text-slate-400 mt-0.5 truncate">{c.note}</p>}
+                                      {c.note && (() => {
+                                        const key = `clinic-${c.id}`
+                                        const isLong = c.note!.length > 40
+                                        const expanded = expandedNotes.has(key)
+                                        return (
+                                          <div>
+                                            <p className={`text-xs text-slate-400 mt-0.5 break-words ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{c.note}</p>
+                                            {isLong && (
+                                              <button onClick={() => toggleNote(key)} className="text-xs text-slate-400 underline underline-offset-2 mt-0.5">
+                                                {expanded ? '접기' : '자세히 보기'}
+                                              </button>
+                                            )}
+                                          </div>
+                                        )
+                                      })()}
                                     </div>
                                     {style ? (
                                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ${style.bg} ${style.color}`}>{style.label}</span>
@@ -970,6 +1002,13 @@ export default function ParentPage() {
                                 )
                               })}
                             </div>
+                            {clinics.length > 5 && (
+                              <button onClick={() => setShowAllClinics(v => !v)}
+                                className="w-full py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100">
+                                {showAllClinics ? '접기' : `더보기 (${clinics.length - 5}개 더)`}
+                              </button>
+                            )}
+                            </>
                           )}
                         </div>
                       </>

@@ -742,22 +742,6 @@ export default function StudentPage() {
               </div>
             )}
 
-            {student && classInfo && (
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { key: 'attendance'       as Tab, label: '출석 확인',  colorCls: 'bg-emerald-50 text-emerald-700', Icon: Calendar },
-                  { key: 'grades'           as Tab, label: '성적 확인',  colorCls: 'bg-blue-50 text-blue-700',       Icon: BarChart2 },
-                  { key: 'homework-clinic'  as Tab, label: '과제·클리닉', colorCls: 'bg-amber-50 text-amber-700',     Icon: ClipboardList },
-                  { key: 'exam'             as Tab, label: '답안 제출',  colorCls: 'bg-violet-50 text-violet-700',   Icon: FileText },
-                ].map(({ key, label, colorCls, Icon }) => (
-                  <button key={key} onClick={() => setTab(key)}
-                    className={`rounded-xl p-4 text-center space-y-1.5 hover:opacity-80 transition-opacity ${colorCls}`}>
-                    <Icon size={20} className="mx-auto" />
-                    <p className="text-xs font-semibold">{label}</p>
-                  </button>
-                ))}
-              </div>
-            )}
           </>
         )}
 
