@@ -19,7 +19,35 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@keyframes tabFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+/* ── 공통 모션 토큰 ───────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-fade-in    { animation: fadeIn 0.26s ease-out both; }
+.animate-fade-in-up { animation: fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 로딩 스켈레톤: 빛이 스윽 지나가는 shimmer (딱딱한 깜빡임 대체) */
+.skeleton-shimmer {
+  background-color: #e2e8f0;
+  background-image: linear-gradient(90deg, rgba(226,232,240,0) 0%, rgba(248,250,252,0.9) 50%, rgba(226,232,240,0) 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* 멀미·모션 민감 사용자: 애니메이션 비활성화 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up { animation: none; }
+  .skeleton-shimmer { animation: none; }
 }

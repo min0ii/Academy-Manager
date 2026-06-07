@@ -1603,7 +1603,7 @@ async function resetAllLives() {
                 {loadingAtt ? (
                   <div className="p-4"><ListSkeleton cards={1} rows={5} /></div>
                 ) : (
-                  <>
+                  <div key={`${selectedDate ?? ''}-${panelTab}`} className="animate-fade-in-up">
                     {/* ── 출결 탭 ── */}
                     {panelTab === 'attendance' && (
                       !canRecord ? (
@@ -1934,7 +1934,7 @@ async function resetAllLives() {
                         </>
                       )
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )

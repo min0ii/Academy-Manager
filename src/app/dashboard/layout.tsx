@@ -189,7 +189,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* 콘텐츠 */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           <AcademyContext.Provider value={ctxValue}>
-            {children}
+            <div key={pathname} className="animate-fade-in-up">
+              {children}
+            </div>
           </AcademyContext.Provider>
         </main>
       </div>

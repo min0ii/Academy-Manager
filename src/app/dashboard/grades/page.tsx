@@ -2227,7 +2227,9 @@ function GradesContent() {
 
       {loadingDetail ? (
         <ListSkeleton cards={3} rows={3} />
-      ) : selectedExam?.exam_type === 'manual' ? (
+      ) : (
+        <div key={selectedExam?.id} className="animate-fade-in-up">
+        {selectedExam?.exam_type === 'manual' ? (
         <ManualScoreView
           entries={manualEntries}
           setEntries={setManualEntries}
@@ -2260,6 +2262,8 @@ function GradesContent() {
           onToggleOverride={overrideAnswer}
           onSaveNote={saveExamNote}
         />
+        )}
+        </div>
       )}
 
       {/* ── 시험 수정 모달 (scheduled) ── */}

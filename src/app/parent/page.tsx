@@ -440,6 +440,14 @@ export default function ParentPage() {
     { key: 'settings',       label: '설정',     Icon: Settings },
   ]
 
+  // 현재 탭의 데이터 준비 여부 — main의 key에 넣어 "로딩 끝→내용 등장" 순간에도 부드럽게 페이드
+  const tabReady =
+    tab === 'attendance'      ? (attendLoaded && !attendLoading) :
+    tab === 'grades'          ? (gradesLoaded && !gradesLoading) :
+    tab === 'homework-clinic' ? (hwClinicSub === 'homework' ? (hwLoaded && !hwLoading) : (clinicLoaded && !clinicLoading)) :
+    tab === 'comments'        ? (commentsLoaded && !commentsLoading) :
+    true
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <PageLoading />
@@ -475,7 +483,7 @@ export default function ParentPage() {
         </div>
       )}
 
-      <main key={tab} style={{ animation: 'tabFadeIn 0.18s ease-out' }} className="flex-1 max-w-lg mx-auto w-full px-4 py-5 pb-28 space-y-4">
+      <main key={`${tab}-${tabReady}`} className="flex-1 max-w-lg mx-auto w-full px-4 py-5 pb-28 space-y-4 animate-fade-in-up">
 
         {/* ── 홈 ── */}
         {tab === 'home' && (
@@ -574,7 +582,7 @@ export default function ParentPage() {
         {/* ── 출석 ── */}
         {tab === 'attendance' && (
           <>
-            {!classInfo ? <NoClass /> : (!attendLoaded || attendLoading) ? <ListSkeleton cards={2} rows={4} /> : (
+            {!classInfo ? <NoClass /> : (!attendLoaded || attendLoading) ? <ListSkeleton cards={2} rows={6} /> : (
               <>
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                   <h2 className="font-bold text-slate-800 text-sm">출석 현황</h2>

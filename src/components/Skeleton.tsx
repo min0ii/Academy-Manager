@@ -1,12 +1,13 @@
-// 공통 로딩 스켈레톤 — 로딩 중임을 일관되게 표시하고 레이아웃 출렁임을 방지
-// 사용처: 학생·학부모 탭 콘텐츠, 선생님 학생 리포트
+// 공통 로딩 스켈레톤 + 등장 애니메이션
+// 로딩 중임을 일관되게 표시하고, 레이아웃 출렁임과 "빡" 하고 나타나는 느낌을 줄임
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse bg-slate-200/70 rounded-lg ${className}`} />
+  return <div className={`skeleton-shimmer rounded-lg ${className}`} />
 }
 
 // 카드형 목록 로딩 (성적·과제·클리닉·출결 등 탭 콘텐츠용)
-export function ListSkeleton({ cards = 2, rows = 3 }: { cards?: number; rows?: number }) {
+// rows 기본값을 넉넉히(5) 둬서 실제 데이터와 높이 차이를 줄임
+export function ListSkeleton({ cards = 2, rows = 5 }: { cards?: number; rows?: number }) {
   return (
     <div className="space-y-3" aria-busy="true" aria-label="불러오는 중">
       {Array.from({ length: cards }).map((_, c) => (
@@ -26,7 +27,7 @@ export function ListSkeleton({ cards = 2, rows = 3 }: { cards?: number; rows?: n
 }
 
 // 이미 테두리가 있는 카드 안에 넣는 행 목록 스켈레톤 (테두리 없음)
-export function RowsSkeleton({ rows = 4 }: { rows?: number }) {
+export function RowsSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="px-5 py-4 space-y-3" aria-busy="true" aria-label="불러오는 중">
       {Array.from({ length: rows }).map((_, r) => (

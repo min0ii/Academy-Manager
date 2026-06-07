@@ -729,7 +729,7 @@ function StudentReportContent() {
           {loadingDetail ? (
             <ListSkeleton cards={3} rows={3} />
           ) : (
-            <>
+            <div key={selectedClassId ?? 'none'} className="animate-fade-in-up space-y-5">
               {/* ── 출결 현황 ── */}
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between">
@@ -1031,7 +1031,7 @@ function StudentReportContent() {
                   </>
                 )}
               </div>
-            </>
+            </div>
           )}
         </>
       )}
