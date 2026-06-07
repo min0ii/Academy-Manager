@@ -5,15 +5,18 @@ import { createPortal } from 'react-dom'
 
 type DialogState = {
   open: boolean
-  type: 'alert' | 'confirm'
+  type: 'alert' | 'confirm' | 'prompt'
   message: string
   destructive?: boolean
   confirmText?: string
+  inputDefault?: string
+  inputPlaceholder?: string
 }
 
 export function useDialog() {
   const [state, setState] = useState<DialogState>({ open: false, type: 'alert', message: '' })
-  const resolveRef = useRef<((v: boolean) => void) | null>(null)
+  const resolveRef = useRef<((v: any) => void) | null>(null)
+  const [promptInput, setPromptInput] = useState('')
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -31,8 +34,20 @@ export function useDialog() {
     })
   }, [])
 
+  const showPrompt = useCallback((message: string, opts?: { defaultValue?: string; placeholder?: string }): Promise<string | null> => {
+    return new Promise(resolve => {
+      resolveRef.current = resolve
+      setPromptInput(opts?.defaultValue ?? '')
+      setState({ open: true, type: 'prompt', message, inputDefault: opts?.defaultValue, inputPlaceholder: opts?.placeholder })
+    })
+  }, [])
+
   function close(value: boolean) {
-    resolveRef.current?.(value)
+    if (state.type === 'prompt') {
+      resolveRef.current?.(value ? promptInput : null)
+    } else {
+      resolveRef.current?.(value)
+    }
     resolveRef.current = null
     setState(s => ({ ...s, open: false }))
   }
@@ -45,8 +60,19 @@ export function useDialog() {
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-5">
         <p className="text-slate-800 text-[15px] leading-relaxed whitespace-pre-line">{state.message}</p>
-        <div className={`flex gap-2.5 ${state.type === 'confirm' ? 'justify-end' : 'justify-center'}`}>
-          {state.type === 'confirm' && (
+        {state.type === 'prompt' && (
+          <input
+            type="number"
+            value={promptInput}
+            onChange={e => setPromptInput(e.target.value)}
+            placeholder={state.inputPlaceholder ?? ''}
+            autoFocus
+            onKeyDown={e => { if (e.key === 'Enter') close(true); if (e.key === 'Escape') close(false) }}
+            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+          />
+        )}
+        <div className={`flex gap-2.5 ${state.type === 'alert' ? 'justify-center' : 'justify-end'}`}>
+          {(state.type === 'confirm' || state.type === 'prompt') && (
             <button
               onClick={() => close(false)}
               className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
@@ -73,5 +99,5 @@ export function useDialog() {
     ? createPortal(dialogEl, document.body)
     : null
 
-  return { showAlert, showConfirm, dialog }
+  return { showAlert, showConfirm, showPrompt, dialog }
 }

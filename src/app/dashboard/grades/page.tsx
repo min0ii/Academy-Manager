@@ -990,7 +990,7 @@ function AutoMonitorView({
 // ── Main Component ──────────────────────────────────────────────────────────
 
 function GradesContent() {
-  const { showAlert, showConfirm, dialog } = useDialog()
+  const { showAlert, showConfirm, showPrompt, dialog } = useDialog()
   const ctx = useAcademy()
   const searchParams = useSearchParams()
   const autoOpenDone = useRef(false)
@@ -1448,11 +1448,15 @@ function GradesContent() {
     setSavingManual(true)
     const token = await getToken()
     if (!token) { setSavingManual(false); return }
-    const scores = manualEntries.map(e => ({
-      studentId: e.studentId,
-      status: e.status,
-      score: e.status === 'submitted' && e.score !== '' ? Number(e.score) : null,
-    }))
+    const scores = manualEntries.map(e => {
+      // '제출' 상태인데 점수가 비어있으면 '미제출'로 저장 (빈 점수로 저장 시 미실시로 바뀌는 버그 방지)
+      const effectiveStatus = e.status === 'submitted' && e.score === '' ? 'not_submitted' : e.status
+      return {
+        studentId: e.studentId,
+        status: effectiveStatus,
+        score: effectiveStatus === 'submitted' && e.score !== '' ? Number(e.score) : null,
+      }
+    })
     const res = await fetch(`/api/exams/${selectedExam.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1627,9 +1631,12 @@ function GradesContent() {
     setWizardQs(prev => prev.map((q, i) => i === idx ? { ...q, ...updates } : q))
   }
 
-  function distributeScore() {
-    const total = prompt(`총 배점을 입력하세요 (문제 수: ${wizardQs.length}개)`,
-      String(wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) || 100))
+  async function distributeScore() {
+    const current = wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) || 100
+    const total = await showPrompt(`총 배점을 입력하세요 (문제 수: ${wizardQs.length}개)`, {
+      defaultValue: String(current),
+      placeholder: '예: 100',
+    })
     if (!total) return
     const n = parseFloat(total)
     if (isNaN(n) || n <= 0) return
@@ -1638,7 +1645,7 @@ function GradesContent() {
   }
 
   const maxScore = Math.round((examDetail?.questions ?? []).reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
-  const submittedCount = submissions.filter(s => s.isSubmitted).length
+  const submittedCount = submissions.filter(s => s.isSubmitted && !s.isForfeited).length
   const submittedWithScore = submissions.filter(s => s.isSubmitted && s.finalScore !== null)
   const avgScore = submittedWithScore.length > 0
     ? submittedWithScore.reduce((acc, s) => acc + (s.finalScore ?? 0), 0) / submittedWithScore.length
@@ -2086,7 +2093,7 @@ function GradesContent() {
                   className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={addAutoExam} disabled={addingAuto}
                   className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
-                  {addingAuto ? '생성 중...' : '시험 관리'}
+                  {addingAuto ? '생성 중...' : '출제하기'}
                 </button>
               </div>
             </div>
