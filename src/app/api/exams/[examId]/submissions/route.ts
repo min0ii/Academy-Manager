@@ -36,11 +36,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
   const { data: exam } = await db.from('exams').select('class_id, exam_type, exam_format, status, max_score').eq('id', examId).single()
   if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없어요.' }, { status: 404 })
 
-  // 반 학생 전체
+  // 반 학생 전체 (재원 학생만)
   const { data: classStudents } = await db
     .from('class_students')
-    .select('students(id, name)')
+    .select('students!inner(id, name)')
     .eq('class_id', exam.class_id)
+    .eq('students.status', 'active')
 
   const students = (classStudents ?? []).map((cs: any) => cs.students).filter(Boolean)
 

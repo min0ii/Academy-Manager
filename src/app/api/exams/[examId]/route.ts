@@ -112,7 +112,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
       { data: questions },
       { data: existingSubmissions },
     ] = await Promise.all([
-      db.from('class_students').select('student_id').eq('class_id', exam.class_id),
+      db.from('class_students').select('student_id, students!inner(status)').eq('class_id', exam.class_id).eq('students.status', 'active'),
       db.from('exam_questions').select('id, score, question_type').eq('exam_id', examId),
       db.from('exam_submissions').select('id, student_id, is_submitted').eq('exam_id', examId),
     ])

@@ -90,11 +90,12 @@ export default function HomeworkPage() {
     setDetail(null)
     setLoading(true)
 
-    // 소속 학생 목록 (이름 포함)
+    // 소속 학생 목록 (재원 학생만)
     const { data: csData } = await supabase
       .from('class_students')
-      .select('student_id, students(id, name)')
+      .select('student_id, students!inner(id, name)')
       .eq('class_id', cls.id)
+      .eq('students.status', 'active')
 
     const studentList: { id: string; name: string }[] = (csData ?? [])
       .map((r: any) => r.students)
@@ -219,8 +220,9 @@ export default function HomeworkPage() {
 
     const { data: csData } = await supabase
       .from('class_students')
-      .select('students(id, name)')
+      .select('students!inner(id, name)')
       .eq('class_id', selectedClass!.id)
+      .eq('students.status', 'active')
 
     const students: { id: string; name: string }[] = (csData ?? [])
       .map((r: any) => r.students)

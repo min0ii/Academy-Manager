@@ -93,8 +93,9 @@ export default function CommentsPage() {
 
     const [{ data: csData }, { data: cmData }] = await Promise.all([
       supabase.from('class_students')
-        .select('students(id, name)')
-        .eq('class_id', selectedClass!.id),
+        .select('students!inner(id, name)')
+        .eq('class_id', selectedClass!.id)
+        .eq('students.status', 'active'),
       supabase.from('comments')
         .select('student_id, content')
         .eq('date', session.date)
