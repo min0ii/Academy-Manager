@@ -783,27 +783,43 @@ function StudentReportContent() {
 
               {/* ── 시험 성적 그래프 ── */}
               {(() => {
-                // 날짜 오름차순 정렬된 records (차트용)
+                function dayKo(dateStr: string): string {
+                  const days = ['일', '월', '화', '수', '목', '금', '토']
+                  const [y, m, d] = dateStr.split('-').map(Number)
+                  return days[new Date(y, m - 1, d).getDay()]
+                }
                 const sortedRecords = gradeRecords.slice().sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
                 const allCats = [...new Set(sortedRecords.map(r => r.category).filter(Boolean))] as string[]
-                const selCat = chartCategory  // null = 전체
-                const byDate: Record<string, { my: number; max: number; avg: number; avgMax: number }> = {}
-                for (const r of sortedRecords) {
-                  if (selCat !== null && r.category !== selCat) continue
-                  if (!r.date) continue
-                  if (!byDate[r.date]) byDate[r.date] = { my: 0, max: 0, avg: 0, avgMax: 0 }
-                  if (r.myScore !== null && !r.absent) byDate[r.date].my += r.myScore
-                  if (r.maxScore !== null) byDate[r.date].max += r.maxScore
-                  if (r.avgScore !== null && r.maxScore !== null) {
-                    byDate[r.date].avg += r.avgScore
-                    byDate[r.date].avgMax += r.maxScore
+                const selCat = chartCategory
+                const isAll = selCat === null
+                let chartPoints: { name: string; 내점수: number | null; 반평균: number | null }[] = []
+                if (isAll) {
+                  chartPoints = sortedRecords
+                    .filter(r => !r.absent && r.myScore !== null && r.maxScore !== null)
+                    .map(r => ({
+                      name: `${r.date.slice(5).replace('-', '/')}(${dayKo(r.date)}) ${r.name.slice(0, 5)}`,
+                      내점수: r.maxScore! > 0 ? Math.round((r.myScore! / r.maxScore!) * 100) : null,
+                      반평균: r.avgScore !== null && r.maxScore! > 0 ? Math.round((r.avgScore / r.maxScore!) * 100) : null,
+                    }))
+                } else {
+                  const byDate: Record<string, { my: number; max: number; avg: number; avgMax: number }> = {}
+                  for (const r of sortedRecords) {
+                    if (r.category !== selCat) continue
+                    if (!r.date) continue
+                    if (!byDate[r.date]) byDate[r.date] = { my: 0, max: 0, avg: 0, avgMax: 0 }
+                    if (r.myScore !== null && !r.absent) byDate[r.date].my += r.myScore
+                    if (r.maxScore !== null) byDate[r.date].max += r.maxScore
+                    if (r.avgScore !== null && r.maxScore !== null) {
+                      byDate[r.date].avg += r.avgScore
+                      byDate[r.date].avgMax += r.maxScore
+                    }
                   }
+                  chartPoints = Object.entries(byDate).map(([date, { my, max, avg, avgMax }]) => ({
+                    name: `${date.slice(5).replace('-', '/')}(${dayKo(date)})`,
+                    내점수: max > 0 ? Math.round((my / max) * 100) : null,
+                    반평균: avgMax > 0 ? Math.round((avg / avgMax) * 100) : null,
+                  }))
                 }
-                const chartPoints = Object.entries(byDate).map(([date, { my, max, avg, avgMax }]) => ({
-                  name: date.slice(5).replace('-', '/'),
-                  내점수: max > 0 ? Math.round((my / max) * 100) : null,
-                  반평균: avgMax > 0 ? Math.round((avg / avgMax) * 100) : null,
-                }))
                 return (
                   <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                     <div className="p-4 border-b border-slate-100">
@@ -828,10 +844,12 @@ function StudentReportContent() {
                     ) : (
                       <div className="p-4">
                         <div className="overflow-x-auto">
-                          <div style={{ width: Math.max(320, chartPoints.length * 80) }}>
-                            <LineChart width={Math.max(320, chartPoints.length * 80)} height={200} data={chartPoints} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
+                          <div style={{ width: Math.max(320, chartPoints.length * (isAll ? 90 : 80)) }}>
+                            <LineChart width={Math.max(320, chartPoints.length * (isAll ? 90 : 80))} height={200} data={chartPoints}
+                              margin={{ top: 5, right: 8, left: -20, bottom: isAll ? 24 : 5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                              <XAxis dataKey="name" tick={{ fontSize: isAll ? 9 : 11, fill: '#94a3b8' }}
+                                angle={isAll ? -35 : 0} textAnchor={isAll ? 'end' : 'middle'} height={isAll ? 54 : 30} />
                               <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
                               <Tooltip formatter={(value, name) => [`${value}%`, name]} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
                               <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
