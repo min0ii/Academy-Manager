@@ -8,6 +8,7 @@ import { formatPhone } from '@/lib/auth'
 import { useAcademy } from '@/lib/academy-context'
 import { useDialog } from '@/components/AppDialog'
 import { PageLoading, ListSkeleton } from '@/components/Skeleton'
+import { gradeLabel } from '@/lib/utils'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -539,7 +540,7 @@ function StudentReportContent() {
                   {student.school_name && (
                     <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{student.school_name}</span>
                   )}
-                  <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{student.grade}학년</span>
+                  <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{gradeLabel(student.grade)}</span>
                   {classes.map(c => (
                     <span key={c.id} className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full">{c.name}</span>
                   ))}

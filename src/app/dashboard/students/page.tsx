@@ -12,6 +12,7 @@ import { useAcademy } from '@/lib/academy-context'
 import { useDialog } from '@/components/AppDialog'
 import { formatPhone } from '@/lib/auth'
 import { todayKST } from '@/lib/date'
+import { gradeLabel } from '@/lib/utils'
 
 type PageTab = 'list' | 'accounts'
 
@@ -642,7 +643,7 @@ export default function StudentsPage() {
     return (
       s.name.includes(search) ||
       (s.school_name ?? '').includes(search) ||
-      (s.grade + '학년').includes(search) ||
+      gradeLabel(s.grade).includes(search) ||
       s.phone.includes(search.replace(/-/g, ''))
     )
   })
@@ -819,7 +820,7 @@ export default function StudentsPage() {
                           <p className={`font-semibold ${isInactive ? 'text-slate-400' : 'text-slate-800'}`}>{s.name}</p>
                           {isInactive && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full">퇴원</span>}
                           {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${isInactive ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{s.grade}학년</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${isInactive ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{gradeLabel(s.grade)}</span>
                         </div>
                         <p className="text-sm text-slate-400">{formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}</p>
                       </div>
@@ -1014,7 +1015,7 @@ export default function StudentsPage() {
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-slate-800">{s.name}</p>
-                            <p className="text-xs text-slate-400">{s.school_name ? `${s.school_name} · ` : ''}{s.grade}학년</p>
+                            <p className="text-xs text-slate-400">{s.school_name ? `${s.school_name} · ` : ''}{gradeLabel(s.grade)}</p>
                           </div>
                         </div>
 
@@ -1141,10 +1142,10 @@ export default function StudentsPage() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">학년 *</label>
                 <div className="flex gap-2">
-                  {['1', '2', '3'].map(g => (
+                  {['1', '2', '3', 'N수'].map(g => (
                     <button key={g} type="button" onClick={() => setForm({ ...form, grade: g })}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${form.grade === g ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
-                      {g}학년
+                      {gradeLabel(g)}
                     </button>
                   ))}
                 </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { monthsAgoKST } from '@/lib/date'
+import { gradeLabel } from '@/lib/utils'
 import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
 import {
   Home, Calendar, BarChart2, LogOut,
@@ -544,7 +545,7 @@ export default function ParentPage() {
                   <div>
                     <p className="font-bold text-slate-800">{student.name}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {[student.school_name, student.grade ? `${student.grade}학년` : null].filter(Boolean).join(' · ')}
+                      {[student.school_name, gradeLabel(student.grade)].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </div>

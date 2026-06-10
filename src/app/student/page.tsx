@@ -13,6 +13,7 @@ import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
+import { gradeLabel } from '@/lib/utils'
 
 type Tab = 'home' | 'attendance' | 'grades' | 'homework-clinic' | 'exam' | 'settings'
 type HwClinicSub = 'homework' | 'clinic'
@@ -748,7 +749,7 @@ export default function StudentPage() {
                   <div>
                     <p className="font-bold text-slate-800">{student.name}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {[student.school_name, student.grade ? `${student.grade}학년` : null].filter(Boolean).join(' · ')}
+                      {[student.school_name, gradeLabel(student.grade)].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </div>

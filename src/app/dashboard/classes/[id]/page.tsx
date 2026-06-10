@@ -12,6 +12,7 @@ import { formatPhone } from '@/lib/auth'
 import { todayKST } from '@/lib/date'
 import { PageLoading, ListSkeleton } from '@/components/Skeleton'
 import { useDialog } from '@/components/AppDialog'
+import { gradeLabel } from '@/lib/utils'
 
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
 
@@ -1346,7 +1347,7 @@ async function resetAllLives() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-slate-800">{s.name}</p>
                           {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
-                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{s.grade}학년</span>
+                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{gradeLabel(s.grade)}</span>
                         </div>
                         <p className="text-sm text-slate-500">{formatPhone(s.phone)}</p>
                       </div>
@@ -1359,7 +1360,7 @@ async function resetAllLives() {
                       <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-3">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                           <div><p className="text-slate-400 mb-0.5">학교</p><p className="text-slate-700 font-medium">{s.school_name ?? '-'}</p></div>
-                          <div><p className="text-slate-400 mb-0.5">학년</p><p className="text-slate-700 font-medium">{s.grade}학년</p></div>
+                          <div><p className="text-slate-400 mb-0.5">학년</p><p className="text-slate-700 font-medium">{gradeLabel(s.grade)}</p></div>
                           <div><p className="text-slate-400 mb-0.5">학생 전화번호</p><p className="text-slate-700 font-medium">{formatPhone(s.phone)}</p></div>
                           <div>
                             <p className="text-slate-400 mb-0.5">학부모 전화번호</p>
@@ -1420,7 +1421,7 @@ async function resetAllLives() {
                         </div>
                         <div>
                           <p className="font-medium text-slate-800 text-sm">{s.name}</p>
-                          <p className="text-xs text-slate-500">{[s.school_name, s.grade ? `${s.grade}학년` : ''].filter(Boolean).join(' · ')}</p>
+                          <p className="text-xs text-slate-500">{[s.school_name, gradeLabel(s.grade)].filter(Boolean).join(' · ')}</p>
                         </div>
                       </button>
                     )
@@ -1682,7 +1683,7 @@ async function resetAllLives() {
                                         <div className="min-w-0">
                                           <p className="font-medium text-slate-800 text-sm truncate">{student.name}</p>
                                           <p className="text-xs text-slate-400">
-                                            {student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}
+                                            {gradeLabel(student.grade)}{student.school_name ? ` · ${student.school_name}` : ''}
                                           </p>
                                         </div>
                                       </button>
@@ -1722,7 +1723,7 @@ async function resetAllLives() {
                                       <div className="mx-4 mb-3 p-4 bg-slate-50 rounded-2xl text-sm space-y-3 border border-slate-100">
                                         <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
                                           <div><p className="text-slate-400 mb-0.5">학교</p><p className="text-slate-700 font-medium">{student.school_name ?? '-'}</p></div>
-                                          <div><p className="text-slate-400 mb-0.5">학년</p><p className="text-slate-700 font-medium">{student.grade}학년</p></div>
+                                          <div><p className="text-slate-400 mb-0.5">학년</p><p className="text-slate-700 font-medium">{gradeLabel(student.grade)}</p></div>
                                           <div><p className="text-slate-400 mb-0.5">학생 전화번호</p><p className="text-slate-700 font-medium">{formatPhone(student.phone)}</p></div>
                                           <div>
                                             <p className="text-slate-400 mb-0.5">학부모 전화번호</p>
@@ -1822,7 +1823,7 @@ async function resetAllLives() {
                                         <div className="flex-1 min-w-0">
                                           <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
                                           <p className="text-xs text-slate-400">
-                                            {student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}
+                                            {gradeLabel(student.grade)}{student.school_name ? ` · ${student.school_name}` : ''}
                                           </p>
                                         </div>
                                         <div className="flex gap-1 flex-shrink-0 items-center">
@@ -1913,7 +1914,7 @@ async function resetAllLives() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className="font-medium text-slate-800 text-sm truncate">{student.name}</p>
-                                      <p className="text-xs text-slate-400">{student.grade}학년{student.school_name ? ` · ${student.school_name}` : ''}</p>
+                                      <p className="text-xs text-slate-400">{gradeLabel(student.grade)}{student.school_name ? ` · ${student.school_name}` : ''}</p>
                                     </div>
                                     <div className="flex gap-1.5 flex-shrink-0">
                                       <button onClick={() => markClinicAttendance(att.student_id, 'done')}
