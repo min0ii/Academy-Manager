@@ -10,7 +10,7 @@ import { useDialog } from '@/components/AppDialog'
 import { PageLoading, ListSkeleton } from '@/components/Skeleton'
 import { gradeLabel } from '@/lib/utils'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
 
 type Student = {
@@ -26,7 +26,6 @@ type AttendanceRow = {
   status: 'present' | 'absent' | 'late' | 'early_leave' | null
   note: string | null
 }
-type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
 type GradeRecord = {
   name: string; date: string; maxScore: number | null
   myScore: number | null; myPct: number | null
@@ -67,8 +66,8 @@ function StudentReportContent() {
   const [loading, setLoading]           = useState(true)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [attendance, setAttendance]     = useState<AttendanceRow[]>([])
-  const [grades, setGrades]             = useState<GradePoint[]>([])
   const [gradeRecords, setGradeRecords] = useState<GradeRecord[]>([])
+  const [chartCategory, setChartCategory]             = useState<string | null>(null)
   const [gradeCategoryFilter, setGradeCategoryFilter] = useState<string | null>(null)
   const [homeworks, setHomeworks]       = useState<HomeworkRow[]>([])
   const [clinicData, setClinicData]     = useState<ClinicRow[]>([])
@@ -373,7 +372,6 @@ function StudentReportContent() {
     ])
 
     // 성적 그래프 + 점수 목록 세팅
-    setGrades(gradesJson.points ?? [])
     setGradeRecords((gradesJson.records ?? []).slice().reverse()) // 최신순
 
     const sessionIds = (sessions       ?? []).map(s => s.id)
@@ -784,38 +782,68 @@ function StudentReportContent() {
               </div>
 
               {/* ── 시험 성적 그래프 ── */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="p-4 border-b border-slate-100">
-                  <h3 className="font-bold text-slate-800">시험 성적 추이</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">모든 점수는 백분율(%)로 환산돼요</p>
-                </div>
-                {grades.length === 0 ? (
-                  <p className="text-center py-8 text-slate-400 text-sm">시험 기록이 없어요</p>
-                ) : (
-                  <div className="p-4">
-                    <div className="overflow-x-auto">
-                      <div style={{ width: Math.max(320, grades.length * 64) }}>
-                        <LineChart width={Math.max(320, grades.length * 64)} height={200} data={grades} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }}
-                            tickFormatter={(v: string) => v.length > 10 ? v.slice(0, 9) + '…' : v} />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
-                          <Tooltip
-                            formatter={(value, name) => [`${value}%`, name]}
-                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                          />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                          <Line type="monotone" dataKey="내점수" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
-                          <Line type="monotone" dataKey="반평균" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls />
-                        </LineChart>
-                      </div>
+              {(() => {
+                // 날짜 오름차순 정렬된 records (차트용)
+                const sortedRecords = gradeRecords.slice().sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+                // 카테고리 목록
+                const allCats = [...new Set(sortedRecords.map(r => r.category ?? '미설정'))]
+                const selCat = chartCategory ?? allCats[0] ?? null
+                // 선택 카테고리로 필터 후 날짜별 합산
+                const byDate: Record<string, { my: number; max: number }> = {}
+                for (const r of sortedRecords) {
+                  if ((r.category ?? '미설정') !== selCat) continue
+                  if (!r.date) continue
+                  if (!byDate[r.date]) byDate[r.date] = { my: 0, max: 0 }
+                  if (r.myScore !== null && !r.absent) byDate[r.date].my += r.myScore
+                  if (r.maxScore !== null) byDate[r.date].max += r.maxScore
+                }
+                const chartPoints = Object.entries(byDate).map(([date, { my, max }]) => ({
+                  name: date.slice(5).replace('-', '/'),
+                  내점수: max > 0 ? Math.round((my / max) * 100) : null,
+                }))
+                return (
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="p-4 border-b border-slate-100">
+                      <h3 className="font-bold text-slate-800">시험 성적 추이</h3>
+                      {allCats.length > 0 && (
+                        <div className="flex gap-1.5 flex-wrap mt-2">
+                          {allCats.map(cat => (
+                            <button key={cat} onClick={() => setChartCategory(cat)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${selCat === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {grades.length > 6 && (
-                      <p className="text-xs text-slate-400 text-center mt-2">← 스크롤해서 전체 보기</p>
+                    {gradeRecords.length === 0 ? (
+                      <p className="text-center py-8 text-slate-400 text-sm">시험 기록이 없어요</p>
+                    ) : chartPoints.length === 0 ? (
+                      <p className="text-center py-8 text-slate-400 text-sm">해당 카테고리 기록이 없어요</p>
+                    ) : (
+                      <div className="p-4">
+                        <div className="overflow-x-auto">
+                          <div style={{ width: Math.max(320, chartPoints.length * 80) }}>
+                            <LineChart width={Math.max(320, chartPoints.length * 80)} height={200} data={chartPoints} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
+                              <Tooltip
+                                formatter={(value) => [`${value}%`, selCat ?? '점수']}
+                                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                              />
+                              <Line type="monotone" dataKey="내점수" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                            </LineChart>
+                          </div>
+                        </div>
+                        {chartPoints.length > 6 && (
+                          <p className="text-xs text-slate-400 text-center mt-2">← 스크롤해서 전체 보기</p>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
+                )
+              })()}
 
               {/* ── 시험 점수 목록 ── */}
               {gradeRecords.length > 0 && (
