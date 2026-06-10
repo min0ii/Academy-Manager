@@ -25,11 +25,13 @@ button:disabled {
   to   { opacity: 1; }
 }
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; }
-  /* transform을 to에서 생략 → 종료 후 transform 속성이 사라짐
-     transform이 남으면 자식 position:fixed의 기준이 viewport가 아닌 이 요소가 되어
-     모달이 화면 정중앙이 아닌 엉뚱한 위치에 뜨는 문제 발생 */
+  from { opacity: 0; margin-top: 8px; }
+  to   { opacity: 1; margin-top: 0; }
+  /* transform 대신 margin-top 사용:
+     transform은 하위 position:fixed 요소의 기준점을 viewport에서
+     이 요소로 바꿔버려 모달이 화면 정중앙이 아닌 곳에 뜨는 문제가 발생.
+     margin-top은 stacking context를 만들지 않으므로 이 문제가 없음.
+     슬라이드업 시각 효과는 동일 */
 }
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
