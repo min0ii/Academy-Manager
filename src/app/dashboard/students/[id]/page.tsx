@@ -478,7 +478,7 @@ function StudentReportContent() {
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">학년</label>
                 <input value={editForm.grade} onChange={e => setEditForm(p => ({ ...p, grade: e.target.value }))}
-                  placeholder="예: 2" inputMode="numeric"
+                  placeholder="예: 2, N수" inputMode="numeric"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="col-span-2">
