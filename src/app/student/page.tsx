@@ -7,6 +7,7 @@ import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
   KeyRound, Eye, EyeOff, X, Check, FileText, ClipboardList, Settings, ShieldQuestion, Clock, Heart, Skull, ChevronDown, ChevronUp,
+  HelpCircle, Send,
 } from 'lucide-react'
 import ExamTab from './ExamTab'
 import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
@@ -61,6 +62,12 @@ type ExamResult = {
   choices: ExamResultChoice[]
   myAnswers: ExamResultAnswer[]
   correctAnswers: ExamResultCorrect[]
+}
+type ExamInquiryReply = { id: string; body: string; created_at: string; teacher_id: string; teacherName: string }
+type ExamInquiry = {
+  id: string; body: string; created_at: string; question_id: string | null
+  exam_questions: { order_num: number; question_text: string | null } | null
+  exam_inquiry_replies: ExamInquiryReply[]
 }
 type ClinicRecord = {
   id: string; clinic_name: string | null; date: string
@@ -136,6 +143,13 @@ export default function StudentPage() {
   const [examResultModal, setExamResultModal] = useState<ExamResult | null>(null)
   const [examResultRankInfo, setExamResultRankInfo] = useState<{ rank: number; total: number } | null>(null)
   const [loadingExamResult, setLoadingExamResult] = useState(false)
+
+  // 시험 질문 (Q&A)
+  const [examInquiries, setExamInquiries]         = useState<ExamInquiry[]>([])
+  const [currentExamId, setCurrentExamId]         = useState<string | null>(null)
+  const [openInquiryFor, setOpenInquiryFor]       = useState<string | null>(null) // question_id 또는 'general'
+  const [inquiryText, setInquiryText]             = useState('')
+  const [submittingInquiry, setSubmittingInquiry] = useState(false)
 
   // 설정 — 계정 탈퇴
   const [showDeleteModal, setShowDeleteModal]     = useState(false)
@@ -369,15 +383,50 @@ export default function StudentPage() {
   async function openExamResult(examId: string, rankInfo?: { rank: number; total: number } | null) {
     if (!student) return
     setLoadingExamResult(true)
+    setCurrentExamId(examId)
     const token = await getToken(); if (!token) { setLoadingExamResult(false); return }
-    const res = await fetch(`/api/exams/${examId}/student-result?studentId=${student.id}`,
-      { headers: { Authorization: `Bearer ${token}` } })
+    const [res, iRes] = await Promise.all([
+      fetch(`/api/exams/${examId}/student-result?studentId=${student.id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`/api/exam-inquiries?examId=${examId}&studentId=${student.id}`, { headers: { Authorization: `Bearer ${token}` } }),
+    ])
     if (res.ok) {
       const data = await res.json()
       setExamResultModal(data)
       setExamResultRankInfo(rankInfo ?? null)
     }
+    if (iRes.ok) {
+      const iData = await iRes.json()
+      setExamInquiries(iData.inquiries ?? [])
+    }
     setLoadingExamResult(false)
+  }
+
+  async function submitInquiry(questionId: string | null) {
+    if (!currentExamId || !inquiryText.trim()) return
+    setSubmittingInquiry(true)
+    const token = await getToken()
+    if (!token) { setSubmittingInquiry(false); return }
+    const res = await fetch('/api/exam-inquiries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ examId: currentExamId, questionId, body: inquiryText.trim() }),
+    })
+    if (res.ok) {
+      const { inquiry } = await res.json()
+      setExamInquiries(prev => [...prev, inquiry])
+      setInquiryText('')
+      setOpenInquiryFor(null)
+    }
+    setSubmittingInquiry(false)
+  }
+
+  function closeExamResult() {
+    setExamResultModal(null)
+    setExamResultRankInfo(null)
+    setExamInquiries([])
+    setCurrentExamId(null)
+    setOpenInquiryFor(null)
+    setInquiryText('')
   }
 
   async function loadHomework(ovr?: StudentContext) {
@@ -1066,7 +1115,7 @@ export default function StudentPage() {
             <div className="bg-white sm:rounded-2xl w-full sm:max-w-lg sm:max-h-[90vh] sm:overflow-y-auto">
               {/* 헤더 */}
               <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3 z-10">
-                <button onClick={() => { setExamResultModal(null); setExamResultRankInfo(null) }} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20} /></button>
+                <button onClick={closeExamResult} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20} /></button>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-800 truncate">{examResultModal.title}</p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
@@ -1086,12 +1135,49 @@ export default function StudentPage() {
               <div className="p-5 space-y-4">
                 {/* 수동 시험 */}
                 {examResultModal.examType === 'manual' && (
-                  <div className="bg-slate-50 rounded-2xl p-5 text-center space-y-2">
-                    <p className="text-slate-500 text-sm">수동 입력 시험은 상세 결과가 없어요.</p>
-                    {examResultModal.myScore !== null && (
-                      <p className="text-2xl font-black text-blue-600">{examResultModal.myScore}점</p>
-                    )}
-                  </div>
+                  <>
+                    <div className="bg-slate-50 rounded-2xl p-5 text-center space-y-2">
+                      <p className="text-slate-500 text-sm">수동 입력 시험은 상세 결과가 없어요.</p>
+                      {examResultModal.myScore !== null && (
+                        <p className="text-2xl font-black text-blue-600">{examResultModal.myScore}점</p>
+                      )}
+                    </div>
+                    {/* 일반 질문 섹션 */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">질문</p>
+                      {examInquiries.filter(i => i.question_id === null).map(inq => (
+                        <div key={inq.id} className="space-y-2">
+                          <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-slate-700">{inq.body}</div>
+                          {inq.exam_inquiry_replies.map(reply => (
+                            <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                              <div className="bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm max-w-[85%]">{reply.body}</div>
+                              <p className="text-xs text-slate-400 pr-1">{reply.teacherName}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      {openInquiryFor === 'general' ? (
+                        <div className="space-y-2">
+                          <textarea value={inquiryText} onChange={e => setInquiryText(e.target.value)}
+                            placeholder="시험에 대해 질문을 입력해주세요" rows={3}
+                            className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                          <div className="flex gap-2">
+                            <button onClick={() => submitInquiry(null)} disabled={submittingInquiry || !inquiryText.trim()}
+                              className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl disabled:opacity-50">
+                              {submittingInquiry ? '전송 중...' : '질문 보내기'}
+                            </button>
+                            <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
+                              className="py-2.5 px-4 border border-slate-200 text-slate-600 text-sm rounded-xl">취소</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setOpenInquiryFor('general'); setInquiryText('') }}
+                          className="w-full py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-2 transition-colors">
+                          <HelpCircle size={15} /> 질문하기
+                        </button>
+                      )}
+                    </div>
+                  </>
                 )}
 
                 {/* 자동 채점 — 공통 요약 그리드 */}
@@ -1148,6 +1234,43 @@ export default function StudentPage() {
                                   : '미제출'}
                               </span>
                             </p>
+                            {/* 문제별 질문 */}
+                            {(() => {
+                              const qInqs = examInquiries.filter(i => i.question_id === q.id)
+                              const isOpen = openInquiryFor === q.id
+                              return (
+                                <div className="mt-2 pt-2 border-t border-slate-200/60">
+                                  {qInqs.map(inq => (
+                                    <div key={inq.id} className="mb-2 space-y-1">
+                                      <div className="bg-white/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-600">{inq.body}</div>
+                                      {inq.exam_inquiry_replies.map(reply => (
+                                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                                          <div className="bg-blue-600 text-white rounded-lg px-2.5 py-1.5 text-xs max-w-[90%]">{reply.body}</div>
+                                          <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  {isOpen ? (
+                                    <div className="flex gap-1.5">
+                                      <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
+                                        placeholder="질문 내용..."
+                                        className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
+                                        className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send size={12} /></button>
+                                      <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
+                                        className="p-1.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => { setOpenInquiryFor(q.id); setInquiryText('') }}
+                                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-blue-600 transition-colors mt-0.5">
+                                      <HelpCircle size={11} /> 질문하기
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )
                       })}
@@ -1198,6 +1321,43 @@ export default function StudentPage() {
                                 <p className="text-emerald-700">정답: <span className="font-semibold">{correctList.map(c => c.answer_text).join(' / ')}</span></p>
                               </div>
                             )}
+                            {/* 문제별 질문 */}
+                            {(() => {
+                              const qInqs = examInquiries.filter(i => i.question_id === q.id)
+                              const isOpen = openInquiryFor === q.id
+                              return (
+                                <div className="pt-2 border-t border-slate-200/60">
+                                  {qInqs.map(inq => (
+                                    <div key={inq.id} className="mb-2 space-y-1">
+                                      <div className="bg-slate-100 rounded-lg px-2.5 py-1.5 text-xs text-slate-600">{inq.body}</div>
+                                      {inq.exam_inquiry_replies.map(reply => (
+                                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                                          <div className="bg-blue-600 text-white rounded-lg px-2.5 py-1.5 text-xs max-w-[90%]">{reply.body}</div>
+                                          <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  {isOpen ? (
+                                    <div className="flex gap-1.5">
+                                      <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
+                                        placeholder="질문 내용..."
+                                        className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
+                                        className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send size={12} /></button>
+                                      <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
+                                        className="p-1.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => { setOpenInquiryFor(q.id); setInquiryText('') }}
+                                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-blue-600 transition-colors mt-0.5">
+                                      <HelpCircle size={11} /> 질문하기
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )
                       })}
