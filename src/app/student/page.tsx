@@ -1222,7 +1222,13 @@ export default function StudentPage() {
                               <span className={`text-xs font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
                                 {q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
                               </span>
-                              <span className="text-xs text-slate-400 ml-auto">{q.score}점</span>
+                              <div className="ml-auto flex items-center gap-1.5">
+                                <span className="text-xs text-slate-400">{q.score}점</span>
+                                <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
+                                  className={`p-0.5 rounded transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-300 hover:text-blue-400'}`}>
+                                  <HelpCircle size={12} />
+                                </button>
+                              </div>
                             </div>
                             {q.question_text && <p className="text-xs text-slate-600 mb-2">{q.question_text}</p>}
                             <p className="text-xs text-slate-500">
@@ -1234,14 +1240,15 @@ export default function StudentPage() {
                                   : '미제출'}
                               </span>
                             </p>
-                            {/* 문제별 질문 */}
+                            {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
                             {(() => {
                               const qInqs = examInquiries.filter(i => i.question_id === q.id)
                               const isOpen = openInquiryFor === q.id
+                              if (!isOpen && qInqs.length === 0) return null
                               return (
-                                <div className="mt-2 pt-2 border-t border-slate-200/60">
+                                <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-1.5">
                                   {qInqs.map(inq => (
-                                    <div key={inq.id} className="mb-2 space-y-1">
+                                    <div key={inq.id} className="space-y-1">
                                       <div className="bg-white/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-600">{inq.body}</div>
                                       {inq.exam_inquiry_replies.map(reply => (
                                         <div key={reply.id} className="flex flex-col items-end gap-0.5">
@@ -1251,22 +1258,17 @@ export default function StudentPage() {
                                       ))}
                                     </div>
                                   ))}
-                                  {isOpen ? (
+                                  {isOpen && (
                                     <div className="flex gap-1.5">
                                       <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                                        placeholder="질문 내용..."
+                                        placeholder="질문 내용..." autoFocus
                                         className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                       <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
                                         className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send size={12} /></button>
                                       <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
                                         className="p-1.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
                                     </div>
-                                  ) : (
-                                    <button onClick={() => { setOpenInquiryFor(q.id); setInquiryText('') }}
-                                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-blue-600 transition-colors mt-0.5">
-                                      <HelpCircle size={11} /> 질문하기
-                                    </button>
                                   )}
                                 </div>
                               )
@@ -1294,7 +1296,13 @@ export default function StudentPage() {
                               <span className={`text-sm font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
                                 {q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
                               </span>
-                              <span className="text-xs text-slate-400 ml-auto whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
+                              <div className="ml-auto flex items-center gap-1.5">
+                                <span className="text-xs text-slate-400 whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
+                                <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
+                                  className={`p-0.5 rounded transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-300 hover:text-blue-400'}`}>
+                                  <HelpCircle size={13} />
+                                </button>
+                              </div>
                             </div>
                             {q.question_text && <p className="text-sm text-slate-700">{q.question_text}</p>}
                             {/* 객관식 선택지 */}
@@ -1321,14 +1329,15 @@ export default function StudentPage() {
                                 <p className="text-emerald-700">정답: <span className="font-semibold">{correctList.map(c => c.answer_text).join(' / ')}</span></p>
                               </div>
                             )}
-                            {/* 문제별 질문 */}
+                            {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
                             {(() => {
                               const qInqs = examInquiries.filter(i => i.question_id === q.id)
                               const isOpen = openInquiryFor === q.id
+                              if (!isOpen && qInqs.length === 0) return null
                               return (
-                                <div className="pt-2 border-t border-slate-200/60">
+                                <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
                                   {qInqs.map(inq => (
-                                    <div key={inq.id} className="mb-2 space-y-1">
+                                    <div key={inq.id} className="space-y-1">
                                       <div className="bg-slate-100 rounded-lg px-2.5 py-1.5 text-xs text-slate-600">{inq.body}</div>
                                       {inq.exam_inquiry_replies.map(reply => (
                                         <div key={reply.id} className="flex flex-col items-end gap-0.5">
@@ -1338,22 +1347,17 @@ export default function StudentPage() {
                                       ))}
                                     </div>
                                   ))}
-                                  {isOpen ? (
+                                  {isOpen && (
                                     <div className="flex gap-1.5">
                                       <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                                        placeholder="질문 내용..."
+                                        placeholder="질문 내용..." autoFocus
                                         className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                       <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
                                         className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send size={12} /></button>
                                       <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
                                         className="p-1.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
                                     </div>
-                                  ) : (
-                                    <button onClick={() => { setOpenInquiryFor(q.id); setInquiryText('') }}
-                                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-blue-600 transition-colors mt-0.5">
-                                      <HelpCircle size={11} /> 질문하기
-                                    </button>
                                   )}
                                 </div>
                               )
