@@ -43,6 +43,11 @@ function catLabel(c: string | null) {
   return c ?? '미설정'
 }
 
+// 부동소수점 표시 정리: 100.0000001 → 100, 33.30 → 33.3
+function fmtScore(n: number): string {
+  return parseFloat((Math.round(n * 100) / 100).toFixed(2)).toString()
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function ExamGroupWidget() {
@@ -283,13 +288,13 @@ export default function ExamGroupWidget() {
                                 {s.scores.map((score, i) => (
                                   <td key={i} className="px-3 py-2.5 text-center text-slate-600">
                                     {score !== null
-                                      ? <span>{score}</span>
+                                      ? <span>{fmtScore(score)}</span>
                                       : <span className="text-slate-300">-</span>}
                                   </td>
                                 ))}
                                 <td className="px-3 py-2.5 text-center font-bold text-indigo-700">
                                   {s.total !== null
-                                    ? s.total
+                                    ? fmtScore(s.total)
                                     : <span className="text-slate-300">-</span>}
                                 </td>
                                 <td className="px-3 py-2.5 text-center">

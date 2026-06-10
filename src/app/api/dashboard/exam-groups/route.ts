@@ -118,7 +118,8 @@ export async function GET(req: NextRequest) {
       .map(student => {
         const scores = examList.map(e => subMap[e.id]?.[student.id] ?? null)
         const submitted = scores.filter((s): s is number => s !== null)
-        const total = submitted.length > 0 ? submitted.reduce((a, b) => a + b, 0) : null
+        const raw = submitted.length > 0 ? submitted.reduce((a, b) => a + b, 0) : null
+        const total = raw !== null ? Math.round(raw * 100) / 100 : null
         return { studentId: student.id, name: student.name, scores, total }
       })
       .filter(s => s.scores.some(sc => sc !== null)) // 최소 1개 이상 제출한 학생만
