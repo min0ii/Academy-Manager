@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAcademy } from '@/lib/academy-context'
 import { supabase } from '@/lib/supabase'
-import { HelpCircle, ChevronDown, ChevronUp, Send, RefreshCw, ChevronRight } from 'lucide-react'
+import { HelpCircle, ChevronDown, Send, RefreshCw } from 'lucide-react'
 
 type Reply = {
   id: string; body: string; created_at: string; teacher_id: string; teacherName: string
@@ -90,37 +90,36 @@ export default function ExamInquiryWidget() {
       {/* 헤더 */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors text-left"
       >
-        <div className="p-2 bg-amber-50 rounded-xl flex-shrink-0">
-          <HelpCircle size={18} className="text-amber-500" />
-        </div>
-        <div className="flex-1 text-left min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800 text-sm">시험 질문</span>
-            {unansweredCount > 0 && !open && (
-              <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {unansweredCount}
-              </span>
-            )}
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-amber-50 rounded-xl flex-shrink-0">
+            <HelpCircle size={18} className="text-amber-500" />
           </div>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">
-            {open
-              ? '학생들이 남긴 질문을 확인하고 답변하세요'
-              : unansweredCount > 0
-                ? `미답변 ${unansweredCount}건이 있어요`
-                : '학생 시험 질문 확인'}
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-slate-800 text-sm">시험 질문</p>
+              {unansweredCount > 0 && !open && (
+                <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  {unansweredCount}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {unansweredCount > 0 && !open ? `미답변 ${unansweredCount}건이 있어요` : '학생 시험 질문 확인'}
+            </p>
+          </div>
         </div>
-        {open
-          ? <ChevronUp size={16} className="text-slate-400 flex-shrink-0" />
-          : <ChevronRight size={16} className="text-slate-400 flex-shrink-0" />}
+        <ChevronDown
+          size={18}
+          className={`text-slate-400 transition-transform duration-300 flex-shrink-0 ml-3 ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {/* 본문 */}
       <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-3">
+          <div className="border-t border-slate-100 px-5 pb-6 pt-4 space-y-4">
 
             {/* 필터 + 새로고침 */}
             <div className="flex items-center gap-2">
@@ -189,9 +188,7 @@ export default function ExamInquiryWidget() {
                             ? <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">답변 {item.exam_inquiry_replies.length}</span>
                             : <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-medium">미답변</span>
                           }
-                          {isExpanded
-                            ? <ChevronUp size={14} className="text-slate-400" />
-                            : <ChevronDown size={14} className="text-slate-400" />}
+                          <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                         </div>
                       </button>
 
