@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { todayKST } from '@/lib/date'
 import { PageLoading } from '@/components/Skeleton'
+import ExamGroupWidget from './ExamGroupWidget'
 
 type Stats = {
   studentCount: number
@@ -159,6 +160,9 @@ export default function DashboardPage() {
           <p className="text-3xl font-bold text-slate-800">{stats.classCount}<span className="text-base font-normal text-slate-500 ml-1">개</span></p>
         </div>
       </div>
+
+      {/* 시험 모아보기 위젯 */}
+      <ExamGroupWidget />
 
       {/* 빠른 메뉴 — PC에선 사이드바와 중복이라 모바일에서만 표시 */}
       <div className="lg:hidden">
