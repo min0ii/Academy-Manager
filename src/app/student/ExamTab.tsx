@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Clock, CheckCircle2, AlertTriangle, Send,
@@ -600,7 +601,7 @@ export default function ExamTab({
         )}
 
         {/* Forfeit confirm modal */}
-        {showForfeitModal && (
+        {showForfeitModal && createPortal(
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
             <div className="bg-white rounded-2xl w-full max-w-sm">
               <div className="flex items-center justify-between p-5 border-b border-slate-100">
@@ -625,11 +626,12 @@ export default function ExamTab({
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Submit confirm modal */}
-        {showSubmitModal && (
+        {showSubmitModal && createPortal(
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
             <div className="bg-white rounded-2xl w-full max-w-sm">
               <div className="flex items-center justify-between p-5 border-b border-slate-100">
@@ -657,7 +659,8 @@ export default function ExamTab({
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     )
