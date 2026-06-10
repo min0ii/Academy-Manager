@@ -2079,7 +2079,7 @@ function GradesContent() {
             <div className="p-5 border-t border-slate-100 flex-shrink-0 space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">
-                  총 {wizardQs.length}문제 · 총점 {wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0)}점
+                  총 {wizardQs.length}문제 · 총점 {Math.round(wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) * 100) / 100}점
                 </span>
                 <button onClick={distributeScore} className="text-xs text-blue-500 hover:text-blue-700 font-medium">배점 균등 분배</button>
               </div>
@@ -2361,7 +2361,7 @@ function GradesContent() {
                 <div className="p-5 border-t border-slate-100 flex-shrink-0 space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">
-                      총 {editWizardQs.length}문제 · 총점 {editWizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0)}점
+                      총 {editWizardQs.length}문제 · 총점 {Math.round(editWizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) * 100) / 100}점
                     </span>
                     <button onClick={() => setEditCustomLabels(v => !v)}
                       className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${editCustomLabels ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
