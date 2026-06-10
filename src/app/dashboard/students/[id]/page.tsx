@@ -10,7 +10,7 @@ import { useDialog } from '@/components/AppDialog'
 import { PageLoading, ListSkeleton } from '@/components/Skeleton'
 import { gradeLabel } from '@/lib/utils'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts'
 
 type Student = {
@@ -785,36 +785,41 @@ function StudentReportContent() {
               {(() => {
                 // 날짜 오름차순 정렬된 records (차트용)
                 const sortedRecords = gradeRecords.slice().sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
-                // 카테고리 목록
-                const allCats = [...new Set(sortedRecords.map(r => r.category ?? '미설정'))]
-                const selCat = chartCategory ?? allCats[0] ?? null
-                // 선택 카테고리로 필터 후 날짜별 합산
-                const byDate: Record<string, { my: number; max: number }> = {}
+                const allCats = [...new Set(sortedRecords.map(r => r.category).filter(Boolean))] as string[]
+                const selCat = chartCategory  // null = 전체
+                const byDate: Record<string, { my: number; max: number; avg: number; avgMax: number }> = {}
                 for (const r of sortedRecords) {
-                  if ((r.category ?? '미설정') !== selCat) continue
+                  if (selCat !== null && r.category !== selCat) continue
                   if (!r.date) continue
-                  if (!byDate[r.date]) byDate[r.date] = { my: 0, max: 0 }
+                  if (!byDate[r.date]) byDate[r.date] = { my: 0, max: 0, avg: 0, avgMax: 0 }
                   if (r.myScore !== null && !r.absent) byDate[r.date].my += r.myScore
                   if (r.maxScore !== null) byDate[r.date].max += r.maxScore
+                  if (r.avgScore !== null && r.maxScore !== null) {
+                    byDate[r.date].avg += r.avgScore
+                    byDate[r.date].avgMax += r.maxScore
+                  }
                 }
-                const chartPoints = Object.entries(byDate).map(([date, { my, max }]) => ({
+                const chartPoints = Object.entries(byDate).map(([date, { my, max, avg, avgMax }]) => ({
                   name: date.slice(5).replace('-', '/'),
                   내점수: max > 0 ? Math.round((my / max) * 100) : null,
+                  반평균: avgMax > 0 ? Math.round((avg / avgMax) * 100) : null,
                 }))
                 return (
                   <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                     <div className="p-4 border-b border-slate-100">
                       <h3 className="font-bold text-slate-800">시험 성적 추이</h3>
-                      {allCats.length > 0 && (
-                        <div className="flex gap-1.5 flex-wrap mt-2">
-                          {allCats.map(cat => (
-                            <button key={cat} onClick={() => setChartCategory(cat)}
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${selCat === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                              {cat}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex gap-1.5 flex-wrap mt-2">
+                        <button onClick={() => setChartCategory(null)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${selCat === null ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                          전체
+                        </button>
+                        {allCats.map(cat => (
+                          <button key={cat} onClick={() => setChartCategory(cat)}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${selCat === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     {gradeRecords.length === 0 ? (
                       <p className="text-center py-8 text-slate-400 text-sm">시험 기록이 없어요</p>
@@ -828,11 +833,10 @@ function StudentReportContent() {
                               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                               <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                               <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
-                              <Tooltip
-                                formatter={(value) => [`${value}%`, selCat ?? '점수']}
-                                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                              />
+                              <Tooltip formatter={(value, name) => [`${value}%`, name]} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                              <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
                               <Line type="monotone" dataKey="내점수" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                              <Line type="monotone" dataKey="반평균" stroke="#94a3b8" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" connectNulls />
                             </LineChart>
                           </div>
                         </div>
