@@ -224,7 +224,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
             manually_overridden: false,
           })
         }
-        submissionScores.push({ id: sub.id, score: totalScore })
+        submissionScores.push({ id: sub.id, score: Math.round(totalScore * 100) / 100 })
       }
 
       // 7. 답안 일괄 upsert (500개씩 청크)

@@ -249,7 +249,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     // auto_score 재계산 (adjusted_score는 건드리지 않음)
     const { data: allAnswers } = await db.from('exam_student_answers')
       .select('score_earned').eq('submission_id', submissionId)
-    const newAutoScore = (allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0)
+    const newAutoScore = Math.round((allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0) * 100) / 100
     await db.from('exam_submissions').update({ auto_score: newAutoScore }).eq('id', submissionId)
 
     // 목숨 재계산
@@ -295,7 +295,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     // auto_score 재계산
     const { data: allAnswers } = await db.from('exam_student_answers')
       .select('score_earned').eq('submission_id', submissionId)
-    const newAutoScore = (allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0)
+    const newAutoScore = Math.round((allAnswers ?? []).reduce((sum, a) => sum + (a.score_earned ?? 0), 0) * 100) / 100
     await db.from('exam_submissions').update({ auto_score: newAutoScore }).eq('id', submissionId)
 
     // 목숨 재계산
