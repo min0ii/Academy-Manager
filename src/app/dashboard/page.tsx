@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, LayoutGrid, BarChart2, BookOpen, MessageSquare, ChevronRight } from 'lucide-react'
+import { Users, LayoutGrid, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { todayKST } from '@/lib/date'
@@ -20,23 +20,6 @@ type ActiveClass = {
   name: string
   start_time: string
   end_time: string
-}
-
-const QUICK_LINKS = [
-  { href: '/dashboard/students', label: '학생 관리', desc: '학생 등록·수정·명부', icon: Users, color: 'blue' },
-  { href: '/dashboard/classes', label: '수업 관리', desc: '출석·과제·클리닉 관리', icon: LayoutGrid, color: 'violet' },
-  { href: '/dashboard/grades', label: '성적 관리', desc: '시험 출제·점수 관리', icon: BarChart2, color: 'emerald' },
-  { href: '/dashboard/homework', label: '과제·클리닉', desc: '과제 배부 및 이행 현황', icon: BookOpen, color: 'rose' },
-  { href: '/dashboard/comments', label: '코멘트', desc: '학부모에게 전달할 메시지 작성', icon: MessageSquare, color: 'cyan' },
-]
-
-const colorMap: Record<string, string> = {
-  blue:   'bg-blue-50 text-blue-600',
-  violet: 'bg-violet-50 text-violet-600',
-  amber:  'bg-amber-50 text-amber-600',
-  emerald:'bg-emerald-50 text-emerald-600',
-  rose:   'bg-rose-50 text-rose-600',
-  cyan:   'bg-cyan-50 text-cyan-600',
 }
 
 
@@ -168,32 +151,6 @@ export default function DashboardPage() {
       {/* 시험 질문 위젯 */}
       <ExamInquiryWidget />
 
-      {/* 빠른 메뉴 — PC에선 사이드바와 중복이라 모바일에서만 표시 */}
-      <div className="lg:hidden">
-        <h2 className="text-base font-bold text-slate-700 mb-3">메뉴</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {QUICK_LINKS.map((item, idx) => {
-            const Icon = item.icon
-            const isLastOdd = idx === QUICK_LINKS.length - 1 && QUICK_LINKS.length % 2 === 1
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all group${isLastOdd ? ' sm:col-span-2' : ''}`}
-              >
-                <div className={`p-2.5 rounded-xl flex-shrink-0 ${colorMap[item.color]}`}>
-                  <Icon size={20} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 text-sm">{item.label}</p>
-                  <p className="text-xs text-slate-500 truncate">{item.desc}</p>
-                </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />
-              </Link>
-            )
-          })}
-        </div>
-      </div>
     </div>
   )
 }
