@@ -26,7 +26,10 @@ button:disabled {
 }
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; }
+  /* transform을 to에서 생략 → 종료 후 transform 속성이 사라짐
+     transform이 남으면 자식 position:fixed의 기준이 viewport가 아닌 이 요소가 되어
+     모달이 화면 정중앙이 아닌 엉뚱한 위치에 뜨는 문제 발생 */
 }
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
