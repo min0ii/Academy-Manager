@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, LayoutGrid, BarChart2, BookOpen, MessageSquare, ChevronRight } from 'lucide-react'
+import { Users, LayoutGrid, BarChart2, BookOpen, MessageSquare, ChevronRight, PenLine, ClipboardList, CalendarCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { todayKST } from '@/lib/date'
+import { PageLoading } from '@/components/Skeleton'
 
 type Stats = {
   studentCount: number
@@ -17,6 +18,14 @@ type ActiveClass = {
   name: string
   start_time: string
   end_time: string
+}
+
+type TodoItem = {
+  id: string
+  type: 'manual_exam' | 'auto_exam' | 'no_attendance'
+  title: string
+  subtitle: string
+  href: string
 }
 
 const QUICK_LINKS = [
@@ -41,6 +50,7 @@ export default function DashboardPage() {
   const ctx = useAcademy()
   const [stats, setStats] = useState<Stats>({ studentCount: 0, classCount: 0 })
   const [activeClasses, setActiveClasses] = useState<ActiveClass[]>([])
+  const [todos, setTodos] = useState<TodoItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -49,6 +59,7 @@ export default function DashboardPage() {
       const now = new Date()
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`
       const dayOfWeek = now.getDay()
+      const todayStr = todayKST()
 
       const [{ count: studentCount }, { count: classCount }, { data: classData }] = await Promise.all([
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('academy_id', ctx.academyId).eq('status', 'active'),
@@ -62,9 +73,12 @@ export default function DashboardPage() {
       ;(classData ?? []).forEach(c => { classMap[c.id] = c.name })
 
       if (classIds.length > 0) {
-        const todayStr = todayKST()
-
-        const [{ data: scheduleData }, { data: sessionData }] = await Promise.all([
+        // 진행 중인 수업 + 오늘 세션 + 활성 시험 동시 조회
+        const [
+          { data: scheduleData },
+          { data: sessionData },
+          { data: activeExams },
+        ] = await Promise.all([
           supabase
             .from('class_schedules')
             .select('class_id, start_time, end_time')
@@ -74,22 +88,82 @@ export default function DashboardPage() {
             .gte('end_time', currentTime),
           supabase
             .from('sessions')
-            .select('class_id, start_time, end_time')
+            .select('id, class_id, start_time, end_time')
             .in('class_id', classIds)
-            .eq('date', todayStr)
-            .lte('start_time', currentTime)
-            .gte('end_time', currentTime),
+            .eq('date', todayStr),
+          supabase
+            .from('exams')
+            .select('id, title, exam_type, class_id')
+            .in('class_id', classIds)
+            .eq('status', 'active'),
         ])
 
+        // 진행 중 수업 배너
         const seen = new Set<string>()
         const active: ActiveClass[] = []
-        for (const s of [...(scheduleData ?? []), ...(sessionData ?? [])]) {
+        for (const s of [...(scheduleData ?? []), ...(sessionData ?? []).filter(s => s.start_time <= currentTime && s.end_time >= currentTime)]) {
           if (!seen.has(s.class_id)) {
             seen.add(s.class_id)
             active.push({ id: s.class_id, name: classMap[s.class_id], start_time: s.start_time, end_time: s.end_time })
           }
         }
         setActiveClasses(active)
+
+        // 처리 알림: 자동채점 시험 제출 수 + 오늘 출결 미기록 세션 조회
+        const autoExamIds = (activeExams ?? []).filter(e => e.exam_type === 'auto').map(e => e.id)
+        const sessionIds = (sessionData ?? []).map(s => s.id)
+
+        const [subCountResult, attResult] = await Promise.all([
+          autoExamIds.length > 0
+            ? supabase.from('exam_submissions').select('exam_id').in('exam_id', autoExamIds).eq('is_submitted', true).eq('is_forfeited', false)
+            : Promise.resolve({ data: [] as { exam_id: string }[] }),
+          sessionIds.length > 0
+            ? supabase.from('attendance').select('session_id').in('session_id', sessionIds)
+            : Promise.resolve({ data: [] as { session_id: string }[] }),
+        ])
+
+        // 시험별 제출 수 집계
+        const subCountMap: Record<string, number> = {}
+        for (const s of (subCountResult.data ?? [])) {
+          subCountMap[s.exam_id] = (subCountMap[s.exam_id] ?? 0) + 1
+        }
+
+        // 출결 미기록 세션 (오늘 세션 중 출결 기록이 하나도 없는 것)
+        const recordedSessionIds = new Set((attResult.data ?? []).map(a => a.session_id))
+        const unrecordedSessions = (sessionData ?? []).filter(s => !recordedSessionIds.has(s.id))
+
+        // 투두 목록 생성
+        const newTodos: TodoItem[] = []
+        for (const exam of (activeExams ?? [])) {
+          if (exam.exam_type === 'manual') {
+            newTodos.push({
+              id: exam.id,
+              type: 'manual_exam',
+              title: exam.title,
+              subtitle: `${classMap[exam.class_id] ?? ''} • 수동 채점 대기`,
+              href: '/dashboard/grades',
+            })
+          } else {
+            const count = subCountMap[exam.id] ?? 0
+            newTodos.push({
+              id: exam.id,
+              type: 'auto_exam',
+              title: exam.title,
+              subtitle: `${classMap[exam.class_id] ?? ''} • ${count}명 제출`,
+              href: '/dashboard/grades',
+            })
+          }
+        }
+        for (const session of unrecordedSessions) {
+          newTodos.push({
+            id: session.id,
+            type: 'no_attendance',
+            title: classMap[session.class_id] ?? '수업',
+            subtitle: '오늘 출결이 아직 기록되지 않았어요',
+            href: `/dashboard/classes/${session.class_id}`,
+          })
+        }
+        setTodos(newTodos)
       }
 
       setLoading(false)
@@ -98,13 +172,7 @@ export default function DashboardPage() {
 
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400 text-sm">불러오는 중...</div>
-      </div>
-    )
-  }
+  if (loading) return <PageLoading />
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -163,6 +231,49 @@ export default function DashboardPage() {
           </div>
           <p className="text-3xl font-bold text-slate-800">{stats.classCount}<span className="text-base font-normal text-slate-500 ml-1">개</span></p>
         </div>
+      </div>
+
+      {/* 처리할 항목 */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-base font-bold text-slate-700">처리할 항목</h2>
+          {todos.length > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full">
+              {todos.length}
+            </span>
+          )}
+        </div>
+        {todos.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-3">
+            <span className="text-xl">✅</span>
+            <p className="text-slate-500 text-sm">모든 항목이 처리됐어요</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {todos.map(todo => (
+              <Link
+                key={todo.id}
+                href={todo.href}
+                className="flex items-center gap-4 bg-white rounded-2xl border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all group"
+              >
+                <div className={`p-2.5 rounded-xl flex-shrink-0 ${
+                  todo.type === 'manual_exam' ? 'bg-amber-50 text-amber-600' :
+                  todo.type === 'auto_exam'   ? 'bg-blue-50 text-blue-600' :
+                                                'bg-orange-50 text-orange-600'
+                }`}>
+                  {todo.type === 'manual_exam' ? <PenLine size={18} /> :
+                   todo.type === 'auto_exam'   ? <ClipboardList size={18} /> :
+                                                 <CalendarCheck size={18} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-800 text-sm truncate">{todo.title}</p>
+                  <p className="text-xs text-slate-500 truncate">{todo.subtitle}</p>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 빠른 메뉴 — PC에선 사이드바와 중복이라 모바일에서만 표시 */}
