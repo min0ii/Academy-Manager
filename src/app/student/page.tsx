@@ -1222,11 +1222,11 @@ export default function StudentPage() {
                               <span className={`text-xs font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
                                 {q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
                               </span>
-                              <div className="ml-auto flex items-center gap-1.5">
+                              <div className="ml-auto flex items-center gap-2">
                                 <span className="text-xs text-slate-400">{q.score}점</span>
                                 <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
-                                  className={`p-0.5 rounded transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-300 hover:text-blue-400'}`}>
-                                  <HelpCircle size={12} />
+                                  className={`text-[11px] font-medium transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-400 hover:text-blue-500'}`}>
+                                  {openInquiryFor === q.id ? '닫기' : '질문하기'}
                                 </button>
                               </div>
                             </div>
@@ -1296,11 +1296,11 @@ export default function StudentPage() {
                               <span className={`text-sm font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
                                 {q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
                               </span>
-                              <div className="ml-auto flex items-center gap-1.5">
+                              <div className="ml-auto flex items-center gap-2">
                                 <span className="text-xs text-slate-400 whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
                                 <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
-                                  className={`p-0.5 rounded transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-300 hover:text-blue-400'}`}>
-                                  <HelpCircle size={13} />
+                                  className={`text-[11px] font-medium transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-400 hover:text-blue-500'}`}>
+                                  {openInquiryFor === q.id ? '닫기' : '질문하기'}
                                 </button>
                               </div>
                             </div>

@@ -63,14 +63,16 @@ export async function GET(req: NextRequest) {
     if (!ownAcademy && !teamMember) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // 학원 → 반 → 시험 순으로 조회
-    const { data: classes } = await db.from('classes').select('id').eq('academy_id', academyId)
+    const { data: classes } = await db.from('classes').select('id, name').eq('academy_id', academyId)
     const classIds = (classes ?? []).map(c => c.id)
     if (classIds.length === 0) return NextResponse.json({ inquiries: [] })
+    const classNameMap: Record<string, string> = {}
+    ;(classes ?? []).forEach(c => { classNameMap[c.id] = c.name })
 
-    const { data: exams } = await db.from('exams').select('id, title').in('class_id', classIds)
-    const examMap: Record<string, string> = {}
-    ;(exams ?? []).forEach(e => { examMap[e.id] = e.title })
-    const examIds = Object.keys(examMap)
+    const { data: exams } = await db.from('exams').select('id, title, class_id').in('class_id', classIds)
+    const examInfoMap: Record<string, { title: string; className: string }> = {}
+    ;(exams ?? []).forEach(e => { examInfoMap[e.id] = { title: e.title, className: classNameMap[e.class_id] ?? '' } })
+    const examIds = Object.keys(examInfoMap)
     if (examIds.length === 0) return NextResponse.json({ inquiries: [] })
 
     const { data: inquiries } = await db
@@ -91,7 +93,8 @@ export async function GET(req: NextRequest) {
 
     const result = (inquiries ?? []).map(inq => ({
       ...inq,
-      examTitle: examMap[inq.exam_id] ?? '시험',
+      examTitle: examInfoMap[inq.exam_id]?.title ?? '시험',
+      examClass: examInfoMap[inq.exam_id]?.className ?? '',
       exam_inquiry_replies: (inq.exam_inquiry_replies as { id: string; body: string; created_at: string; teacher_id: string }[]).map(r => ({
         ...r,
         teacherName: teacherMap[r.teacher_id] ?? '선생님'

@@ -9,7 +9,7 @@ type Reply = {
   id: string; body: string; created_at: string; teacher_id: string; teacherName: string
 }
 type InquiryItem = {
-  id: string; exam_id: string; examTitle: string; body: string; created_at: string
+  id: string; exam_id: string; examTitle: string; examClass: string; body: string; created_at: string
   question_id: string | null
   exam_questions: { order_num: number; question_text: string | null } | null
   students: { id: string; name: string } | null
@@ -169,8 +169,14 @@ export default function ExamInquiryWidget() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap mb-1">
                             <span className="font-semibold text-slate-800 text-sm">{item.students?.name ?? '학생'}</span>
+                            {item.examClass && (
+                              <>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-xs text-slate-500">{item.examClass}</span>
+                              </>
+                            )}
                             <span className="text-slate-300">·</span>
-                            <span className="text-xs text-slate-500 truncate max-w-[120px]">{item.examTitle}</span>
+                            <span className="text-xs text-slate-500 truncate max-w-[100px]">{item.examTitle}</span>
                             <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${item.question_id ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
                               {qLabel}
                             </span>
@@ -192,6 +198,10 @@ export default function ExamInquiryWidget() {
                       {/* 질문 전문 + 답변 스레드 + 입력 */}
                       {isExpanded && (
                         <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 space-y-3">
+                          {/* 맥락 정보 */}
+                          <p className="text-xs text-slate-400">
+                            {[item.examClass, item.examTitle, qLabel].filter(Boolean).join(' · ')}
+                          </p>
                           {/* 학생 질문 (말풍선) */}
                           <div className="flex flex-col gap-0.5">
                             <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-3 py-2.5 text-sm text-slate-700 max-w-[85%] self-start">
