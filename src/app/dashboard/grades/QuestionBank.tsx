@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Folder, FileText, Plus, ChevronRight, ChevronLeft,
   Pencil, Trash2, X, Check, BookOpen, ArrowLeft, Save,
@@ -635,7 +636,7 @@ export default function QuestionBank() {
         </button>
 
         {/* ── 시험 생성 모달 ───────────────────────────────────────────── */}
-        {showCreateExamModal && (
+        {showCreateExamModal && createPortal(
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 space-y-5 max-h-[90vh] overflow-y-auto">
 
@@ -788,7 +789,8 @@ export default function QuestionBank() {
                 </>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     )
