@@ -12,7 +12,7 @@ import {
 import ExamTab from './ExamTab'
 import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
 import { gradeLabel } from '@/lib/utils'
 
@@ -138,6 +138,7 @@ export default function StudentPage() {
   const [gradesLoaded, setGradesLoaded]   = useState(false)
   const [gradesLoading, setGradesLoading] = useState(false)
   const [gradeCategoryFilter, setGradeCategoryFilter] = useState<string | null>(null)
+  const [chartCategory, setChartCategory]             = useState<string | null>(null)
 
   // 시험 결과 상세 모달
   const [examResultModal, setExamResultModal] = useState<ExamResult | null>(null)
@@ -562,11 +563,6 @@ export default function StudentPage() {
   const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a,b) => a+b, 0) / pcts.length) : null
   const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
   const minPct = pcts.length > 0 ? Math.round(Math.min(...pcts)) : null
-  const chartData = scoredTests.map(t => ({
-    label: `${t.date.slice(5).replace('-','/')} ${t.name.slice(0,6)}`,
-    내점수: Math.round((t.myScore! / t.maxScore!) * 100),
-    반평균: t.avgScore !== null && t.maxScore ? Math.round((t.avgScore / t.maxScore) * 100) : null,
-  }))
   const testNames = filteredTests.map(t => t.name)
   const duplicateTestNames = new Set(testNames.filter((n, i) => testNames.indexOf(n) !== i))
 
@@ -991,31 +987,65 @@ export default function StudentPage() {
                     </p>
                   </div>
                 )}
-                {chartData.length >= 2 && (
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-                    <h2 className="font-bold text-slate-800 text-sm">성적 추이 (반 평균 비교)</h2>
-                    <div className="overflow-x-auto -mx-1 px-1">
-                      <div style={{ width: Math.max(300, chartData.length * 72) }}>
-                        <BarChart width={Math.max(300, chartData.length * 72)} height={210} data={chartData} margin={{ top:5, right:8, bottom:28, left:-10 }} barCategoryGap="30%">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="label" tick={{ fontSize:9, fill:'#94a3b8' }} angle={-35} textAnchor="end" interval={0} />
-                          <YAxis domain={[0,100]} tick={{ fontSize:10, fill:'#94a3b8' }} unit="%" />
-                          <Tooltip formatter={(v, name) => [`${v}%`, name]} contentStyle={{ fontSize:12, borderRadius:8 }} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize:11, paddingTop:4 }} />
-                          <Bar dataKey="내점수" fill="#2563eb" radius={[4,4,0,0]}>
-                            {chartData.map((entry, idx) => (
-                              <Cell key={idx} fill={entry.내점수 >= 80 ? '#10b981' : entry.내점수 >= 60 ? '#2563eb' : '#ef4444'} />
+                {(() => {
+                  const sortedTests = tests.slice().sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+                  const allCats = [...new Set(sortedTests.map(t => t.category ?? '미설정'))]
+                  const selCat = chartCategory ?? allCats[0] ?? null
+                  const byDate: Record<string, { my: number; max: number }> = {}
+                  for (const t of sortedTests) {
+                    if ((t.category ?? '미설정') !== selCat) continue
+                    if (!t.date) continue
+                    if (!byDate[t.date]) byDate[t.date] = { my: 0, max: 0 }
+                    if (t.myScore !== null && !t.absent) byDate[t.date].my += t.myScore
+                    if (t.maxScore !== null) byDate[t.date].max += t.maxScore
+                  }
+                  const chartPoints = Object.entries(byDate).map(([date, { my, max }]) => ({
+                    name: date.slice(5).replace('-', '/'),
+                    내점수: max > 0 ? Math.round((my / max) * 100) : null,
+                  }))
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="p-5 border-b border-slate-100">
+                        <h2 className="font-bold text-slate-800 text-sm">성적 추이</h2>
+                        {allCats.length > 0 && (
+                          <div className="flex gap-1.5 flex-wrap mt-2">
+                            {allCats.map(cat => (
+                              <button key={cat} onClick={() => setChartCategory(cat)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${selCat === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                {cat}
+                              </button>
                             ))}
-                          </Bar>
-                          <Bar dataKey="반평균" fill="#94a3b8" radius={[4,4,0,0]} />
-                        </BarChart>
+                          </div>
+                        )}
                       </div>
+                      {tests.length === 0 ? (
+                        <p className="text-center py-8 text-slate-400 text-sm">시험 기록이 없어요</p>
+                      ) : chartPoints.length === 0 ? (
+                        <p className="text-center py-8 text-slate-400 text-sm">해당 카테고리 기록이 없어요</p>
+                      ) : (
+                        <div className="p-4">
+                          <div className="overflow-x-auto">
+                            <div style={{ width: Math.max(320, chartPoints.length * 80) }}>
+                              <LineChart width={Math.max(320, chartPoints.length * 80)} height={200} data={chartPoints} margin={{ top: 5, right: 8, left: -20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
+                                <Tooltip
+                                  formatter={(value) => [`${value}%`, selCat ?? '점수']}
+                                  contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                                />
+                                <Line type="monotone" dataKey="내점수" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                              </LineChart>
+                            </div>
+                          </div>
+                          {chartPoints.length > 6 && (
+                            <p className="text-xs text-slate-400 text-center mt-2">← 스크롤해서 전체 보기</p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {chartData.length > 5 && (
-                      <p className="text-xs text-slate-400 text-center">← 스크롤해서 전체 보기</p>
-                    )}
-                  </div>
-                )}
+                  )
+                })()}
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-5 py-4 border-b border-slate-100"><h2 className="font-bold text-slate-800 text-sm">전체 성적 기록</h2></div>
                   {gradesLoading ? (
