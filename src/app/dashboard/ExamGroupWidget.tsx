@@ -237,12 +237,11 @@ export default function ExamGroupWidget() {
                   {visibleGroups.map(group => (
                     <div key={`${group.date}-${group.category ?? 'none'}`} className="space-y-2">
 
-                      {/* 카테고리가 여러 개 선택됐을 때만 소제목 표시 */}
-                      {selectedCats.size > 1 && (
-                        <p className="text-xs font-semibold text-slate-500 px-1">
-                          {catLabel(group.category)}
-                        </p>
-                      )}
+                      {/* 카테고리명 항상 표시 */}
+                      <p className="text-xs font-semibold text-slate-600 px-1">
+                        {catLabel(group.category)}
+                        <span className="font-normal text-slate-400 ml-1">· {group.exams.length}개 시험</span>
+                      </p>
 
                       {/* 테이블 (가로 스크롤) */}
                       <div className="overflow-x-auto rounded-xl border border-slate-200"

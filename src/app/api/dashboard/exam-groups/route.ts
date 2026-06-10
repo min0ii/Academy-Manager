@@ -76,8 +76,7 @@ export async function GET(req: NextRequest) {
     groupMap.get(key)!.exams.push(exam)
   }
 
-  // 2개 이상인 그룹만
-  const validGroups = Array.from(groupMap.values()).filter(g => g.exams.length >= 2)
+  const validGroups = Array.from(groupMap.values())
   if (validGroups.length === 0) {
     return Response.json({ dates: [], groups: [] })
   }
