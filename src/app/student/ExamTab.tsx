@@ -123,14 +123,14 @@ export default function ExamTab({
   }
 
   async function submitInquiry(questionId: string) {
-    if (!inquiryText.trim() || !examDetail) return
+    if (!examDetail) return
     setSubmittingInquiry(true)
     const token = await getToken()
     if (!token) { setSubmittingInquiry(false); return }
     const res = await fetch('/api/exam-inquiries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ examId: examDetail.exam.id, questionId, body: inquiryText.trim() }),
+      body: JSON.stringify({ examId: examDetail.exam.id, questionId, body: inquiryText.trim() || '질문 있어요' }),
     })
     if (res.ok) {
       setSubmittedInquiries(prev => new Set([...prev, questionId]))
@@ -410,7 +410,7 @@ export default function ExamTab({
                         autoFocus
                         className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
                       />
-                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
+                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
                         className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0 transition-colors">
                         <Send size={14} />
                       </button>

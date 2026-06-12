@@ -403,14 +403,14 @@ export default function StudentPage() {
   }
 
   async function submitInquiry(questionId: string | null) {
-    if (!currentExamId || !inquiryText.trim()) return
+    if (!currentExamId) return
     setSubmittingInquiry(true)
     const token = await getToken()
     if (!token) { setSubmittingInquiry(false); return }
     const res = await fetch('/api/exam-inquiries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ examId: currentExamId, questionId, body: inquiryText.trim() }),
+      body: JSON.stringify({ examId: currentExamId, questionId, body: inquiryText.trim() || '질문 있어요' }),
     })
     if (res.ok) {
       const { inquiry } = await res.json()
@@ -1217,7 +1217,7 @@ export default function StudentPage() {
                             placeholder="시험에 대해 질문을 입력해주세요" rows={3}
                             className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
                           <div className="flex gap-2">
-                            <button onClick={() => submitInquiry(null)} disabled={submittingInquiry || !inquiryText.trim()}
+                            <button onClick={() => submitInquiry(null)} disabled={submittingInquiry}
                               className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl disabled:opacity-50">
                               {submittingInquiry ? '전송 중...' : '질문 보내기'}
                             </button>
@@ -1320,7 +1320,7 @@ export default function StudentPage() {
                                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
                                         placeholder="질문을 입력해주세요" autoFocus
                                         className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
+                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
                                         className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
                                     </div>
                                   )}
@@ -1408,7 +1408,7 @@ export default function StudentPage() {
                                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
                                         placeholder="질문을 입력해주세요" autoFocus
                                         className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
+                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
                                         className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
                                     </div>
                                   )}
