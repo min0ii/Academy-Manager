@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ inquiries: result })
   }
 
-  // ── 선생님: 학원 전체 질문 조회 ──
+  // ── 선생님: 학원 전체 질문 조회 (examId 있으면 해당 시험만) ──
   if (academyId) {
     // 권한 확인 (원장 또는 팀 선생님)
     const { data: ownAcademy } = await db.from('academies').select('id').eq('id', academyId).eq('teacher_id', user.id).maybeSingle()
@@ -72,8 +72,12 @@ export async function GET(req: NextRequest) {
     const { data: exams } = await db.from('exams').select('id, title, class_id').in('class_id', classIds)
     const examInfoMap: Record<string, { title: string; className: string }> = {}
     ;(exams ?? []).forEach(e => { examInfoMap[e.id] = { title: e.title, className: classNameMap[e.class_id] ?? '' } })
-    const examIds = Object.keys(examInfoMap)
-    if (examIds.length === 0) return NextResponse.json({ inquiries: [] })
+    const allExamIds = Object.keys(examInfoMap)
+    if (allExamIds.length === 0) return NextResponse.json({ inquiries: [] })
+
+    // examId 필터: 특정 시험만 조회 (보안: 해당 학원 소속 시험인지 검증)
+    const filterExamId = examId && allExamIds.includes(examId) ? examId : null
+    const examIds = filterExamId ? [filterExamId] : allExamIds
 
     const { data: inquiries } = await db
       .from('exam_inquiries')

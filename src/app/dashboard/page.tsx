@@ -8,7 +8,6 @@ import { useAcademy } from '@/lib/academy-context'
 import { todayKST } from '@/lib/date'
 import { PageLoading } from '@/components/Skeleton'
 import ExamGroupWidget from './ExamGroupWidget'
-import ExamInquiryWidget from './ExamInquiryWidget'
 
 type Stats = {
   studentCount: number
@@ -147,9 +146,6 @@ export default function DashboardPage() {
 
       {/* 시험 모아보기 위젯 */}
       <ExamGroupWidget />
-
-      {/* 시험 질문 위젯 */}
-      <ExamInquiryWidget />
 
     </div>
   )

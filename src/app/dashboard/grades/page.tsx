@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, Trash2, AlertTriangle,
-  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical, MessageSquare,
+  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical, MessageSquare, Send,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
@@ -88,7 +88,28 @@ type WizardQuestion = {
   customLabel: string
 }
 
+type InquiryReply = { id: string; body: string; created_at: string; teacherName: string }
+type ExamInquiry = {
+  id: string
+  body: string
+  created_at: string
+  question_id: string | null
+  exam_questions: { order_num: number; question_text: string | null } | null
+  students: { id: string; name: string } | null
+  exam_inquiry_replies: InquiryReply[]
+}
+
 // ── Utilities ──────────────────────────────────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '방금 전'
+  if (mins < 60) return `${mins}분 전`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}시간 전`
+  return `${Math.floor(hrs / 24)}일 전`
+}
 
 function pct(score: number | null, max: number): number | null {
   if (score === null || max === 0) return null
@@ -637,6 +658,7 @@ function AutoMonitorView({
   examDetail, submissions, maxScore, submittedCount, avgScore,
   onRefresh, refreshing, lastRefresh, editAdjusted, setEditAdjusted,
   onSaveAdj, savingAdj, adjSaved, setAdjSaved, status, onToggleOverride, onSaveNote,
+  examId, academyId,
 }: {
   examDetail: ExamDetail | null
   submissions: StudentSubmission[]
@@ -655,6 +677,8 @@ function AutoMonitorView({
   status: 'scheduled' | 'active' | 'closed'
   onToggleOverride?: (submissionId: string, questionId: string, override: boolean) => void
   onSaveNote: (studentId: string, note: string) => void
+  examId: string
+  academyId: string
 }) {
   const totalStudents = submissions.length
   const avgP = pct(avgScore, maxScore)
@@ -662,6 +686,55 @@ function AutoMonitorView({
   const [showQuestions, setShowQuestions] = useState(false)
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set())
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({})
+
+  // 학생 질문 (Q&A)
+  const [inquiries, setInquiries] = useState<ExamInquiry[]>([])
+  const [loadingInq, setLoadingInq] = useState(false)
+  const [replyInputs, setReplyInputs] = useState<Record<string, string>>({})
+  const [sendingReply, setSendingReply] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadInquiries() {
+      if (!examId || !academyId) return
+      setLoadingInq(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { setLoadingInq(false); return }
+      const res = await fetch(`/api/exam-inquiries?academyId=${academyId}&examId=${examId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const { inquiries: data } = await res.json()
+        setInquiries(data ?? [])
+      }
+      setLoadingInq(false)
+    }
+    loadInquiries()
+  }, [examId, academyId])
+
+  async function sendReply(inquiryId: string) {
+    const text = (replyInputs[inquiryId] ?? '').trim()
+    if (!text) return
+    setSendingReply(inquiryId)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setSendingReply(null); return }
+    const res = await fetch(`/api/exam-inquiries/${inquiryId}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ body: text }),
+    })
+    if (res.ok) {
+      const { reply } = await res.json()
+      setInquiries(prev => prev.map(inq =>
+        inq.id === inquiryId
+          ? { ...inq, exam_inquiry_replies: [...inq.exam_inquiry_replies, reply] }
+          : inq
+      ))
+      setReplyInputs(prev => ({ ...prev, [inquiryId]: '' }))
+    }
+    setSendingReply(null)
+  }
 
   // Per-question wrong rate analysis
   const questionAnalysis = (examDetail?.questions ?? []).map(q => {
@@ -982,6 +1055,71 @@ function AutoMonitorView({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* 학생 질문 */}
+      {(loadingInq || inquiries.length > 0) && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <p className="text-sm font-semibold text-slate-700">학생 질문</p>
+          </div>
+          {loadingInq ? (
+            <p className="text-center text-sm text-slate-400 py-6">불러오는 중...</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {[...inquiries]
+                .sort((a, b) => {
+                  const aNum = a.exam_questions?.order_num ?? Infinity
+                  const bNum = b.exam_questions?.order_num ?? Infinity
+                  if (aNum !== bNum) return aNum - bNum
+                  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                })
+                .map(inq => {
+                  const qLabel = inq.question_id && inq.exam_questions
+                    ? `${inq.exam_questions.order_num}번`
+                    : '일반'
+                  return (
+                    <div key={inq.id} className="px-4 py-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${inq.question_id ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {qLabel}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-700">{inq.students?.name ?? '학생'}</span>
+                        <span className="text-xs text-slate-400 ml-auto">{timeAgo(inq.created_at)}</span>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-700">
+                        {inq.body}
+                      </div>
+                      {inq.exam_inquiry_replies.map(reply => (
+                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm max-w-[85%]">
+                            {reply.body}
+                          </div>
+                          <p className="text-xs text-slate-400 pr-1">{reply.teacherName} · {timeAgo(reply.created_at)}</p>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <input
+                          value={replyInputs[inq.id] ?? ''}
+                          onChange={e => setReplyInputs(prev => ({ ...prev, [inq.id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendReply(inq.id)}
+                          placeholder="답변 입력..."
+                          className="flex-1 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => sendReply(inq.id)}
+                          disabled={sendingReply === inq.id || !(replyInputs[inq.id] ?? '').trim()}
+                          className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 flex-shrink-0 transition-colors"
+                        >
+                          <Send size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2261,6 +2399,8 @@ function GradesContent() {
           status={currentStatus}
           onToggleOverride={overrideAnswer}
           onSaveNote={saveExamNote}
+          examId={selectedExam?.id ?? ''}
+          academyId={ctx?.academyId ?? ''}
         />
         )}
         </div>
