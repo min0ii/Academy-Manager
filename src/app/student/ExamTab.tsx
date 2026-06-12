@@ -406,9 +406,8 @@ export default function ExamTab({
                         value={inquiryText}
                         onChange={e => setInquiryText(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                        placeholder="이 문제에 대해 질문해보세요"
-                        autoFocus
-                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="내용 없이 보내면 '질문 있어요'로 전송돼요"
+                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-300"
                       />
                       <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
                         className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0 transition-colors">
