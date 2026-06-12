@@ -1280,8 +1280,9 @@ export default function StudentPage() {
                               <div className="ml-auto flex items-center gap-2">
                                 <span className="text-xs text-slate-400">{q.score}점</span>
                                 <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
-                                  className={`text-[11px] font-medium transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-400 hover:text-blue-500'}`}>
-                                  {openInquiryFor === q.id ? '닫기' : '질문하기'}
+                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${openInquiryFor === q.id ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                                  {openInquiryFor === q.id ? <X size={11} /> : <HelpCircle size={11} />}
+                                  {openInquiryFor === q.id ? '닫기' : '질문'}
                                 </button>
                               </div>
                             </div>
@@ -1304,25 +1305,23 @@ export default function StudentPage() {
                                 <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-1.5">
                                   {qInqs.map(inq => (
                                     <div key={inq.id} className="space-y-1">
-                                      <div className="bg-white/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-600">{inq.body}</div>
+                                      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words">{inq.body}</div>
                                       {inq.exam_inquiry_replies.map(reply => (
                                         <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                                          <div className="bg-blue-600 text-white rounded-lg px-2.5 py-1.5 text-xs max-w-[90%]">{reply.body}</div>
+                                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
                                           <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
                                         </div>
                                       ))}
                                     </div>
                                   ))}
                                   {isOpen && (
-                                    <div className="flex gap-1.5">
+                                    <div className="flex gap-2 mt-1">
                                       <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                                        placeholder="질문 내용..." autoFocus
-                                        className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                        placeholder="질문을 입력해주세요" autoFocus
+                                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                       <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
-                                        className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send size={12} /></button>
-                                      <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
-                                        className="p-1.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
                                     </div>
                                   )}
                                 </div>
@@ -1354,8 +1353,9 @@ export default function StudentPage() {
                               <div className="ml-auto flex items-center gap-2">
                                 <span className="text-xs text-slate-400 whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
                                 <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
-                                  className={`text-[11px] font-medium transition-colors ${openInquiryFor === q.id ? 'text-blue-500' : 'text-slate-400 hover:text-blue-500'}`}>
-                                  {openInquiryFor === q.id ? '닫기' : '질문하기'}
+                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${openInquiryFor === q.id ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                                  {openInquiryFor === q.id ? <X size={11} /> : <HelpCircle size={11} />}
+                                  {openInquiryFor === q.id ? '닫기' : '질문'}
                                 </button>
                               </div>
                             </div>
@@ -1393,25 +1393,23 @@ export default function StudentPage() {
                                 <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
                                   {qInqs.map(inq => (
                                     <div key={inq.id} className="space-y-1">
-                                      <div className="bg-slate-100 rounded-lg px-2.5 py-1.5 text-xs text-slate-600">{inq.body}</div>
+                                      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words">{inq.body}</div>
                                       {inq.exam_inquiry_replies.map(reply => (
                                         <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                                          <div className="bg-blue-600 text-white rounded-lg px-2.5 py-1.5 text-xs max-w-[90%]">{reply.body}</div>
+                                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
                                           <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
                                         </div>
                                       ))}
                                     </div>
                                   ))}
                                   {isOpen && (
-                                    <div className="flex gap-1.5">
+                                    <div className="flex gap-2 mt-1">
                                       <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                                        placeholder="질문 내용..." autoFocus
-                                        className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                        placeholder="질문을 입력해주세요" autoFocus
+                                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
                                       <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
-                                        className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send size={12} /></button>
-                                      <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
-                                        className="p-1.5 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+                                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
                                     </div>
                                   )}
                                 </div>

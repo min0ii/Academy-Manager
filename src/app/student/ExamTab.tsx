@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import {
   ChevronLeft, ChevronRight, Clock, CheckCircle2, AlertTriangle, Send,
-  ClipboardList, X,
+  ClipboardList, X, HelpCircle,
 } from 'lucide-react'
 
 type AvailableExam = {
@@ -111,9 +111,33 @@ export default function ExamTab({
   const [forfeiting, setForfeiting] = useState(false)
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null)
 
+  // 질문 (result 화면)
+  const [openInquiryFor, setOpenInquiryFor] = useState<string | null>(null)
+  const [inquiryText, setInquiryText] = useState('')
+  const [submittingInquiry, setSubmittingInquiry] = useState(false)
+  const [submittedInquiries, setSubmittedInquiries] = useState<Set<string>>(new Set())
+
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ?? null
+  }
+
+  async function submitInquiry(questionId: string) {
+    if (!inquiryText.trim() || !examDetail) return
+    setSubmittingInquiry(true)
+    const token = await getToken()
+    if (!token) { setSubmittingInquiry(false); return }
+    const res = await fetch('/api/exam-inquiries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ examId: examDetail.exam.id, questionId, body: inquiryText.trim() }),
+    })
+    if (res.ok) {
+      setSubmittedInquiries(prev => new Set([...prev, questionId]))
+      setOpenInquiryFor(null)
+      setInquiryText('')
+    }
+    setSubmittingInquiry(false)
   }
 
   // Load exam list on mount or when classId changes
@@ -350,7 +374,7 @@ export default function ExamTab({
               const qChoices = examDetail.choices.filter(c => c.question_id === q.id)
               const choiceText = qChoices.find(c => String(c.choice_num) === r?.studentAnswer)?.choice_text
               return (
-                <div key={q.id} className="px-4 py-3">
+                <div key={q.id} className="px-4 py-3 space-y-2.5">
                   <div className="flex items-start gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${r?.isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
                       {q.question_label ?? (idx + 1)}
@@ -375,6 +399,38 @@ export default function ExamTab({
                       <p className="text-xs text-slate-400">/ {q.score}점</p>
                     </div>
                   </div>
+                  {/* 질문하기 */}
+                  {openInquiryFor === q.id ? (
+                    <div className="flex gap-2">
+                      <input
+                        value={inquiryText}
+                        onChange={e => setInquiryText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
+                        placeholder="이 문제에 대해 질문해보세요"
+                        autoFocus
+                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry || !inquiryText.trim()}
+                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0 transition-colors">
+                        <Send size={14} />
+                      </button>
+                      <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
+                        className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl flex-shrink-0 transition-colors">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : submittedInquiries.has(q.id) ? (
+                    <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                      <CheckCircle2 size={12} /> 질문이 선생님께 전송됐어요
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => { setOpenInquiryFor(q.id); setInquiryText('') }}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 border border-slate-200 hover:border-blue-200 transition-colors"
+                    >
+                      <HelpCircle size={11} /> 질문하기
+                    </button>
+                  )}
                 </div>
               )
             })}

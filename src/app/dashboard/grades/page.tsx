@@ -1106,9 +1106,6 @@ function AutoMonitorView({
                           {group.label}
                         </span>
                         <span className="text-xs text-slate-500">{group.items.length}건</span>
-                        {unanswered > 0 && (
-                          <span className="text-xs bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">{unanswered} 미답변</span>
-                        )}
                         <ChevronDown size={14} className={`text-slate-400 ml-auto flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {isOpen && (
