@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  Plus, X, ChevronRight, ChevronLeft, Trash2, AlertTriangle,
+  Plus, X, ChevronRight, ChevronLeft, ChevronDown, Trash2, AlertTriangle,
   CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical, MessageSquare, Send,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -690,6 +690,8 @@ function AutoMonitorView({
   // 학생 질문 (Q&A)
   const [inquiries, setInquiries] = useState<ExamInquiry[]>([])
   const [loadingInq, setLoadingInq] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [openReplyFor, setOpenReplyFor] = useState<string | null>(null)
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({})
   const [sendingReply, setSendingReply] = useState<string | null>(null)
 
@@ -732,6 +734,7 @@ function AutoMonitorView({
           : inq
       ))
       setReplyInputs(prev => ({ ...prev, [inquiryId]: '' }))
+      setOpenReplyFor(null)
     }
     setSendingReply(null)
   }
@@ -1059,69 +1062,114 @@ function AutoMonitorView({
       )}
 
       {/* 학생 질문 */}
-      {(loadingInq || inquiries.length > 0) && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <p className="text-sm font-semibold text-slate-700">학생 질문</p>
-          </div>
-          {loadingInq ? (
-            <p className="text-center text-sm text-slate-400 py-6">불러오는 중...</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {[...inquiries]
-                .sort((a, b) => {
-                  const aNum = a.exam_questions?.order_num ?? Infinity
-                  const bNum = b.exam_questions?.order_num ?? Infinity
-                  if (aNum !== bNum) return aNum - bNum
-                  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                })
-                .map(inq => {
-                  const qLabel = inq.question_id && inq.exam_questions
-                    ? `${inq.exam_questions.order_num}번`
-                    : '일반'
+      {(loadingInq || inquiries.length > 0) && (() => {
+        const groups: { key: string; label: string; orderNum: number | null; items: ExamInquiry[] }[] = []
+        const groupMap = new Map<string, typeof groups[0]>()
+        for (const inq of inquiries) {
+          const orderNum = inq.exam_questions?.order_num ?? null
+          const key = orderNum !== null ? String(orderNum) : 'general'
+          const label = orderNum !== null ? `${orderNum}번` : '일반'
+          if (!groupMap.has(key)) {
+            const g = { key, label, orderNum, items: [] as ExamInquiry[] }
+            groups.push(g)
+            groupMap.set(key, g)
+          }
+          groupMap.get(key)!.items.push(inq)
+        }
+        groups.sort((a, b) => a.orderNum === null ? 1 : b.orderNum === null ? -1 : a.orderNum - b.orderNum)
+        groups.forEach(g => g.items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-700">학생 질문</p>
+              <span className="text-xs text-slate-400">{inquiries.length}건</span>
+            </div>
+            {loadingInq ? (
+              <p className="text-center text-sm text-slate-400 py-6">불러오는 중...</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {groups.map(group => {
+                  const isOpen = expandedGroups.has(group.key)
+                  const unanswered = group.items.filter(i => i.exam_inquiry_replies.length === 0).length
                   return (
-                    <div key={inq.id} className="px-4 py-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${inq.question_id ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                          {qLabel}
+                    <div key={group.key}>
+                      <button
+                        onClick={() => setExpandedGroups(prev => {
+                          const n = new Set(prev)
+                          n.has(group.key) ? n.delete(group.key) : n.add(group.key)
+                          return n
+                        })}
+                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${group.orderNum !== null ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {group.label}
                         </span>
-                        <span className="text-sm font-semibold text-slate-700">{inq.students?.name ?? '학생'}</span>
-                        <span className="text-xs text-slate-400 ml-auto">{timeAgo(inq.created_at)}</span>
-                      </div>
-                      <div className="bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-700">
-                        {inq.body}
-                      </div>
-                      {inq.exam_inquiry_replies.map(reply => (
-                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm max-w-[85%]">
-                            {reply.body}
-                          </div>
-                          <p className="text-xs text-slate-400 pr-1">{reply.teacherName} · {timeAgo(reply.created_at)}</p>
+                        <span className="text-xs text-slate-500">{group.items.length}건</span>
+                        {unanswered > 0 && (
+                          <span className="text-xs bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">{unanswered} 미답변</span>
+                        )}
+                        <ChevronDown size={14} className={`text-slate-400 ml-auto flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isOpen && (
+                        <div className="border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/40">
+                          {group.items.map(inq => {
+                            const replyOpen = openReplyFor === inq.id
+                            return (
+                              <div key={inq.id} className="px-4 py-3 space-y-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-sm font-semibold text-slate-700 truncate">{inq.students?.name ?? '학생'}</span>
+                                  <span className="text-xs text-slate-400 flex-shrink-0">{timeAgo(inq.created_at)}</span>
+                                  <button
+                                    onClick={() => setOpenReplyFor(prev => prev === inq.id ? null : inq.id)}
+                                    className={`ml-auto flex-shrink-0 p-1.5 rounded-lg transition-colors ${replyOpen ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                                  >
+                                    <MessageSquare size={14} />
+                                  </button>
+                                </div>
+                                <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 break-words">
+                                  {inq.body}
+                                </div>
+                                {inq.exam_inquiry_replies.map(reply => (
+                                  <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                                    <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm break-words w-fit max-w-full">
+                                      {reply.body}
+                                    </div>
+                                    <p className="text-xs text-slate-400 pr-1">{reply.teacherName} · {timeAgo(reply.created_at)}</p>
+                                  </div>
+                                ))}
+                                {replyOpen && (
+                                  <div className="flex gap-2">
+                                    <input
+                                      value={replyInputs[inq.id] ?? ''}
+                                      onChange={e => setReplyInputs(prev => ({ ...prev, [inq.id]: e.target.value }))}
+                                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendReply(inq.id)}
+                                      placeholder="답변 입력..."
+                                      autoFocus
+                                      className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <button
+                                      onClick={() => sendReply(inq.id)}
+                                      disabled={sendingReply === inq.id || !(replyInputs[inq.id] ?? '').trim()}
+                                      className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 flex-shrink-0 transition-colors"
+                                    >
+                                      <Send size={16} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
-                      ))}
-                      <div className="flex gap-2">
-                        <input
-                          value={replyInputs[inq.id] ?? ''}
-                          onChange={e => setReplyInputs(prev => ({ ...prev, [inq.id]: e.target.value }))}
-                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendReply(inq.id)}
-                          placeholder="답변 입력..."
-                          className="flex-1 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <button
-                          onClick={() => sendReply(inq.id)}
-                          disabled={sendingReply === inq.id || !(replyInputs[inq.id] ?? '').trim()}
-                          className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 flex-shrink-0 transition-colors"
-                        >
-                          <Send size={16} />
-                        </button>
-                      </div>
+                      )}
                     </div>
                   )
                 })}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
