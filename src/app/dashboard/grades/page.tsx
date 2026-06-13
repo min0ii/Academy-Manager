@@ -1990,7 +1990,7 @@ function GradesContent() {
 
       {/* ── Type select modal ── */}
       {addModal === 'type_select' && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="font-bold text-slate-800">시험 종류 선택</h2>
@@ -2024,7 +2024,7 @@ function GradesContent() {
 
       {/* ── Auto exam wizard: 마감 방식 선택 (1단계) ── */}
       {addModal === 'auto_deadline' && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -2081,7 +2081,7 @@ function GradesContent() {
 
       {/* ── Manual exam modal ── */}
       {addModal === 'manual' && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -2151,7 +2151,7 @@ function GradesContent() {
 
       {/* ── Auto exam wizard step 1 ── */}
       {addModal === 'auto_1' && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl">
               <div className="flex items-center gap-2">
@@ -2456,7 +2456,7 @@ function GradesContent() {
         <>
           {/* Step 1: 기본 정보 */}
           {editStep === 1 && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
               <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl">
                   <div>

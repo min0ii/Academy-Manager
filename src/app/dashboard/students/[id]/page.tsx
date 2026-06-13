@@ -1088,7 +1088,7 @@ function StudentReportContent() {
       )}
       {/* ── 전반 모달 ── */}
       {showTransferModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div>

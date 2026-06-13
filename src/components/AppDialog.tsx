@@ -54,7 +54,7 @@ export function useDialog() {
 
   const dialogEl = (
     <div
-      className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-6"
       style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)' }}
       onClick={e => { if (e.target === e.currentTarget) close(false) }}
     >

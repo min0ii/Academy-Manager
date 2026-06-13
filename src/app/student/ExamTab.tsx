@@ -657,7 +657,7 @@ export default function ExamTab({
 
         {/* Forfeit confirm modal */}
         {showForfeitModal && createPortal(
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="bg-white rounded-2xl w-full max-w-sm">
               <div className="flex items-center justify-between p-5 border-b border-slate-100">
                 <h2 className="font-bold text-slate-800">시험 포기</h2>
@@ -687,7 +687,7 @@ export default function ExamTab({
 
         {/* Submit confirm modal */}
         {showSubmitModal && createPortal(
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="bg-white rounded-2xl w-full max-w-sm">
               <div className="flex items-center justify-between p-5 border-b border-slate-100">
                 <h2 className="font-bold text-slate-800">최종 제출</h2>

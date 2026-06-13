@@ -1387,7 +1387,7 @@ async function resetAllLives() {
           )}
 
           {showAddStudent && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
               <div className="bg-white rounded-2xl w-full max-w-md max-h-[82vh] flex flex-col">
                 <div className="flex items-center justify-between p-5 border-b border-slate-100">
                   <div>
@@ -1945,7 +1945,7 @@ async function resetAllLives() {
 
       {/* ════════ 수업/클리닉 선택 모달 ════════ */}
       {showTypeChoice && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div>
@@ -1994,7 +1994,7 @@ async function resetAllLives() {
 
       {/* ════════ 수업 없는 날 추가 모달 ════════ */}
       {showAddExtra && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div>
@@ -2035,7 +2035,7 @@ async function resetAllLives() {
 
       {/* ════════ 클리닉 추가 모달 ════════ */}
       {showAddExtraClinic && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <div>
@@ -2084,7 +2084,7 @@ async function resetAllLives() {
 
       {/* ════════ 수업 시간 추가 모달 ════════ */}
       {showScheduleForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="font-bold text-slate-800">수업 시간 추가</h2>
@@ -2131,7 +2131,7 @@ async function resetAllLives() {
 
       {/* ════════ 클리닉 일정 추가 모달 ════════ */}
       {showClinicScheduleForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="font-bold text-slate-800">클리닉 일정 추가</h2>
@@ -2185,7 +2185,7 @@ async function resetAllLives() {
 
       {/* ════════ 과제 추가 모달 ════════ */}
       {showAddHomework && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="font-bold text-slate-800">과제 추가</h2>

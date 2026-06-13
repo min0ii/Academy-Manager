@@ -699,7 +699,7 @@ export default function SettingsPage() {
 
       {/* 규칙 추가 모달 */}
       {showRuleForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-4 sm:pb-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 pb-4 sm:pb-0">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white">
               <div className="flex items-center gap-2">

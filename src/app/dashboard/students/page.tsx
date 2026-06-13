@@ -1117,7 +1117,7 @@ export default function StudentsPage() {
 
       {/* ══ 추가/수정 모달 ══ */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="font-bold text-slate-800">{editingId ? '학생 정보 수정' : '학생 추가'}</h2>
@@ -1228,7 +1228,7 @@ export default function StudentsPage() {
         const checkedCount = withdrawList.filter(s => selectedWithdrawIds.has(s.id)).length
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="bg-white rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: '85vh' }}>
               {/* 헤더 */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">

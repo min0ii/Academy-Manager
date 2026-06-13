@@ -168,7 +168,7 @@ export default function ClassesPage() {
 
       {/* 반 추가/수정 모달 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h2 className="font-bold text-slate-800">{editingId ? '반 이름 수정' : '반 추가'}</h2>
