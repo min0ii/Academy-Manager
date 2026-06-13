@@ -1190,7 +1190,7 @@ export default function ParentPage() {
         )}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-10 safe-area-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-[60] safe-area-bottom">
         {TABS.map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${tab===key?'text-violet-600':'text-slate-400 hover:text-slate-600'}`}>

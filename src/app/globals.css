@@ -56,3 +56,17 @@ button:disabled {
   .animate-fade-in-up { animation: none; }
   .skeleton-shimmer { animation: none; }
 }
+
+/* ── 모바일 UX ───────────────────────────────────────────── */
+
+/* iPhone 홈 인디케이터 영역 침범 방지 (하단 고정 네비게이션용) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* iOS Safari: font-size 16px 미만 input 포커스 시 페이지 자동 확대 방지 */
+@media (max-width: 767px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
