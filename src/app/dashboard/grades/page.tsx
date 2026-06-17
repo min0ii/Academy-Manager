@@ -94,7 +94,7 @@ type ExamInquiry = {
   body: string
   created_at: string
   question_id: string | null
-  exam_questions: { order_num: number; question_text: string | null } | null
+  exam_questions: { order_num: number; question_label: string | null; question_text: string | null } | null
   students: { id: string; name: string } | null
   exam_inquiry_replies: InquiryReply[]
 }
@@ -1068,7 +1068,8 @@ function AutoMonitorView({
         for (const inq of inquiries) {
           const orderNum = inq.exam_questions?.order_num ?? null
           const key = orderNum !== null ? String(orderNum) : 'general'
-          const label = orderNum !== null ? `${orderNum}번` : '일반'
+          const displayLabel = inq.exam_questions?.question_label ?? (orderNum !== null ? String(orderNum) : null)
+          const label = displayLabel !== null ? `${displayLabel}번` : '일반'
           if (!groupMap.has(key)) {
             const g = { key, label, orderNum, items: [] as ExamInquiry[] }
             groups.push(g)

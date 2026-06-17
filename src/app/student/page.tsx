@@ -49,7 +49,7 @@ type StudentContext = {
 }
 
 type ExamResultQuestion = {
-  id: string; order_num: number; question_text: string | null
+  id: string; order_num: number; question_label: string | null; question_text: string | null
   question_type: 'multiple_choice' | 'short_answer'; score: number
 }
 type ExamResultChoice = { question_id: string; choice_num: number; choice_text: string | null }
@@ -66,7 +66,7 @@ type ExamResult = {
 type ExamInquiryReply = { id: string; body: string; created_at: string; teacher_id: string; teacherName: string }
 type ExamInquiry = {
   id: string; body: string; created_at: string; question_id: string | null
-  exam_questions: { order_num: number; question_text: string | null } | null
+  exam_questions: { order_num: number; question_label: string | null; question_text: string | null } | null
   exam_inquiry_replies: ExamInquiryReply[]
 }
 type ClinicRecord = {
@@ -1275,7 +1275,7 @@ export default function StudentPage() {
                           <div key={q.id} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <span className={`text-xs font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
-                                {q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
+                                {q.question_label ?? q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
                               </span>
                               <div className="ml-auto flex items-center gap-2">
                                 <span className="text-xs text-slate-400">{q.score}점</span>
@@ -1348,7 +1348,7 @@ export default function StudentPage() {
                           <div key={q.id} className={`rounded-xl border p-4 space-y-2 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
                             <div className="flex items-center gap-2">
                               <span className={`text-sm font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
-                                {q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
+                                {q.question_label ?? q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
                               </span>
                               <div className="ml-auto flex items-center gap-2">
                                 <span className="text-xs text-slate-400 whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>

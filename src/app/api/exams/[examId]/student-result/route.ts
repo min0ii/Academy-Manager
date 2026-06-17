@@ -100,7 +100,7 @@ export async function GET(
 
   // 자동 채점 시험
   const { data: questions } = await db.from('exam_questions')
-    .select('id, order_num, question_text, question_type, score')
+    .select('id, order_num, question_label, question_text, question_type, score')
     .eq('exam_id', examId).order('order_num')
 
   const questionIds = (questions ?? []).map(q => q.id)

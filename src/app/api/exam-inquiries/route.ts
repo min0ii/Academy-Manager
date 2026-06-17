@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const { data: inquiries } = await db
       .from('exam_inquiries')
-      .select('id, body, created_at, question_id, exam_questions (order_num, question_text), exam_inquiry_replies (id, body, created_at, teacher_id)')
+      .select('id, body, created_at, question_id, exam_questions (order_num, question_label, question_text), exam_inquiry_replies (id, body, created_at, teacher_id)')
       .eq('exam_id', examId)
       .eq('student_id', studentId)
       .order('created_at')
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     const { data: inquiries } = await db
       .from('exam_inquiries')
-      .select('id, exam_id, body, created_at, question_id, exam_questions (order_num, question_text), students (id, name), exam_inquiry_replies (id, body, created_at, teacher_id)')
+      .select('id, exam_id, body, created_at, question_id, exam_questions (order_num, question_label, question_text), students (id, name), exam_inquiry_replies (id, body, created_at, teacher_id)')
       .in('exam_id', examIds)
       .order('created_at', { ascending: false })
 
