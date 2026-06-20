@@ -712,7 +712,7 @@ function AutoMonitorView({
       setLoadingInq(false)
     }
     loadInquiries()
-  }, [examId, academyId])
+  }, [examId, academyId, lastRefresh])
 
   async function sendReply(inquiryId: string) {
     const text = (replyInputs[inquiryId] ?? '').trim()

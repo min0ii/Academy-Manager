@@ -643,12 +643,18 @@ export default function ExamTab({
         {/* Submit / Forfeit buttons */}
         {!isExpired && (
           <div className="space-y-2">
-            <button onClick={() => setShowSubmitModal(true)}
+            <button onClick={() => {
+                if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+                setTimeout(() => setShowSubmitModal(true), 150)
+              }}
               className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-base">
               <Send size={18} />
               최종 제출하기
             </button>
-            <button onClick={() => setShowForfeitModal(true)}
+            <button onClick={() => {
+                if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+                setTimeout(() => setShowForfeitModal(true), 150)
+              }}
               className="w-full py-2.5 text-slate-400 text-sm hover:text-orange-500 transition-colors">
               시험 포기
             </button>
