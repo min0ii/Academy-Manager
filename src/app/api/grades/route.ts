@@ -148,7 +148,8 @@ export async function GET(req: NextRequest) {
     const allExams = [...(closedExams ?? []), ...(noDeadlineExams ?? []), ...(manualActiveExams ?? [])].filter((e: any) => {
       if (seenExamIds1.has(e.id)) return false
       seenExamIds1.add(e.id)
-      return true
+      const dateStr = (e.start_at ?? e.created_at).slice(0, 10)
+      return dateStr >= enrolledAt1
     })
     if (allExams.length) {
       const examIds = allExams.map(e => e.id)
@@ -426,7 +427,8 @@ export async function GET(req: NextRequest) {
     ].filter((e: any) => {
       if (seenExamIds5.has(e.id)) return false
       seenExamIds5.add(e.id)
-      return true
+      const dateStr = (e.start_at ?? e.created_at).slice(0, 10)
+      return dateStr >= enrolledAt5
     }) as any[]
 
     const records: Record<string, unknown>[] = []
@@ -713,7 +715,8 @@ export async function GET(req: NextRequest) {
     const allExams2 = [...(closedExams2 ?? []), ...(noDeadlineExams2 ?? []), ...(manualActiveExams2 ?? [])].filter((e: any) => {
       if (seenExamIds2.has(e.id)) return false
       seenExamIds2.add(e.id)
-      return true
+      const dateStr = (e.start_at ?? e.created_at).slice(0, 10)
+      return dateStr >= enrolledAt7
     })
     if (allExams2.length) {
       const examIds = allExams2.map(e => e.id)

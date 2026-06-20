@@ -37,9 +37,12 @@ export async function GET(req: NextRequest) {
   const info = await verifyStudent(db, token, classId)
   if (!info) return NextResponse.json({ error: '학생 계정만 접근할 수 있어요.' }, { status: 403 })
 
+  const { data: studentRow } = await db.from('students').select('enrolled_at').eq('id', info.studentId).single()
+  const enrolledAt = studentRow?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+
   // scheduled 또는 active 상태인 자동채점 시험 모두 반환 (시간 필터 없음)
   const { data: exams } = await db.from('exams')
-    .select('id, title, exam_type, start_at, end_at, status, answer_reveal, no_deadline')
+    .select('id, title, exam_type, start_at, end_at, status, answer_reveal, no_deadline, created_at')
     .eq('class_id', classId)
     .eq('exam_type', 'auto')
     .in('status', ['scheduled', 'active'])
@@ -59,6 +62,9 @@ export async function GET(req: NextRequest) {
 
   const result = exams
     .filter(e => {
+      // 등록일 이전 시험 제외
+      const examDate = (e.start_at ?? e.created_at).slice(0, 10)
+      if (examDate < enrolledAt) return false
       // 마감없는 시험에서 이미 제출하거나 포기한 경우 목록에서 제외 (성적 탭에서 확인)
       if (e.no_deadline && submittedSet.has(e.id)) return false
       // 포기한 시험은 모든 시험 유형에서 제외
