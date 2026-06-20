@@ -1323,21 +1323,34 @@ function AutoMonitorView({
 
       {/* 학생 질문 */}
       {(loadingInq || inquiries.length > 0) && (() => {
-        const groups: { key: string; label: string; orderNum: number | null; items: ExamInquiry[] }[] = []
+        const groups: { key: string; label: string; sortLabel: string; items: ExamInquiry[] }[] = []
         const groupMap = new Map<string, typeof groups[0]>()
         for (const inq of inquiries) {
-          const orderNum = inq.exam_questions?.order_num ?? null
-          const key = orderNum !== null ? String(orderNum) : 'general'
-          const displayLabel = inq.exam_questions?.question_label ?? (orderNum !== null ? String(orderNum) : null)
+          // question_id를 key로 사용 (order_num은 소문제와 일반문제 간 충돌 발생)
+          const key = inq.question_id ?? 'general'
+          const qLabel = inq.exam_questions?.question_label
+          const qOrderNum = inq.exam_questions?.order_num
+          const displayLabel = qLabel ?? (qOrderNum != null ? String(qOrderNum) : null)
           const label = displayLabel !== null ? `${displayLabel}번` : '일반'
           if (!groupMap.has(key)) {
-            const g = { key, label, orderNum, items: [] as ExamInquiry[] }
+            const g = { key, label, sortLabel: displayLabel ?? '￿', items: [] as ExamInquiry[] }
             groups.push(g)
             groupMap.set(key, g)
           }
           groupMap.get(key)!.items.push(inq)
         }
-        groups.sort((a, b) => a.orderNum === null ? 1 : b.orderNum === null ? -1 : a.orderNum - b.orderNum)
+        // question_label 자연 정렬: "1" < "1-1" < "1-2" < "2" < "10"
+        groups.sort((a, b) => {
+          if (a.key === 'general') return 1
+          if (b.key === 'general') return -1
+          const aParts = a.sortLabel.split('-').map(p => parseInt(p) || 0)
+          const bParts = b.sortLabel.split('-').map(p => parseInt(p) || 0)
+          for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+            const diff = (aParts[i] ?? 0) - (bParts[i] ?? 0)
+            if (diff !== 0) return diff
+          }
+          return 0
+        })
         groups.forEach(g => g.items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
 
         return (
@@ -1363,7 +1376,7 @@ function AutoMonitorView({
                         })}
                         className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
                       >
-                        <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${group.orderNum !== null ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${group.key !== 'general' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
                           {group.label}
                         </span>
                         <span className="text-xs text-slate-500">{group.items.length}건</span>
@@ -2628,9 +2641,12 @@ function GradesContent() {
             <div className="p-5 border-t border-slate-100 flex-shrink-0 space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">
-                  총 {wizardQs.length}문제 · 총점 {Math.round(wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) * 100) / 100}점
+                  총 {wizardQs.length}문제 · 총점 {Math.round(wizardQs.reduce((s, q) => {
+                    if (q.questionType === 'group') return s + (q.children ?? []).reduce((cs, c) => cs + (parseFloat(c.score) || 0), 0)
+                    return s + (parseFloat(q.score) || 0)
+                  }, 0) * 100) / 100}점
                 </span>
-                <button onClick={distributeScore} className="text-xs text-blue-500 hover:text-blue-700 font-medium">배점 균등 분배</button>
+                <button onClick={distributeScore} className="text-xs text-blue-500 hover:text-blue-700 font-medium" title="일반 문제에만 적용됩니다. 소문제 배점은 직접 입력해주세요.">배점 균등 분배</button>
               </div>
               <button
                 onClick={() => setWizardCustomLabels(v => !v)}
@@ -2912,7 +2928,10 @@ function GradesContent() {
                 <div className="p-5 border-t border-slate-100 flex-shrink-0 space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">
-                      총 {editWizardQs.length}문제 · 총점 {Math.round(editWizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) * 100) / 100}점
+                      총 {editWizardQs.length}문제 · 총점 {Math.round(editWizardQs.reduce((s, q) => {
+                        if (q.questionType === 'group') return s + (q.children ?? []).reduce((cs, c) => cs + (parseFloat(c.score) || 0), 0)
+                        return s + (parseFloat(q.score) || 0)
+                      }, 0) * 100) / 100}점
                     </span>
                     <button onClick={() => setEditCustomLabels(v => !v)}
                       className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${editCustomLabels ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>

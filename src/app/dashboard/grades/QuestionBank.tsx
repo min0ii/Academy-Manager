@@ -944,9 +944,14 @@ export default function QuestionBank() {
                     {examModalStep === 1 ? '출제할 문제 선택' : '시험 설정'}
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {examModalStep === 1
-                      ? `${selectedQClientIds.size} / ${questions.length}문제 선택됨`
-                      : '반과 시험 정보를 입력해주세요'}
+                    {examModalStep === 1 ? (() => {
+                      const selectedQs = questions.filter(q => selectedQClientIds.has(q.clientId))
+                      const totalScore = selectedQs.reduce((s, q) => {
+                        if (q.question_type === 'group') return s + (q.children ?? []).reduce((cs, c) => cs + (parseFloat(c.score) || 0), 0)
+                        return s + (parseFloat(q.score) || 0)
+                      }, 0)
+                      return `${selectedQClientIds.size} / ${questions.length}문제 선택됨 · 총 ${totalScore}점`
+                    })() : '반과 시험 정보를 입력해주세요'}
                   </p>
                 </div>
                 <button onClick={() => setShowCreateExamModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -970,6 +975,11 @@ export default function QuestionBank() {
                     {questions.map((q, i) => {
                       const label = displayLabel(q, i)
                       const checked = selectedQClientIds.has(q.clientId)
+                      const isGroup = q.question_type === 'group'
+                      const groupChildCount = isGroup ? (q.children ?? []).length : 0
+                      const groupTotalScore = isGroup
+                        ? (q.children ?? []).reduce((s, c) => s + (parseFloat(c.score) || 0), 0)
+                        : 0
                       return (
                         <button key={q.clientId}
                           onClick={() => setSelectedQClientIds(prev => {
@@ -977,20 +987,32 @@ export default function QuestionBank() {
                             next.has(q.clientId) ? next.delete(q.clientId) : next.add(q.clientId)
                             return next
                           })}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${checked ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                          {/* 문제 번호 뱃지 */}
-                          <div className={`min-w-8 h-8 rounded-lg px-1 text-sm font-bold flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${checked ? (isGroup ? 'border-purple-400 bg-purple-50' : 'border-blue-400 bg-blue-50') : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <div className={`min-w-8 h-8 rounded-lg px-1 text-sm font-bold flex items-center justify-center flex-shrink-0 transition-colors ${checked ? (isGroup ? 'bg-purple-500 text-white' : 'bg-blue-500 text-white') : 'bg-slate-100 text-slate-500'}`}>
                             {label}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-700 truncate">
-                              {q.question_text || '(문제 내용 없음)'}
-                            </p>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {q.question_type === 'multiple_choice' ? '객관식' : '주관식'} · {q.score}점
-                            </p>
+                            {isGroup ? (
+                              <>
+                                <p className="text-sm text-slate-700 truncate">
+                                  {q.groupContext?.trim() || '(공통 지문 없음)'}
+                                </p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  소문제 그룹 · {groupChildCount}개 소문제 · 총 {groupTotalScore}점
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-slate-700 truncate">
+                                  {q.question_text || '(문제 내용 없음)'}
+                                </p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {q.question_type === 'multiple_choice' ? '객관식' : '주관식'} · {q.score}점
+                                </p>
+                              </>
+                            )}
                           </div>
-                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}`}>
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? (isGroup ? 'bg-purple-500 border-purple-500' : 'bg-blue-500 border-blue-500') : 'border-slate-300'}`}>
                             {checked && <Check size={12} className="text-white" />}
                           </div>
                         </button>
