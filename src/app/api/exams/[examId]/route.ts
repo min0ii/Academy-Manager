@@ -139,7 +139,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
     ])
 
     const studentIds = (classStudents ?? []).map(cs => cs.student_id)
-    const qs = questions ?? []
+    // 그룹(소문제 부모) 문제는 채점 대상에서 제외
+    const qs = (questions ?? []).filter(q => q.question_type !== 'group')
     const questionIds = qs.map(q => q.id)
 
     // 제출 현황 맵 (student_id → submission)
@@ -298,30 +299,73 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
         ])
         await db.from('exam_questions').delete().in('id', oldIds)
       }
-      // 새 questions 삽입
+      // 새 questions 삽입 (그룹 소문제 지원)
       for (const q of newQs) {
-        const { data: question } = await db.from('exam_questions').insert({
-          exam_id: examId,
-          order_num: q.orderNum,
-          question_text: q.questionText ?? null,
-          question_type: q.questionType,
-          score: q.score,
-          question_label: q.label ?? null,
-        }).select('id').single()
-        if (!question) continue
-        if (q.questionType === 'multiple_choice' && q.choices?.length) {
-          await db.from('exam_choices').insert(
-            q.choices.map((c: { num: number; text: string }) => ({
-              question_id: question.id, choice_num: c.num, choice_text: c.text ?? null,
-            }))
-          )
-        }
-        if (q.answers?.length) {
-          await db.from('exam_correct_answers').insert(
-            q.answers.map((a: string, idx: number) => ({
-              question_id: question.id, answer_text: a, order_num: idx + 1,
-            }))
-          )
+        if (q.questionType === 'group') {
+          const { data: parent } = await db.from('exam_questions').insert({
+            exam_id: examId,
+            order_num: q.orderNum,
+            question_text: null,
+            question_type: 'group',
+            score: 0,
+            question_label: q.label ?? null,
+            group_context: q.groupContext ?? null,
+          }).select('id').single()
+          if (!parent) continue
+
+          for (let ci = 0; ci < (q.children ?? []).length; ci++) {
+            const child = q.children[ci]
+            const childLabel = child.label ?? `${q.label ?? q.orderNum}-${ci + 1}`
+            const { data: childQ } = await db.from('exam_questions').insert({
+              exam_id: examId,
+              order_num: ci + 1,
+              question_text: child.questionText ?? null,
+              question_type: child.questionType,
+              score: child.score,
+              question_label: childLabel,
+              parent_question_id: parent.id,
+            }).select('id').single()
+            if (!childQ) continue
+
+            if (child.questionType === 'multiple_choice' && child.choices?.length) {
+              await db.from('exam_choices').insert(
+                child.choices.map((c: { num: number; text: string }) => ({
+                  question_id: childQ.id, choice_num: c.num, choice_text: c.text ?? null,
+                }))
+              )
+            }
+            if (child.answers?.length) {
+              await db.from('exam_correct_answers').insert(
+                child.answers.map((a: string, idx: number) => ({
+                  question_id: childQ.id, answer_text: a, order_num: idx + 1,
+                }))
+              )
+            }
+          }
+        } else {
+          const { data: question } = await db.from('exam_questions').insert({
+            exam_id: examId,
+            order_num: q.orderNum,
+            question_text: q.questionText ?? null,
+            question_type: q.questionType,
+            score: q.score,
+            question_label: q.label ?? null,
+          }).select('id').single()
+          if (!question) continue
+          if (q.questionType === 'multiple_choice' && q.choices?.length) {
+            await db.from('exam_choices').insert(
+              q.choices.map((c: { num: number; text: string }) => ({
+                question_id: question.id, choice_num: c.num, choice_text: c.text ?? null,
+              }))
+            )
+          }
+          if (q.answers?.length) {
+            await db.from('exam_correct_answers').insert(
+              q.answers.map((a: string, idx: number) => ({
+                question_id: question.id, answer_text: a, order_num: idx + 1,
+              }))
+            )
+          }
         }
       }
     }

@@ -101,37 +101,75 @@ export async function POST(req: NextRequest) {
   // 자동 채점 시험이면 문제도 같이 저장
   if (examType === 'auto' && questions?.length) {
     for (const q of questions) {
-      const { data: question, error: qError } = await db.from('exam_questions').insert({
-        exam_id: exam.id,
-        order_num: q.orderNum,
-        question_text: q.questionText ?? null,
-        question_type: q.questionType, // 'multiple_choice' | 'short_answer'
-        score: q.score,
-        question_label: q.label ?? null,
-      }).select('id').single()
+      if (q.questionType === 'group') {
+        // 소문제 그룹: 부모 문제 먼저 삽입
+        const { data: parent } = await db.from('exam_questions').insert({
+          exam_id: exam.id,
+          order_num: q.orderNum,
+          question_text: null,
+          question_type: 'group',
+          score: 0,
+          question_label: q.label ?? null,
+          group_context: q.groupContext ?? null,
+        }).select('id').single()
+        if (!parent) continue
 
-      if (qError || !question) continue
+        // 자식 문제 순서대로 삽입
+        for (let ci = 0; ci < (q.children ?? []).length; ci++) {
+          const child = q.children[ci]
+          const childLabel = child.label ?? `${q.label ?? q.orderNum}-${ci + 1}`
+          const { data: childQ } = await db.from('exam_questions').insert({
+            exam_id: exam.id,
+            order_num: ci + 1,
+            question_text: child.questionText ?? null,
+            question_type: child.questionType,
+            score: child.score,
+            question_label: childLabel,
+            parent_question_id: parent.id,
+          }).select('id').single()
+          if (!childQ) continue
 
-      // 객관식 선택지
-      if (q.questionType === 'multiple_choice' && q.choices?.length) {
-        await db.from('exam_choices').insert(
-          q.choices.map((c: { num: number; text: string }) => ({
-            question_id: question.id,
-            choice_num: c.num,
-            choice_text: c.text ?? null,
-          }))
-        )
-      }
+          if (child.questionType === 'multiple_choice' && child.choices?.length) {
+            await db.from('exam_choices').insert(
+              child.choices.map((c: { num: number; text: string }) => ({
+                question_id: childQ.id, choice_num: c.num, choice_text: c.text ?? null,
+              }))
+            )
+          }
+          if (child.answers?.length) {
+            await db.from('exam_correct_answers').insert(
+              child.answers.map((a: string, idx: number) => ({
+                question_id: childQ.id, answer_text: a, order_num: idx + 1,
+              }))
+            )
+          }
+        }
+      } else {
+        // 일반 문제 (기존 로직)
+        const { data: question, error: qError } = await db.from('exam_questions').insert({
+          exam_id: exam.id,
+          order_num: q.orderNum,
+          question_text: q.questionText ?? null,
+          question_type: q.questionType,
+          score: q.score,
+          question_label: q.label ?? null,
+        }).select('id').single()
+        if (qError || !question) continue
 
-      // 정답 (주관식은 여러 개)
-      if (q.answers?.length) {
-        await db.from('exam_correct_answers').insert(
-          q.answers.map((a: string, idx: number) => ({
-            question_id: question.id,
-            answer_text: a,
-            order_num: idx + 1,
-          }))
-        )
+        if (q.questionType === 'multiple_choice' && q.choices?.length) {
+          await db.from('exam_choices').insert(
+            q.choices.map((c: { num: number; text: string }) => ({
+              question_id: question.id, choice_num: c.num, choice_text: c.text ?? null,
+            }))
+          )
+        }
+        if (q.answers?.length) {
+          await db.from('exam_correct_answers').insert(
+            q.answers.map((a: string, idx: number) => ({
+              question_id: question.id, answer_text: a, order_num: idx + 1,
+            }))
+          )
+        }
       }
     }
   }

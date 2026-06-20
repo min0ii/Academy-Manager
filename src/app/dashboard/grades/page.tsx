@@ -37,8 +37,10 @@ type ExamQuestion = {
   order_num: number
   question_label: string | null
   question_text: string | null
-  question_type: 'multiple_choice' | 'short_answer'
+  question_type: 'multiple_choice' | 'short_answer' | 'group'
   score: number
+  parent_question_id?: string | null
+  group_context?: string | null
 }
 
 type ExamDetail = {
@@ -77,7 +79,7 @@ type ManualEntry = {
   note: string | null
 }
 
-type WizardQuestion = {
+type WizardSubQ = {
   clientId: string
   questionType: 'multiple_choice' | 'short_answer'
   questionText: string
@@ -85,7 +87,19 @@ type WizardQuestion = {
   choices: string[]
   correctChoiceIdx: number
   saAnswers: string[]
+}
+
+type WizardQuestion = {
+  clientId: string
+  questionType: 'multiple_choice' | 'short_answer' | 'group'
+  questionText: string
+  score: string
+  choices: string[]
+  correctChoiceIdx: number
+  saAnswers: string[]
   customLabel: string
+  groupContext?: string
+  children?: WizardSubQ[]
 }
 
 type InquiryReply = { id: string; body: string; created_at: string; teacherName: string }
@@ -164,6 +178,18 @@ function newWizardQ(): WizardQuestion {
     correctChoiceIdx: 0,
     saAnswers: [''],
     customLabel: '',
+  }
+}
+
+function newWizardSubQ(): WizardSubQ {
+  return {
+    clientId: Math.random().toString(36).slice(2),
+    questionType: 'multiple_choice',
+    questionText: '',
+    score: '1',
+    choices: ['', '', '', '', ''],
+    correctChoiceIdx: 0,
+    saAnswers: [''],
   }
 }
 
@@ -257,6 +283,115 @@ function DateTimePicker({ label, value, onChange, required }: {
   )
 }
 
+// ── WizardSubQCard (소문제 카드) ────────────────────────────────────────────
+
+function WizardSubQCard({
+  child, label, onChange, onRemove, canRemove,
+}: {
+  child: WizardSubQ
+  label: string
+  onChange: (u: Partial<WizardSubQ>) => void
+  onRemove: () => void
+  canRemove: boolean
+}) {
+  function updateChoice(ci: number, val: string) {
+    const next = [...child.choices]; next[ci] = val; onChange({ choices: next })
+  }
+  function addChoice() {
+    if (child.choices.length >= 5) return
+    onChange({ choices: [...child.choices, ''] })
+  }
+  function removeChoice(ci: number) {
+    if (child.choices.length <= 2) return
+    const next = child.choices.filter((_, i) => i !== ci)
+    onChange({ choices: next, correctChoiceIdx: Math.min(child.correctChoiceIdx, next.length - 1) })
+  }
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+      {/* 소문제 헤더 */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md flex-shrink-0">{label}</span>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
+          {(['multiple_choice', 'short_answer'] as const).map((t, ti) => (
+            <button key={t} onClick={() => onChange({ questionType: t })}
+              className={`px-2.5 py-1 font-medium transition-colors ${ti > 0 ? 'border-l border-slate-200' : ''} ${child.questionType === t ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              {t === 'multiple_choice' ? '객관식' : '주관식'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 ml-auto">
+          <input type="number" value={child.score} onChange={e => onChange({ score: e.target.value })}
+            min="0" step="0.5" placeholder="점"
+            className="w-12 px-1.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-800 text-center bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <span className="text-xs text-slate-400">점</span>
+        </div>
+        {canRemove && (
+          <button onClick={onRemove} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={14} /></button>
+        )}
+      </div>
+
+      {/* 문제 내용 */}
+      <textarea
+        value={child.questionText}
+        onChange={e => onChange({ questionText: e.target.value })}
+        placeholder="소문제 내용 (선택사항)"
+        rows={2}
+        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
+      />
+
+      {/* 객관식 선택지 */}
+      {child.questionType === 'multiple_choice' && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-slate-500">선택지 — 정답을 체크하세요</p>
+          {child.choices.map((text, ci) => (
+            <div key={ci} className="flex items-center gap-2">
+              <button onClick={() => onChange({ correctChoiceIdx: ci })}
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${child.correctChoiceIdx === ci ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}>
+                {child.correctChoiceIdx === ci && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </button>
+              <span className="text-xs text-slate-400 w-4 flex-shrink-0">{ci + 1}.</span>
+              <input type="text" value={text} onChange={e => updateChoice(ci, e.target.value)}
+                placeholder={`${ci + 1}번 선택지`}
+                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              {child.choices.length > 2 && (
+                <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={12} /></button>
+              )}
+            </div>
+          ))}
+          {child.choices.length < 5 && (
+            <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+              <Plus size={11} /> 선택지 추가
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 주관식 정답 */}
+      {child.questionType === 'short_answer' && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-slate-500">정답 (대소문자 무시)</p>
+          {child.saAnswers.map((ans, ai) => (
+            <div key={ai} className="flex items-center gap-2">
+              <input type="text" value={ans} onChange={e => { const next = [...child.saAnswers]; next[ai] = e.target.value; onChange({ saAnswers: next }) }}
+                placeholder={ai === 0 ? '정답 입력' : '추가 인정 답안'}
+                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              {child.saAnswers.length > 1 && (
+                <button onClick={() => onChange({ saAnswers: child.saAnswers.filter((_, i) => i !== ai) })}
+                  className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={12} /></button>
+              )}
+            </div>
+          ))}
+          <button onClick={() => onChange({ saAnswers: [...child.saAnswers, ''] })}
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            <Plus size={11} /> 인정 답안 추가
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── WizardQuestionCard ──────────────────────────────────────────────────────
 
 function WizardQuestionCard({
@@ -274,6 +409,8 @@ function WizardQuestionCard({
   onDrop?: () => void
   isDragOver?: boolean
 }) {
+  const parentLabel = customLabels ? (q.customLabel || String(idx + 1)) : String(idx + 1)
+
   function updateChoice(ci: number, val: string) {
     const next = [...q.choices]; next[ci] = val; onChange({ choices: next })
   }
@@ -290,6 +427,93 @@ function WizardQuestionCard({
     const next = [...q.saAnswers]; next[ai] = val; onChange({ saAnswers: next })
   }
 
+  // ── 그룹(소문제) 카드 ─────────────────────────────────────────────────────
+  if (q.questionType === 'group') {
+    const children = q.children ?? []
+    return (
+      <div
+        className={`bg-white border-2 rounded-2xl p-4 space-y-3 transition-colors ${isDragOver ? 'border-purple-400 bg-purple-50' : 'border-purple-200'}`}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {/* 그룹 헤더 */}
+        <div className="flex items-center gap-2">
+          {onDragStart && (
+            <div draggable onDragStart={onDragStart}
+              className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0">
+              <GripVertical size={16} />
+            </div>
+          )}
+          {customLabels ? (
+            <input type="text" value={q.customLabel}
+              onChange={e => onChange({ customLabel: e.target.value })}
+              placeholder="번호"
+              className="w-14 px-2 py-1 rounded-lg border border-purple-200 text-xs text-slate-700 text-center focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent" />
+          ) : (
+            <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-xs font-bold flex items-center justify-center flex-shrink-0">
+              {idx + 1}
+            </span>
+          )}
+          <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">소문제 그룹</span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => onChange({
+                questionType: 'short_answer',
+                questionText: q.groupContext || '',
+                groupContext: '',
+                score: '1',
+                saAnswers: [''],
+                children: [],
+              })}
+              className="text-xs text-slate-400 hover:text-slate-600 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100">
+              그룹 해제
+            </button>
+            {total > 1 && (
+              <button onClick={onRemove} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 공통 지문 */}
+        <textarea
+          value={q.groupContext ?? ''}
+          onChange={e => onChange({ groupContext: e.target.value })}
+          placeholder="공통 지문 (선택사항) — 소문제들이 공유하는 문제 배경"
+          rows={2}
+          className="w-full px-3 py-2 rounded-xl border border-purple-100 bg-purple-50/30 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder:text-slate-300"
+        />
+
+        {/* 소문제 목록 */}
+        <div className="space-y-2.5">
+          {children.map((child, ci) => (
+            <WizardSubQCard
+              key={child.clientId}
+              child={child}
+              label={`${parentLabel}-${ci + 1}`}
+              onChange={updates => {
+                const next = [...children]
+                next[ci] = { ...child, ...updates }
+                onChange({ children: next })
+              }}
+              onRemove={() => onChange({ children: children.filter((_, i) => i !== ci) })}
+              canRemove={children.length > 1}
+            />
+          ))}
+        </div>
+
+        {/* 소문제 추가 버튼 */}
+        <button
+          onClick={() => onChange({ children: [...children, newWizardSubQ()] })}
+          className="w-full py-2 rounded-xl border border-dashed border-purple-300 text-xs text-purple-500 hover:bg-purple-50 hover:border-purple-400 transition-colors font-medium flex items-center justify-center gap-1">
+          <Plus size={13} /> 소문제 추가
+        </button>
+      </div>
+    )
+  }
+
+  // ── 일반 문제 카드 ─────────────────────────────────────────────────────────
   return (
     <div
       className={`bg-white border rounded-2xl p-4 space-y-3 transition-colors ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-slate-200'}`}
@@ -403,6 +627,23 @@ function WizardQuestionCard({
           </button>
         </div>
       )}
+
+      {/* 소문제로 전환 버튼 */}
+      <div className="pt-1 flex justify-end">
+        <button
+          onClick={() => onChange({
+            questionType: 'group',
+            groupContext: q.questionText || '',
+            questionText: '',
+            score: '0',
+            choices: [],
+            saAnswers: [''],
+            children: [newWizardSubQ()],
+          })}
+          className="text-xs text-purple-500 hover:text-purple-700 font-medium flex items-center gap-1 transition-colors">
+          소문제로 전환
+        </button>
+      </div>
     </div>
   )
 }
@@ -739,8 +980,27 @@ function AutoMonitorView({
     setSendingReply(null)
   }
 
+  // 그룹 부모 제외, 자식 순서대로 정렬된 채점 대상 문제 목록
+  const allExamQs = examDetail?.questions ?? []
+  const examQParents = allExamQs.filter(q => !q.parent_question_id).sort((a, b) => a.order_num - b.order_num)
+  const examQChildrenByParent = new Map<string, ExamQuestion[]>()
+  for (const q of allExamQs.filter(q => q.parent_question_id)) {
+    const pid = q.parent_question_id!
+    if (!examQChildrenByParent.has(pid)) examQChildrenByParent.set(pid, [])
+    examQChildrenByParent.get(pid)!.push(q)
+  }
+  const gradableQuestions: ExamQuestion[] = []
+  for (const parent of examQParents) {
+    if (parent.question_type === 'group') {
+      const children = (examQChildrenByParent.get(parent.id) ?? []).sort((a, b) => a.order_num - b.order_num)
+      gradableQuestions.push(...children)
+    } else {
+      gradableQuestions.push(parent)
+    }
+  }
+
   // Per-question wrong rate analysis
-  const questionAnalysis = (examDetail?.questions ?? []).map(q => {
+  const questionAnalysis = gradableQuestions.map(q => {
     const answered = submissions.filter(s => s.isSubmitted).map(s => s.answers.find(a => a.question_id === q.id))
     const total = answered.length
     const correct = answered.filter(a => a?.is_correct === true).length
@@ -766,18 +1026,18 @@ function AutoMonitorView({
       </div>
 
       {/* 문제 목록 */}
-      {examDetail && examDetail.questions.length > 0 && (
+      {examDetail && gradableQuestions.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <button
             onClick={() => setShowQuestions(v => !v)}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
           >
-            <span className="text-sm font-semibold text-slate-700">문제 목록 ({examDetail.questions.length}문제 · {maxScore}점)</span>
+            <span className="text-sm font-semibold text-slate-700">문제 목록 ({gradableQuestions.length}문제 · {maxScore}점)</span>
             <ChevronRight size={16} className={`text-slate-400 transition-transform ${showQuestions ? 'rotate-90' : ''}`} />
           </button>
           {showQuestions && (
             <div className="divide-y divide-slate-100 border-t border-slate-100">
-              {examDetail.questions.map((q, qi) => {
+              {gradableQuestions.map((q, qi) => {
                 const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
                 const qAnswers = examDetail.answers.filter(a => a.question_id === q.id).sort((a, b) => a.order_num - b.order_num)
                 return (
@@ -918,7 +1178,7 @@ function AutoMonitorView({
                   <>
                     <div className="mt-2.5 flex items-center gap-2 pl-12">
                       <div className="flex flex-wrap gap-1">
-                        {examDetail.questions.map((q, qi) => {
+                        {gradableQuestions.map((q, qi) => {
                           const ans = s.answers.find(a => a.question_id === q.id)
                           const ok = ans?.is_correct
                           const overridden = ans?.manually_overridden
@@ -956,7 +1216,7 @@ function AutoMonitorView({
                             </tr>
                           </thead>
                           <tbody>
-                            {examDetail.questions.map((q, qi) => {
+                            {gradableQuestions.map((q, qi) => {
                               const ans = s.answers.find(a => a.question_id === q.id)
                               const correctAns = examDetail.answers.find(a => a.question_id === q.id)
                               const ok = ans?.is_correct
@@ -1480,7 +1740,39 @@ function GradesContent() {
     const token = await getToken()
     if (!token) { setAddingAuto(false); return }
 
+    // 그룹 소문제 유효성 검사
+    for (let i = 0; i < wizardQs.length; i++) {
+      if (wizardQs[i].questionType === 'group' && !(wizardQs[i].children?.length)) {
+        void showAlert(`${i + 1}번 그룹 문제에 소문제가 없어요. 소문제를 추가하거나 그룹을 해제하세요.`)
+        setAddingAuto(false)
+        return
+      }
+    }
+
     const questions = wizardQs.map((q, idx) => {
+      if (q.questionType === 'group') {
+        const parentLabel = wizardCustomLabels ? q.customLabel.trim() : String(idx + 1)
+        return {
+          orderNum: idx + 1,
+          label: wizardCustomLabels ? q.customLabel.trim() : null,
+          questionType: 'group',
+          questionText: null,
+          score: 0,
+          groupContext: q.groupContext?.trim() || null,
+          choices: [],
+          answers: [],
+          children: (q.children ?? []).map((child, ci) => ({
+            label: `${parentLabel}-${ci + 1}`,
+            questionType: child.questionType,
+            questionText: child.questionText.trim() || null,
+            score: parseFloat(child.score) || 0,
+            choices: child.questionType === 'multiple_choice' ? child.choices.map((text, i) => ({ num: i + 1, text })) : [],
+            answers: child.questionType === 'multiple_choice'
+              ? [String(child.correctChoiceIdx + 1)]
+              : child.saAnswers.filter(a => a.trim()),
+          })),
+        }
+      }
       const score = parseFloat(q.score) || 0
       if (q.questionType === 'multiple_choice') {
         return {
@@ -1669,15 +1961,54 @@ function GradesContent() {
     } else {
       setEditEnd(emptyDT())
     }
-    const qs: WizardQuestion[] = examDetail.questions.map(q => {
+    // 그룹 트리 구조로 변환
+    const allQs = examDetail.questions
+    const parentQsRaw = allQs.filter(q => !q.parent_question_id).sort((a, b) => a.order_num - b.order_num)
+    const childrenByParentId = new Map<string, ExamQuestion[]>()
+    for (const q of allQs.filter(q => q.parent_question_id)) {
+      const pid = q.parent_question_id!
+      if (!childrenByParentId.has(pid)) childrenByParentId.set(pid, [])
+      childrenByParentId.get(pid)!.push(q)
+    }
+
+    const qs: WizardQuestion[] = parentQsRaw.map(q => {
+      if (q.question_type === 'group') {
+        const children = (childrenByParentId.get(q.id) ?? []).sort((a, b) => a.order_num - b.order_num)
+        return {
+          clientId: q.id,
+          questionType: 'group' as const,
+          questionText: '',
+          score: '0',
+          choices: [],
+          correctChoiceIdx: 0,
+          saAnswers: [''],
+          customLabel: q.question_label ?? '',
+          groupContext: q.group_context ?? '',
+          children: children.map(child => {
+            const childChoices = examDetail.choices.filter(c => c.question_id === child.id).sort((a, b) => a.choice_num - b.choice_num)
+            const childAnswers = examDetail.answers.filter(a => a.question_id === child.id)
+            const correctChoiceIdx = child.question_type === 'multiple_choice'
+              ? Math.max(0, parseInt(childAnswers[0]?.answer_text ?? '1') - 1) : 0
+            return {
+              clientId: child.id,
+              questionType: child.question_type as 'multiple_choice' | 'short_answer',
+              questionText: child.question_text ?? '',
+              score: String(child.score),
+              choices: childChoices.length > 0 ? childChoices.map(c => c.choice_text ?? '') : ['', '', '', '', ''],
+              correctChoiceIdx,
+              saAnswers: child.question_type === 'short_answer' && childAnswers.length > 0
+                ? childAnswers.map(a => a.answer_text) : [''],
+            }
+          }),
+        }
+      }
       const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
       const qAnswers = examDetail.answers.filter(a => a.question_id === q.id)
       const correctChoiceIdx = q.question_type === 'multiple_choice'
-        ? Math.max(0, parseInt(qAnswers[0]?.answer_text ?? '1') - 1)
-        : 0
+        ? Math.max(0, parseInt(qAnswers[0]?.answer_text ?? '1') - 1) : 0
       return {
         clientId: q.id,
-        questionType: q.question_type,
+        questionType: q.question_type as 'multiple_choice' | 'short_answer',
         questionText: q.question_text ?? '',
         score: String(q.score),
         choices: qChoices.length > 0 ? qChoices.map(c => c.choice_text ?? '') : ['', '', '', '', ''],
@@ -1709,7 +2040,39 @@ function GradesContent() {
     const endPartial = isDTValPartial(editEnd)
     if (endPartial && !endIso) { void showAlert('마감 시간의 월·일·시·분을 모두 입력해주세요.'); setSavingEdit(false); return }
 
+    // 그룹 소문제 유효성 검사
+    for (let i = 0; i < editWizardQs.length; i++) {
+      if (editWizardQs[i].questionType === 'group' && !(editWizardQs[i].children?.length)) {
+        void showAlert(`${i + 1}번 그룹 문제에 소문제가 없어요. 소문제를 추가하거나 그룹을 해제하세요.`)
+        setSavingEdit(false)
+        return
+      }
+    }
+
     const questions = editWizardQs.map((q, idx) => {
+      if (q.questionType === 'group') {
+        const parentLabel = editCustomLabels ? q.customLabel.trim() : String(idx + 1)
+        return {
+          orderNum: idx + 1,
+          label: editCustomLabels ? q.customLabel.trim() : null,
+          questionType: 'group',
+          questionText: null,
+          score: 0,
+          groupContext: q.groupContext?.trim() || null,
+          choices: [],
+          answers: [],
+          children: (q.children ?? []).map((child, ci) => ({
+            label: `${parentLabel}-${ci + 1}`,
+            questionType: child.questionType,
+            questionText: child.questionText.trim() || null,
+            score: parseFloat(child.score) || 0,
+            choices: child.questionType === 'multiple_choice' ? child.choices.map((text, i) => ({ num: i + 1, text })) : [],
+            answers: child.questionType === 'multiple_choice'
+              ? [String(child.correctChoiceIdx + 1)]
+              : child.saAnswers.filter(a => a.trim()),
+          })),
+        }
+      }
       const score = parseFloat(q.score) || 0
       if (q.questionType === 'multiple_choice') {
         return {
@@ -1817,16 +2180,18 @@ function GradesContent() {
   }
 
   async function distributeScore() {
-    const current = wizardQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) || 100
-    const total = await showPrompt(`총 배점을 입력하세요 (문제 수: ${wizardQs.length}개)`, {
+    const scorableQs = wizardQs.filter(q => q.questionType !== 'group')
+    if (scorableQs.length === 0) return
+    const current = scorableQs.reduce((s, q) => s + (parseFloat(q.score) || 0), 0) || 100
+    const total = await showPrompt(`총 배점을 입력하세요 (문제 수: ${scorableQs.length}개)`, {
       defaultValue: String(current),
       placeholder: '예: 100',
     })
     if (!total) return
     const n = parseFloat(total)
     if (isNaN(n) || n <= 0) return
-    const per = Math.round((n / wizardQs.length) * 10) / 10
-    setWizardQs(prev => prev.map(q => ({ ...q, score: String(per) })))
+    const per = Math.round((n / scorableQs.length) * 10) / 10
+    setWizardQs(prev => prev.map(q => q.questionType === 'group' ? q : { ...q, score: String(per) }))
   }
 
   const maxScore = Math.round((examDetail?.questions ?? []).reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100

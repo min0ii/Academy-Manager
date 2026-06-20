@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ exam
     return NextResponse.json({ error: '아직 시작 전인 시험이에요.' }, { status: 403 })
 
   const { data: questions } = await db.from('exam_questions')
-    .select('id, order_num, question_label, question_text, question_type, score')
+    .select('id, order_num, question_label, question_text, question_type, score, parent_question_id, group_context')
     .eq('exam_id', examId).order('order_num')
 
   const questionIds = (questions ?? []).map(q => q.id)

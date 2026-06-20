@@ -40,10 +40,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ setI
     .single()
   if (setErr || !set) return NextResponse.json({ error: '세트를 찾을 수 없어요.' }, { status: 404 })
 
-  // 문항 목록
+  // 문항 목록 (parent_id, group_context 포함)
   const { data: questions } = await db
     .from('qb_questions')
-    .select('id, set_id, order_num, custom_label, question_text, question_type, score')
+    .select('id, set_id, order_num, custom_label, question_text, question_type, score, parent_id, group_context')
     .eq('set_id', setId)
     .order('order_num')
 
@@ -119,48 +119,79 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ setI
     await db.from('qb_questions').delete().eq('set_id', setId)
   }
 
-  // 새 문항 배치 insert — 1개씩 순차 INSERT 시 부분 저장 가능성 차단
+  // 새 문항 삽입 (소문제 그룹 지원 — 부모 먼저 삽입 후 자식 삽입)
   if (questions.length > 0) {
-    const { data: newQs, error: qErr } = await db
-      .from('qb_questions')
-      .insert(
-        questions.map((q: any, i: number) => ({
+    const allChoices: any[] = []
+    const allAnswers: any[] = []
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+
+      if (q.question_type === 'group') {
+        // 그룹 부모 삽입
+        const { data: parent, error: pErr } = await db.from('qb_questions').insert({
+          set_id: setId,
+          order_num: i + 1,
+          custom_label: q.custom_label ?? null,
+          question_text: null,
+          question_type: 'group',
+          score: 0,
+          group_context: q.group_context ?? null,
+        }).select('id').single()
+
+        if (pErr || !parent)
+          return NextResponse.json({ error: `그룹 문항 저장 실패: ${pErr?.message}` }, { status: 500 })
+
+        // 자식 문제 순서대로 삽입
+        for (let ci = 0; ci < (q.children ?? []).length; ci++) {
+          const child = q.children[ci]
+          const { data: childQ, error: cErr } = await db.from('qb_questions').insert({
+            set_id: setId,
+            order_num: ci + 1,
+            custom_label: null,
+            question_text: child.question_text ?? '',
+            question_type: child.question_type,
+            score: child.score ?? 1,
+            parent_id: parent.id,
+          }).select('id').single()
+
+          if (cErr || !childQ)
+            return NextResponse.json({ error: `소문제 저장 실패: ${cErr?.message}` }, { status: 500 })
+
+          if (child.choices?.length)
+            allChoices.push(...child.choices.map((c: any, ci2: number) => ({
+              question_id: childQ.id, choice_num: c.choice_num ?? ci2 + 1, choice_text: c.choice_text ?? '',
+            })))
+          if (child.answers?.length)
+            allAnswers.push(...child.answers.map((a: any, ai: number) => ({
+              question_id: childQ.id, answer_text: a.answer_text ?? '', order_num: a.order_num ?? ai + 1,
+            })))
+        }
+      } else {
+        // 일반 문제
+        const { data: newQ, error: qErr } = await db.from('qb_questions').insert({
           set_id: setId,
           order_num: i + 1,
           custom_label: q.custom_label ?? null,
           question_text: q.question_text ?? '',
           question_type: q.question_type ?? 'multiple_choice',
           score: q.score ?? 1,
-        }))
-      )
-      .select('id, order_num')
-    if (qErr || !newQs?.length)
-      return NextResponse.json({ error: `문항 저장 실패: ${qErr?.message}` }, { status: 500 })
+        }).select('id').single()
 
-    // 문항 순서(order_num)로 새 ID 매핑
-    const idByOrder: Record<number, string> = {}
-    for (const nq of newQs) idByOrder[(nq as any).order_num] = (nq as any).id
+        if (qErr || !newQ)
+          return NextResponse.json({ error: `문항 저장 실패: ${qErr?.message}` }, { status: 500 })
 
-    // 보기·정답 배치 insert
-    const allChoices: any[] = []
-    const allAnswers: any[] = []
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i]
-      const qId = idByOrder[i + 1]
-      if (!qId) continue
-      if (q.choices?.length)
-        allChoices.push(...q.choices.map((c: any, ci: number) => ({
-          question_id: qId,
-          choice_num: c.choice_num ?? ci + 1,
-          choice_text: c.choice_text ?? '',
-        })))
-      if (q.answers?.length)
-        allAnswers.push(...q.answers.map((a: any, ai: number) => ({
-          question_id: qId,
-          answer_text: a.answer_text ?? '',
-          order_num: a.order_num ?? ai + 1,
-        })))
+        if (q.choices?.length)
+          allChoices.push(...q.choices.map((c: any, ci: number) => ({
+            question_id: newQ.id, choice_num: c.choice_num ?? ci + 1, choice_text: c.choice_text ?? '',
+          })))
+        if (q.answers?.length)
+          allAnswers.push(...q.answers.map((a: any, ai: number) => ({
+            question_id: newQ.id, answer_text: a.answer_text ?? '', order_num: a.order_num ?? ai + 1,
+          })))
+      }
     }
+
     if (allChoices.length) {
       const { error: cErr } = await db.from('qb_choices').insert(allChoices)
       if (cErr) return NextResponse.json({ error: `선택지 저장 실패: ${cErr.message}` }, { status: 500 })

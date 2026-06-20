@@ -50,7 +50,8 @@ type StudentContext = {
 
 type ExamResultQuestion = {
   id: string; order_num: number; question_label: string | null; question_text: string | null
-  question_type: 'multiple_choice' | 'short_answer'; score: number
+  question_type: 'multiple_choice' | 'short_answer' | 'group'; score: number
+  parent_question_id?: string | null; group_context?: string | null
 }
 type ExamResultChoice = { question_id: string; choice_num: number; choice_text: string | null }
 type ExamResultAnswer = { question_id: string; student_answer: string | null; is_correct: boolean | null; score_earned: number | null }
@@ -1267,7 +1268,7 @@ export default function StudentPage() {
                     </div>
                     {/* 문제별 내 답 (정답 숨김) */}
                     <div className="space-y-2">
-                      {examResultModal.questions.map((q) => {
+                      {examResultModal.questions.filter(q => q.question_type !== 'group').map((q) => {
                         const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
                         const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
                         const isCorrect = myAns?.is_correct
@@ -1339,7 +1340,7 @@ export default function StudentPage() {
                   <>
                     {/* 문제별 정오 + 정답 */}
                     <div className="space-y-3">
-                      {examResultModal.questions.map((q) => {
+                      {examResultModal.questions.filter(q => q.question_type !== 'group').map((q) => {
                         const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
                         const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
                         const correctList = examResultModal.correctAnswers.filter(c => c.question_id === q.id).sort((a, b) => a.order_num - b.order_num)

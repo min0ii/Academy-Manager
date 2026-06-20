@@ -24,8 +24,10 @@ type Question = {
   order_num: number
   question_label?: string | null
   question_text: string | null
-  question_type: 'multiple_choice' | 'short_answer'
+  question_type: 'multiple_choice' | 'short_answer' | 'group'
   score: number
+  parent_question_id?: string | null
+  group_context?: string | null
 }
 type Choice = { id: string; question_id: string; choice_num: number; choice_text: string | null }
 type CorrectAnswer = { question_id: string; answer_text: string }
@@ -369,7 +371,7 @@ export default function ExamTab({
             <p className="text-sm font-semibold text-slate-700">문항별 결과</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {examDetail.questions.map((q, idx) => {
+            {examDetail.questions.filter(q => q.question_type !== 'group').map((q, idx) => {
               const r = submitResult.answers.find(a => a.questionId === q.id)
               const qChoices = examDetail.choices.filter(c => c.question_id === q.id)
               const choiceText = qChoices.find(c => String(c.choice_num) === r?.studentAnswer)?.choice_text
@@ -459,8 +461,20 @@ export default function ExamTab({
     }
 
     const qs = examDetail.questions
-    const totalAnswered = qs.filter(q => answers[q.id]?.trim()).length
-    const unanswered = qs.length - totalAnswered
+    // 소문제 그룹 구조 빌드: parent 없는 것이 최상위, parent 있는 것이 소문제
+    const topLevelQs = qs.filter(q => !q.parent_question_id).sort((a, b) => a.order_num - b.order_num)
+    const childrenByParent = new Map<string, Question[]>()
+    for (const q of qs) {
+      if (q.parent_question_id) {
+        if (!childrenByParent.has(q.parent_question_id)) childrenByParent.set(q.parent_question_id, [])
+        childrenByParent.get(q.parent_question_id)!.push(q)
+      }
+    }
+    for (const [k, v] of childrenByParent) childrenByParent.set(k, [...v].sort((a, b) => a.order_num - b.order_num))
+    // 답안 제출 가능한 문제 (그룹 부모 제외)
+    const answerableQs = qs.filter(q => q.question_type !== 'group')
+    const totalAnswered = answerableQs.filter(q => answers[q.id]?.trim()).length
+    const unanswered = answerableQs.length - totalAnswered
 
     return (
       <div className="space-y-4">
@@ -472,7 +486,7 @@ export default function ExamTab({
           </button>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-slate-800 text-sm truncate">{examDetail.exam.title}</p>
-            <p className="text-xs text-slate-400">{totalAnswered}/{qs.length} 문제 답변됨</p>
+            <p className="text-xs text-slate-400">{totalAnswered}/{answerableQs.length} 문제 답변됨</p>
           </div>
           {secsLeft !== null && (
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl flex-shrink-0 font-mono text-sm font-bold ${secsLeft <= 60 ? 'bg-red-50 text-red-500 animate-pulse' : secsLeft <= 300 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-700'}`}>
@@ -503,7 +517,60 @@ export default function ExamTab({
         {/* OMR Grid mode */}
         {solveMode === 'omr' && (
           <div className="space-y-3">
-            {qs.map((q, idx) => {
+            {topLevelQs.map((q, idx) => {
+              if (q.question_type === 'group') {
+                const children = childrenByParent.get(q.id) ?? []
+                return (
+                  <div key={q.id} className="bg-white rounded-2xl border-2 border-purple-200 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">{q.question_label ?? (idx + 1)}번</span>
+                      {q.group_context && <p className="text-sm text-slate-700 leading-relaxed flex-1">{q.group_context}</p>}
+                    </div>
+                    <div className="space-y-3">
+                      {children.map((child, ci) => {
+                        const childLabel = child.question_label ?? `${q.question_label ?? (idx + 1)}-${ci + 1}`
+                        const qChoices = examDetail.choices.filter(c => c.question_id === child.id).sort((a, b) => a.choice_num - b.choice_num)
+                        const currentAns = answers[child.id] ?? ''
+                        return (
+                          <div key={child.id} className="bg-slate-50 rounded-xl p-3 space-y-2">
+                            <div className="flex items-start gap-2 mb-2">
+                              <span className={`px-2 py-0.5 rounded-md text-xs font-bold flex-shrink-0 ${currentAns ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>{childLabel}</span>
+                              <div className="flex-1">
+                                {child.question_text && <p className="text-sm text-slate-700 leading-relaxed">{child.question_text}</p>}
+                              </div>
+                              <span className="text-xs text-slate-400 flex-shrink-0">{child.score}점</span>
+                            </div>
+                            {child.question_type === 'multiple_choice' ? (
+                              (() => {
+                                const isLong = qChoices.some(c => (c.choice_text ?? '').length > 8)
+                                return (
+                                  <div className={`grid gap-1.5 ${isLong ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                                    {qChoices.map(c => (
+                                      <button key={c.id}
+                                        onClick={() => !isExpired && handleAnswer(child.id, String(c.choice_num), 'multiple_choice')}
+                                        disabled={isExpired}
+                                        className={`px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${currentAns === String(c.choice_num) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300'}`}>
+                                        <span className="font-bold mr-1.5">{c.choice_num}.</span>
+                                        {c.choice_text || `선택지 ${c.choice_num}`}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )
+                              })()
+                            ) : (
+                              <input type="text" value={currentAns}
+                                onChange={e => handleAnswer(child.id, e.target.value, 'short_answer')}
+                                disabled={isExpired} placeholder="답 입력..."
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:text-slate-400" />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              }
+
               const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
               const currentAns = answers[q.id] ?? ''
 
@@ -553,11 +620,13 @@ export default function ExamTab({
           </div>
         )}
 
-        {/* Step mode */}
-        {solveMode === 'step' && qs.length > 0 && (
+        {/* Step mode — answerableQs 기준으로 네비게이션 */}
+        {solveMode === 'step' && answerableQs.length > 0 && (
           <div className="space-y-3">
             {(() => {
-              const q = qs[stepIdx]
+              const safeIdx = Math.min(stepIdx, answerableQs.length - 1)
+              const q = answerableQs[safeIdx]
+              const parentQ = q.parent_question_id ? qs.find(p => p.id === q.parent_question_id) : null
               const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
               const currentAns = answers[q.id] ?? ''
 
@@ -565,16 +634,24 @@ export default function ExamTab({
                 <>
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-medium">{stepIdx + 1} / {qs.length}</span>
+                      <span className="text-xs text-slate-400 font-medium">{safeIdx + 1} / {answerableQs.length}</span>
                       <span className="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-medium">
                         {q.question_type === 'multiple_choice' ? '객관식' : '주관식'} · {q.score}점
                       </span>
                     </div>
 
+                    {/* 소문제: 부모 그룹 컨텍스트 표시 */}
+                    {parentQ && (parentQ.group_context || parentQ.question_label) && (
+                      <div className="px-3 py-2 bg-purple-50 rounded-xl border border-purple-100">
+                        {parentQ.question_label && <p className="text-xs font-semibold text-purple-600 mb-0.5">{parentQ.question_label}번 소문제</p>}
+                        {parentQ.group_context && <p className="text-sm text-slate-700 leading-relaxed">{parentQ.group_context}</p>}
+                      </div>
+                    )}
+
                     {q.question_text ? (
                       <p className="text-base text-slate-800 leading-relaxed font-medium">{q.question_text}</p>
                     ) : (
-                      <p className="text-base text-slate-800 font-medium">{q.question_label ? `${q.question_label}번 문제` : `${stepIdx + 1}번 문제`}</p>
+                      <p className="text-base text-slate-800 font-medium">{q.question_label ? `${q.question_label}번 문제` : `${safeIdx + 1}번 문제`}</p>
                     )}
 
                     {q.question_type === 'multiple_choice' ? (
@@ -608,12 +685,12 @@ export default function ExamTab({
 
                   {/* Prev / Next nav */}
                   <div className="flex gap-3">
-                    <button onClick={() => setStepIdx(i => Math.max(0, i - 1))} disabled={stepIdx === 0}
+                    <button onClick={() => setStepIdx(i => Math.max(0, i - 1))} disabled={safeIdx === 0}
                       className="flex-1 py-3 border border-slate-200 text-slate-600 font-semibold rounded-xl disabled:opacity-30 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1">
                       <ChevronLeft size={16} /> 이전
                     </button>
-                    {stepIdx < qs.length - 1 ? (
-                      <button onClick={() => setStepIdx(i => Math.min(qs.length - 1, i + 1))}
+                    {safeIdx < answerableQs.length - 1 ? (
+                      <button onClick={() => setStepIdx(i => Math.min(answerableQs.length - 1, i + 1))}
                         className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1">
                         다음 <ChevronRight size={16} />
                       </button>
@@ -627,10 +704,10 @@ export default function ExamTab({
 
                   {/* Quick jump dots */}
                   <div className="flex flex-wrap gap-1.5 justify-center">
-                    {qs.map((qq, qi) => (
+                    {answerableQs.map((qq, qi) => (
                       <button key={qq.id} onClick={() => setStepIdx(qi)}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${qi === stepIdx ? 'bg-blue-600 text-white' : answers[qq.id]?.trim() ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
-                        {qi + 1}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${qi === safeIdx ? 'bg-blue-600 text-white' : answers[qq.id]?.trim() ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+                        {qq.question_label ?? (qi + 1)}
                       </button>
                     ))}
                   </div>

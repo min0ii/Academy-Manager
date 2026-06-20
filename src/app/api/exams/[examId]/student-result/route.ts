@@ -100,7 +100,7 @@ export async function GET(
 
   // 자동 채점 시험
   const { data: questions } = await db.from('exam_questions')
-    .select('id, order_num, question_label, question_text, question_type, score')
+    .select('id, order_num, question_label, question_text, question_type, score, parent_question_id, group_context')
     .eq('exam_id', examId).order('order_num')
 
   const questionIds = (questions ?? []).map(q => q.id)
@@ -132,8 +132,8 @@ export async function GET(
         .in('question_id', questionIds).order('order_num')
     : { data: [] }
 
-  // 만점 계산
-  const maxScore = (questions ?? []).reduce((s, q) => s + Number(q.score), 0)
+  // 만점 계산 (그룹 부모 문제 제외)
+  const maxScore = (questions ?? []).filter(q => q.question_type !== 'group').reduce((s, q) => s + Number(q.score), 0)
   const myScore = submission?.is_submitted
     ? (submission.adjusted_score ?? submission.auto_score)
     : null

@@ -15,17 +15,30 @@ import { useDialog } from '@/components/AppDialog'
 type QBFolder = { id: string; name: string; parent_id: string | null; created_at: string }
 type QBSet   = { id: string; title: string; folder_id: string | null; created_at: string; updated_at: string; questionCount: number }
 
-type QBQuestion = {
+type QBSubQuestion = {
   id?: string
   clientId: string
-  order_num: number
-  customLabel: string        // 사용자 지정 번호 (빈 문자열 = 순서 번호)
   question_text: string
   question_type: 'multiple_choice' | 'short_answer'
   score: string
   choices: string[]
   correctChoiceIdx: number
   saAnswers: string[]
+}
+
+type QBQuestion = {
+  id?: string
+  clientId: string
+  order_num: number
+  customLabel: string        // 사용자 지정 번호 (빈 문자열 = 순서 번호)
+  question_text: string
+  question_type: 'multiple_choice' | 'short_answer' | 'group'
+  score: string
+  choices: string[]
+  correctChoiceIdx: number
+  saAnswers: string[]
+  groupContext?: string
+  children?: QBSubQuestion[]
 }
 
 type ClassItem = { id: string; name: string }
@@ -45,9 +58,116 @@ function newQ(order: number): QBQuestion {
   }
 }
 
+function newQBSubQ(): QBSubQuestion {
+  return {
+    clientId: Math.random().toString(36).slice(2),
+    question_text: '',
+    question_type: 'multiple_choice',
+    score: '1',
+    choices: ['', '', '', '', ''],
+    correctChoiceIdx: 0,
+    saAnswers: [''],
+  }
+}
+
 // 문제의 표시 번호: customLabel이 있으면 그것, 없으면 순서 번호
 function displayLabel(q: QBQuestion, idx: number): string {
   return q.customLabel.trim() || String(idx + 1)
+}
+
+// ── QBSubQCard (소문제 카드) ──────────────────────────────────────────────
+
+function QBSubQCard({
+  child, label, onChange, onRemove, canRemove,
+}: {
+  child: QBSubQuestion
+  label: string
+  onChange: (u: Partial<QBSubQuestion>) => void
+  onRemove: () => void
+  canRemove: boolean
+}) {
+  function updateChoice(ci: number, val: string) {
+    const next = [...child.choices]; next[ci] = val; onChange({ choices: next })
+  }
+  function removeChoice(ci: number) {
+    if (child.choices.length <= 2) return
+    const next = child.choices.filter((_, i) => i !== ci)
+    onChange({ choices: next, correctChoiceIdx: Math.min(child.correctChoiceIdx, next.length - 1) })
+  }
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md flex-shrink-0">{label}</span>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs bg-white">
+          {(['multiple_choice', 'short_answer'] as const).map((t, ti) => (
+            <button key={t} onClick={() => onChange({ question_type: t })}
+              className={`px-2.5 py-1 font-medium transition-colors ${ti > 0 ? 'border-l border-slate-200' : ''} ${child.question_type === t ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              {t === 'multiple_choice' ? '객관식' : '주관식'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 ml-auto">
+          <input type="number" value={child.score} onChange={e => onChange({ score: e.target.value })}
+            min="0" step="0.5" placeholder="점"
+            className="w-12 px-1.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-800 text-center bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <span className="text-xs text-slate-400">점</span>
+        </div>
+        {canRemove && (
+          <button onClick={onRemove} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={14} /></button>
+        )}
+      </div>
+      <textarea value={child.question_text} onChange={e => onChange({ question_text: e.target.value })}
+        placeholder="소문제 내용 (선택사항)" rows={2}
+        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300" />
+      {child.question_type === 'multiple_choice' && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-slate-500">선택지 — 정답을 체크하세요</p>
+          {child.choices.map((c, ci) => (
+            <div key={ci} className="flex items-center gap-2">
+              <button onClick={() => onChange({ correctChoiceIdx: ci })}
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${child.correctChoiceIdx === ci ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
+                {child.correctChoiceIdx === ci && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </button>
+              <span className="text-xs text-slate-400 w-4 flex-shrink-0">{ci + 1}.</span>
+              <input value={c} onChange={e => updateChoice(ci, e.target.value)} placeholder={`선택지 ${ci + 1}`}
+                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              {child.choices.length > 2 && (
+                <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={12} /></button>
+              )}
+            </div>
+          ))}
+          {child.choices.length < 5 && (
+            <button onClick={() => onChange({ choices: [...child.choices, ''] })}
+              className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+              <Plus size={11} /> 선택지 추가
+            </button>
+          )}
+        </div>
+      )}
+      {child.question_type === 'short_answer' && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-slate-500">정답 (대소문자 무시)</p>
+          {child.saAnswers.map((a, ai) => (
+            <div key={ai} className="flex items-center gap-2">
+              <input value={a}
+                onChange={e => { const next = [...child.saAnswers]; next[ai] = e.target.value; onChange({ saAnswers: next }) }}
+                placeholder={ai === 0 ? '정답 입력' : '추가 인정 답안'}
+                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              {child.saAnswers.length > 1 && (
+                <button onClick={() => onChange({ saAnswers: child.saAnswers.filter((_, i) => i !== ai) })}
+                  className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={12} /></button>
+              )}
+            </div>
+          ))}
+          <button onClick={() => onChange({ saAnswers: [...child.saAnswers, ''] })}
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            <Plus size={11} /> 인정 답안 추가
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── QuestionCard ──────────────────────────────────────────────────────────
@@ -61,6 +181,8 @@ function QuestionCard({
   onChange: (u: Partial<QBQuestion>) => void
   onRemove: () => void
 }) {
+  const parentLabel = q.customLabel.trim() || String(idx + 1)
+
   function updateChoice(ci: number, val: string) {
     const next = [...q.choices]; next[ci] = val; onChange({ choices: next })
   }
@@ -73,11 +195,66 @@ function QuestionCard({
     const next = [...q.saAnswers]; next[ai] = val; onChange({ saAnswers: next })
   }
 
+  // ── 그룹(소문제) 카드 ─────────────────────────────────────────────────
+  if (q.question_type === 'group') {
+    const children = q.children ?? []
+    return (
+      <div className="bg-white border-2 border-purple-200 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <input type="text" value={q.customLabel} onChange={e => onChange({ customLabel: e.target.value })}
+            placeholder={String(idx + 1)} title="문제 번호"
+            className="w-10 h-7 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold text-center border border-purple-200 hover:border-purple-300 focus:border-purple-400 focus:bg-white focus:outline-none placeholder:text-purple-300 transition-colors" />
+          <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">소문제 그룹</span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => onChange({
+                question_type: 'short_answer',
+                question_text: q.groupContext || '',
+                groupContext: '',
+                score: '1',
+                saAnswers: [''],
+                children: [],
+              })}
+              className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors">
+              그룹 해제
+            </button>
+            {total > 1 && (
+              <button onClick={onRemove} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+        <textarea value={q.groupContext ?? ''} onChange={e => onChange({ groupContext: e.target.value })}
+          placeholder="공통 지문 (선택사항)" rows={2}
+          className="w-full px-3 py-2 rounded-xl border border-purple-100 bg-purple-50/30 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder:text-slate-300" />
+        <div className="space-y-2.5">
+          {children.map((child, ci) => (
+            <QBSubQCard
+              key={child.clientId}
+              child={child}
+              label={`${parentLabel}-${ci + 1}`}
+              onChange={updates => {
+                const next = [...children]; next[ci] = { ...child, ...updates }; onChange({ children: next })
+              }}
+              onRemove={() => onChange({ children: children.filter((_, i) => i !== ci) })}
+              canRemove={children.length > 1}
+            />
+          ))}
+        </div>
+        <button onClick={() => onChange({ children: [...children, newQBSubQ()] })}
+          className="w-full py-2 rounded-xl border border-dashed border-purple-300 text-xs text-purple-500 hover:bg-purple-50 hover:border-purple-400 transition-colors font-medium flex items-center justify-center gap-1">
+          <Plus size={13} /> 소문제 추가
+        </button>
+      </div>
+    )
+  }
+
+  // ── 일반 문제 카드 ─────────────────────────────────────────────────────
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2">
-        {/* 편집 가능한 문제 번호 */}
         <input
           type="text"
           value={q.customLabel}
@@ -107,7 +284,6 @@ function QuestionCard({
         )}
       </div>
 
-      {/* Question text */}
       <textarea
         value={q.question_text}
         onChange={e => onChange({ question_text: e.target.value })}
@@ -116,7 +292,6 @@ function QuestionCard({
         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
       />
 
-      {/* MC choices */}
       {q.question_type === 'multiple_choice' && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-slate-500">선택지 — 정답을 체크하세요</p>
@@ -146,7 +321,6 @@ function QuestionCard({
         </div>
       )}
 
-      {/* Short answer */}
       {q.question_type === 'short_answer' && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-slate-500">정답 (여러 개 가능)</p>
@@ -169,6 +343,23 @@ function QuestionCard({
           </button>
         </div>
       )}
+
+      {/* 소문제로 전환 버튼 */}
+      <div className="pt-1 flex justify-end">
+        <button
+          onClick={() => onChange({
+            question_type: 'group',
+            groupContext: q.question_text || '',
+            question_text: '',
+            score: '0',
+            choices: [],
+            saAnswers: [''],
+            children: [newQBSubQ()],
+          })}
+          className="text-xs text-purple-500 hover:text-purple-700 font-medium flex items-center gap-1 transition-colors">
+          소문제로 전환
+        </button>
+      </div>
     </div>
   )
 }
@@ -420,24 +611,74 @@ export default function QuestionBank() {
     const res = await fetch(`/api/question-bank/${set.id}`, { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) { setQuestions([newQ(1)]); return }
     const json = await res.json()
-    const loaded: QBQuestion[] = (json.questions ?? []).map((q: any) => ({
-      id: q.id,
-      clientId: Math.random().toString(36).slice(2),
-      order_num: q.order_num,
-      customLabel: q.custom_label ?? '',
-      question_text: q.question_text ?? '',
-      question_type: q.question_type ?? 'multiple_choice',
-      score: String(q.score ?? 1),
-      choices: q.question_type === 'multiple_choice'
-        ? (q.choices ?? []).map((c: any) => c.choice_text ?? '')
-        : ['', '', '', '', ''],
-      correctChoiceIdx: q.question_type === 'multiple_choice'
-        ? Math.max(0, parseInt(q.answers?.[0]?.answer_text ?? '1') - 1)
-        : 0,
-      saAnswers: q.question_type === 'short_answer'
-        ? (q.answers ?? []).map((a: any) => a.answer_text ?? '')
-        : [''],
-    }))
+    const rawQs: any[] = json.questions ?? []
+
+    // flat list → tree: parent_id 없는 것이 최상위, 있는 것이 소문제
+    const childrenByParent = new Map<string, any[]>()
+    const parentRows: any[] = []
+    for (const q of rawQs) {
+      if (q.parent_id) {
+        if (!childrenByParent.has(q.parent_id)) childrenByParent.set(q.parent_id, [])
+        childrenByParent.get(q.parent_id)!.push(q)
+      } else {
+        parentRows.push(q)
+      }
+    }
+    parentRows.sort((a, b) => a.order_num - b.order_num)
+
+    const loaded: QBQuestion[] = parentRows.map((q: any) => {
+      if (q.question_type === 'group') {
+        const kids = (childrenByParent.get(q.id) ?? []).sort((a: any, b: any) => a.order_num - b.order_num)
+        const children: QBSubQuestion[] = kids.map((child: any) => ({
+          id: child.id,
+          clientId: Math.random().toString(36).slice(2),
+          question_text: child.question_text ?? '',
+          question_type: child.question_type ?? 'multiple_choice',
+          score: String(child.score ?? 1),
+          choices: child.question_type === 'multiple_choice'
+            ? (child.choices ?? []).map((c: any) => c.choice_text ?? '')
+            : ['', '', '', '', ''],
+          correctChoiceIdx: child.question_type === 'multiple_choice'
+            ? Math.max(0, parseInt(child.answers?.[0]?.answer_text ?? '1') - 1)
+            : 0,
+          saAnswers: child.question_type === 'short_answer'
+            ? (child.answers ?? []).map((a: any) => a.answer_text ?? '')
+            : [''],
+        }))
+        return {
+          id: q.id,
+          clientId: Math.random().toString(36).slice(2),
+          order_num: q.order_num,
+          customLabel: q.custom_label ?? '',
+          question_text: '',
+          question_type: 'group' as const,
+          score: '0',
+          choices: [],
+          correctChoiceIdx: 0,
+          saAnswers: [''],
+          groupContext: q.group_context ?? '',
+          children,
+        }
+      }
+      return {
+        id: q.id,
+        clientId: Math.random().toString(36).slice(2),
+        order_num: q.order_num,
+        customLabel: q.custom_label ?? '',
+        question_text: q.question_text ?? '',
+        question_type: q.question_type ?? 'multiple_choice',
+        score: String(q.score ?? 1),
+        choices: q.question_type === 'multiple_choice'
+          ? (q.choices ?? []).map((c: any) => c.choice_text ?? '')
+          : ['', '', '', '', ''],
+        correctChoiceIdx: q.question_type === 'multiple_choice'
+          ? Math.max(0, parseInt(q.answers?.[0]?.answer_text ?? '1') - 1)
+          : 0,
+        saAnswers: q.question_type === 'short_answer'
+          ? (q.answers ?? []).map((a: any) => a.answer_text ?? '')
+          : [''],
+      }
+    })
     setQuestions(loaded.length > 0 ? loaded : [newQ(1)])
   }
 
@@ -459,6 +700,38 @@ export default function QuestionBank() {
     }
 
     const payload = questions.map((q, i) => {
+      if (q.question_type === 'group') {
+        return {
+          order_num: i + 1,
+          custom_label: q.customLabel.trim() || null,
+          question_text: null,
+          question_type: 'group',
+          score: 0,
+          group_context: q.groupContext?.trim() || null,
+          choices: [],
+          answers: [],
+          children: (q.children ?? []).map((child, ci) => {
+            if (child.question_type === 'multiple_choice') {
+              return {
+                order_num: ci + 1,
+                question_text: child.question_text,
+                question_type: 'multiple_choice',
+                score: parseFloat(child.score) || 1,
+                choices: child.choices.map((c, cj) => ({ choice_num: cj + 1, choice_text: c })),
+                answers: [{ answer_text: String(child.correctChoiceIdx + 1), order_num: 1 }],
+              }
+            }
+            return {
+              order_num: ci + 1,
+              question_text: child.question_text,
+              question_type: 'short_answer',
+              score: parseFloat(child.score) || 1,
+              choices: [],
+              answers: child.saAnswers.filter(a => a.trim()).map((a, ai) => ({ answer_text: a, order_num: ai + 1 })),
+            }
+          }),
+        }
+      }
       const base = {
         order_num: i + 1,
         custom_label: q.customLabel.trim() || null,
@@ -547,10 +820,29 @@ export default function QuestionBank() {
       noDeadline: examNoDeadline,
       answerReveal: 'after_close',
       questions: selectedQs.map((q, i) => {
-        // 원래 번호 유지: customLabel이 있으면 그것, 없으면 은행에서의 순서 번호
         const label = examNumbering === 'original'
           ? (q.customLabel.trim() || String(questions.indexOf(q) + 1))
-          : null  // sequential: exam 내 1,2,3...
+          : null
+        if (q.question_type === 'group') {
+          return {
+            orderNum: i + 1,
+            label,
+            questionType: 'group',
+            score: 0,
+            groupContext: q.groupContext ?? '',
+            children: (q.children ?? []).map((child) => ({
+              questionText: child.question_text,
+              questionType: child.question_type,
+              score: parseFloat(child.score) || 1,
+              choices: child.question_type === 'multiple_choice'
+                ? child.choices.map((c, ci) => ({ num: ci + 1, text: c }))
+                : [],
+              answers: child.question_type === 'multiple_choice'
+                ? [String(child.correctChoiceIdx + 1)]
+                : child.saAnswers.filter(a => a.trim()),
+            })),
+          }
+        }
         return {
           orderNum: i + 1,
           label,
@@ -585,7 +877,12 @@ export default function QuestionBank() {
   // ── Render: Set Editor ─────────────────────────────────────────────────
 
   if (editingSetId) {
-    const totalScore = questions.reduce((acc, q) => acc + (parseFloat(q.score) || 0), 0)
+    const totalScore = questions.reduce((acc, q) => {
+      if (q.question_type === 'group') {
+        return acc + (q.children ?? []).reduce((s, c) => s + (parseFloat(c.score) || 0), 0)
+      }
+      return acc + (parseFloat(q.score) || 0)
+    }, 0)
     return (
       <div className="space-y-4 pb-6">
         {/* 헤더: 뒤로가기 / 제목 / 저장 / 시험생성 */}

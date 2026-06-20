@@ -103,9 +103,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     .select('question_id, student_answer').eq('submission_id', submissionId)
   const answerMap = new Map((draftAnswers ?? []).map(a => [a.question_id, a.student_answer ?? '']))
 
-  // 채점
+  // 채점 (그룹 부모 문제 제외)
   let totalScore = 0
-  const gradedAnswers = (questions ?? []).map(q => {
+  const gradedAnswers = (questions ?? []).filter(q => q.question_type !== 'group').map(q => {
     const studentAns = answerMap.get(q.id) ?? ''
     const correctList = correctMap.get(q.id) ?? []
     const isCorrect = gradeAnswer(studentAns, correctList)
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     auto_score: totalScore,
   }).eq('id', submissionId)
 
-  const calcMaxScore = Math.round((questions ?? []).reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
+  const calcMaxScore = Math.round((questions ?? []).filter(q => q.question_type !== 'group').reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
 
   // 목숨 자동화 트리거 (fire & forget)
   if ((exam as any).exam_format !== 'pass_fail' && calcMaxScore > 0) {
