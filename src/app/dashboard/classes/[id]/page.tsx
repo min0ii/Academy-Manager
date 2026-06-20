@@ -184,14 +184,6 @@ export default function ClassDetailPage() {
   const [resetting, setResetting]             = useState(false)
 
   useEffect(() => { loadData() }, [classId])
-  // 다른 탭에서 퇴원 처리 후 돌아왔을 때 학생 목록 갱신
-  useEffect(() => {
-    function onVisible() {
-      if (document.visibilityState === 'visible') loadData()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [classId])
   useEffect(() => { if (tab === 'stats' && !statsLoaded) loadAttendanceStats() }, [tab])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (tab === 'lives' && academyId) loadLives() }, [tab])
