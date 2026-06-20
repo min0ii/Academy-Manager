@@ -82,6 +82,28 @@ type HomeworkRecord = {
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
+// 소문제 포함 논리 순서대로 답안 가능한 문제 목록 빌드 (order_num 충돌 방지)
+function buildSortedAnswerableQs(qs: ExamResultQuestion[]): ExamResultQuestion[] {
+  const topLevel = qs.filter(q => !q.parent_question_id).sort((a, b) => a.order_num - b.order_num)
+  const cbp = new Map<string, ExamResultQuestion[]>()
+  for (const q of qs) {
+    if (q.parent_question_id) {
+      if (!cbp.has(q.parent_question_id)) cbp.set(q.parent_question_id, [])
+      cbp.get(q.parent_question_id)!.push(q)
+    }
+  }
+  for (const [k, v] of cbp) cbp.set(k, [...v].sort((a, b) => a.order_num - b.order_num))
+  const result: ExamResultQuestion[] = []
+  for (const q of topLevel) {
+    if (q.question_type === 'group') {
+      result.push(...(cbp.get(q.id) ?? []))
+    } else {
+      result.push(q)
+    }
+  }
+  return result
+}
+
 const ATTEND_STYLE: Record<string, { label: string; color: string; dot: string }> = {
   present:     { label: '출석', color: 'text-emerald-600', dot: 'bg-emerald-500' },
   late:        { label: '지각', color: 'text-amber-600',   dot: 'bg-amber-400' },
@@ -1240,7 +1262,7 @@ export default function StudentPage() {
                 {examResultModal.examType === 'auto' && (() => {
                   const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
                   const wrong   = examResultModal.myAnswers.filter(a => a.is_correct === false).length
-                  const total   = examResultModal.questions.length
+                  const total   = examResultModal.questions.filter(q => q.question_type !== 'group').length
                   return (
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-emerald-50 rounded-xl p-3 text-center">
@@ -1268,7 +1290,7 @@ export default function StudentPage() {
                     </div>
                     {/* 문제별 내 답 (정답 숨김) */}
                     <div className="space-y-2">
-                      {examResultModal.questions.filter(q => q.question_type !== 'group').map((q) => {
+                      {buildSortedAnswerableQs(examResultModal.questions).map((q) => {
                         const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
                         const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
                         const isCorrect = myAns?.is_correct
@@ -1340,7 +1362,7 @@ export default function StudentPage() {
                   <>
                     {/* 문제별 정오 + 정답 */}
                     <div className="space-y-3">
-                      {examResultModal.questions.filter(q => q.question_type !== 'group').map((q) => {
+                      {buildSortedAnswerableQs(examResultModal.questions).map((q) => {
                         const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
                         const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
                         const correctList = examResultModal.correctAnswers.filter(c => c.question_id === q.id).sort((a, b) => a.order_num - b.order_num)

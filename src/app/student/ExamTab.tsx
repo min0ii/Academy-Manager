@@ -56,6 +56,28 @@ type SubmitResult = {
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
+// 소문제 포함 논리 순서대로 답안 가능한 문제 목록 빌드 (order_num 충돌 방지)
+function buildAnswerableQs(qs: Question[]): Question[] {
+  const topLevel = qs.filter(q => !q.parent_question_id).sort((a, b) => a.order_num - b.order_num)
+  const cbp = new Map<string, Question[]>()
+  for (const q of qs) {
+    if (q.parent_question_id) {
+      if (!cbp.has(q.parent_question_id)) cbp.set(q.parent_question_id, [])
+      cbp.get(q.parent_question_id)!.push(q)
+    }
+  }
+  for (const [k, v] of cbp) cbp.set(k, [...v].sort((a, b) => a.order_num - b.order_num))
+  const result: Question[] = []
+  for (const q of topLevel) {
+    if (q.question_type === 'group') {
+      result.push(...(cbp.get(q.id) ?? []))
+    } else {
+      result.push(q)
+    }
+  }
+  return result
+}
+
 function fmtCountdown(secs: number): string {
   if (secs <= 0) return '00:00:00'
   const h = Math.floor(secs / 3600)
@@ -371,7 +393,7 @@ export default function ExamTab({
             <p className="text-sm font-semibold text-slate-700">문항별 결과</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {examDetail.questions.filter(q => q.question_type !== 'group').map((q, idx) => {
+            {buildAnswerableQs(examDetail.questions).map((q, idx) => {
               const r = submitResult.answers.find(a => a.questionId === q.id)
               const qChoices = examDetail.choices.filter(c => c.question_id === q.id)
               const choiceText = qChoices.find(c => String(c.choice_num) === r?.studentAnswer)?.choice_text
@@ -471,8 +493,15 @@ export default function ExamTab({
       }
     }
     for (const [k, v] of childrenByParent) childrenByParent.set(k, [...v].sort((a, b) => a.order_num - b.order_num))
-    // 답안 제출 가능한 문제 (그룹 부모 제외)
-    const answerableQs = qs.filter(q => q.question_type !== 'group')
+    // 답안 제출 가능한 문제: topLevelQs 순서 기준으로 그룹은 자식 문제로 대체 (order_num 충돌 방지)
+    const answerableQs: Question[] = []
+    for (const tq of topLevelQs) {
+      if (tq.question_type === 'group') {
+        answerableQs.push(...(childrenByParent.get(tq.id) ?? []))
+      } else {
+        answerableQs.push(tq)
+      }
+    }
     const totalAnswered = answerableQs.filter(q => answers[q.id]?.trim()).length
     const unanswered = answerableQs.length - totalAnswered
 
@@ -785,7 +814,7 @@ export default function ExamTab({
                 )}
                 <p className="text-sm text-slate-600 leading-relaxed">
                   제출하면 수정할 수 없어요.<br />
-                  <strong>{totalAnswered}</strong>/{qs.length}문제 입력 완료 상태로 제출할까요?
+                  <strong>{totalAnswered}</strong>/{answerableQs.length}문제 입력 완료 상태로 제출할까요?
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowSubmitModal(false)}
