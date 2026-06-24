@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { applyLivesRulesInternal } from '@/lib/lives-auto'
 
 function admin() {
   return createClient(
@@ -369,6 +370,88 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
         }
       }
     }
+    return NextResponse.json({ success: true })
+  }
+
+  // ── 문제/선택지/답안 수정 + 재채점 ──
+  if (action === 'update_question') {
+    const { questionId, questionText, score, choices, answers } = body
+
+    const { data: q } = await db.from('exam_questions')
+      .select('id, question_type, exam_id')
+      .eq('id', questionId)
+      .single()
+    if (!q || q.exam_id !== examId)
+      return NextResponse.json({ error: '문제를 찾을 수 없어요.' }, { status: 404 })
+
+    const newScore = Number(score)
+
+    await db.from('exam_questions').update({
+      question_text: questionText?.trim() || null,
+      score: newScore,
+    }).eq('id', questionId)
+
+    await db.from('exam_choices').delete().eq('question_id', questionId)
+    if (q.question_type === 'multiple_choice' && Array.isArray(choices) && choices.length > 0) {
+      await db.from('exam_choices').insert(
+        choices.map((c: { num: number; text: string }) => ({
+          question_id: questionId, choice_num: c.num, choice_text: c.text ?? null,
+        }))
+      )
+    }
+
+    await db.from('exam_correct_answers').delete().eq('question_id', questionId)
+    const answerList: string[] = Array.isArray(answers) ? answers.filter((a: string) => String(a).trim()) : []
+    if (answerList.length > 0) {
+      await db.from('exam_correct_answers').insert(
+        answerList.map((a, idx) => ({
+          question_id: questionId, answer_text: String(a).trim(), order_num: idx + 1,
+        }))
+      )
+    }
+
+    // 재채점: manually_overridden=true 인 답안은 건드리지 않음
+    const { data: studentAnswers } = await db.from('exam_student_answers')
+      .select('id, submission_id, student_answer, manually_overridden')
+      .eq('question_id', questionId)
+
+    if (studentAnswers?.length) {
+      const correctSet = new Set(answerList.map(a => String(a).trim().toLowerCase()))
+      const toUpdate = studentAnswers.filter(sa => !sa.manually_overridden).map(sa => {
+        const studentAns = (sa.student_answer ?? '').trim().toLowerCase()
+        const isCorrect = studentAns !== '' && correctSet.has(studentAns)
+        return { id: sa.id, submission_id: sa.submission_id, is_correct: isCorrect, score_earned: isCorrect ? newScore : 0 }
+      })
+
+      if (toUpdate.length > 0) {
+        await Promise.all(toUpdate.map(u =>
+          db.from('exam_student_answers').update({ is_correct: u.is_correct, score_earned: u.score_earned }).eq('id', u.id)
+        ))
+      }
+
+      // 영향받은 제출 건 총점 재계산
+      const affectedSubIds = [...new Set(studentAnswers.map(sa => sa.submission_id))]
+      await Promise.all(affectedSubIds.map(async subId => {
+        const { data: allAns } = await db.from('exam_student_answers').select('score_earned').eq('submission_id', subId)
+        const total = (allAns ?? []).reduce((sum: number, a: { score_earned: number | null }) => sum + (a.score_earned ?? 0), 0)
+        await db.from('exam_submissions').update({ auto_score: Math.round(total * 100) / 100 }).eq('id', subId)
+      }))
+
+      // 목숨 자동화 재계산 (fire & forget)
+      const { data: examInfo } = await db.from('exams').select('class_id').eq('id', examId).single()
+      if (examInfo) {
+        const { data: classData } = await db.from('classes').select('academy_id').eq('id', (examInfo as any).class_id).single()
+        if (classData) {
+          const { data: affectedSubs } = await db.from('exam_submissions')
+            .select('student_id').in('id', affectedSubIds)
+          const academyId = (classData as any).academy_id
+          for (const sub of affectedSubs ?? []) {
+            void applyLivesRulesInternal(db, academyId, sub.student_id, 'exam_score', {})
+          }
+        }
+      }
+    }
+
     return NextResponse.json({ success: true })
   }
 

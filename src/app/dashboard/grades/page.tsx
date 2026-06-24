@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, ChevronDown, Trash2, AlertTriangle,
-  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical, MessageSquare, Send,
+  CheckCircle2, Circle, RefreshCw, ClipboardList, FileText, Pencil, GripVertical, MessageSquare,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
@@ -102,7 +102,6 @@ type WizardQuestion = {
   children?: WizardSubQ[]
 }
 
-type InquiryReply = { id: string; body: string; created_at: string; teacherName: string }
 type ExamInquiry = {
   id: string
   body: string
@@ -110,7 +109,6 @@ type ExamInquiry = {
   question_id: string | null
   exam_questions: { order_num: number; question_label: string | null; question_text: string | null } | null
   students: { id: string; name: string } | null
-  exam_inquiry_replies: InquiryReply[]
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -899,7 +897,7 @@ function AutoMonitorView({
   examDetail, submissions, maxScore, submittedCount, avgScore,
   onRefresh, refreshing, lastRefresh, editAdjusted, setEditAdjusted,
   onSaveAdj, savingAdj, adjSaved, setAdjSaved, status, onToggleOverride, onSaveNote,
-  examId, academyId,
+  examId, academyId, onQuestionUpdated,
 }: {
   examDetail: ExamDetail | null
   submissions: StudentSubmission[]
@@ -920,6 +918,7 @@ function AutoMonitorView({
   onSaveNote: (studentId: string, note: string) => void
   examId: string
   academyId: string
+  onQuestionUpdated?: () => void
 }) {
   const totalStudents = submissions.length
   const avgP = pct(avgScore, maxScore)
@@ -928,13 +927,68 @@ function AutoMonitorView({
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set())
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({})
 
+  // 문제 수정 모달
+  const [editingQ, setEditingQ] = useState<ExamQuestion | null>(null)
+  const [editQText, setEditQText] = useState('')
+  const [editQScore, setEditQScore] = useState('')
+  const [editQChoices, setEditQChoices] = useState<{ num: number; text: string }[]>([])
+  const [editQCorrectChoice, setEditQCorrectChoice] = useState<number | null>(null)
+  const [editQAnswers, setEditQAnswers] = useState<string[]>([''])
+  const [savingQ, setSavingQ] = useState(false)
+
+  function openEditQ(q: ExamQuestion, choices: { id: string; question_id: string; choice_num: number; choice_text: string | null }[], answers: { id: string; question_id: string; answer_text: string; order_num: number }[]) {
+    setEditingQ(q)
+    setEditQText(q.question_text ?? '')
+    setEditQScore(String(q.score))
+    if (q.question_type === 'multiple_choice') {
+      setEditQChoices(choices.map(c => ({ num: c.choice_num, text: c.choice_text ?? '' })))
+      const correctNum = answers[0] ? Number(answers[0].answer_text) : null
+      setEditQCorrectChoice(correctNum)
+    } else {
+      setEditQChoices([])
+      setEditQCorrectChoice(null)
+      setEditQAnswers(answers.length > 0 ? answers.map(a => a.answer_text) : [''])
+    }
+  }
+
+  async function saveEditQ() {
+    if (!editingQ) return
+    const scoreVal = Number(editQScore)
+    if (isNaN(scoreVal) || scoreVal < 0) return
+    if (editingQ.question_type === 'multiple_choice' && editQCorrectChoice === null) return
+
+    setSavingQ(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setSavingQ(false); return }
+
+    const answers = editingQ.question_type === 'multiple_choice'
+      ? [String(editQCorrectChoice)]
+      : editQAnswers.filter(a => a.trim())
+
+    const res = await fetch(`/api/exams/${examId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'update_question',
+        questionId: editingQ.id,
+        questionText: editQText,
+        score: scoreVal,
+        choices: editingQ.question_type === 'multiple_choice' ? editQChoices : [],
+        answers,
+      }),
+    })
+    setSavingQ(false)
+    if (res.ok) {
+      setEditingQ(null)
+      onQuestionUpdated?.()
+    }
+  }
+
   // 학생 질문 (Q&A)
   const [inquiries, setInquiries] = useState<ExamInquiry[]>([])
   const [loadingInq, setLoadingInq] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [openReplyFor, setOpenReplyFor] = useState<string | null>(null)
-  const [replyInputs, setReplyInputs] = useState<Record<string, string>>({})
-  const [sendingReply, setSendingReply] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadInquiries() {
@@ -954,31 +1008,6 @@ function AutoMonitorView({
     }
     loadInquiries()
   }, [examId, academyId, lastRefresh])
-
-  async function sendReply(inquiryId: string) {
-    const text = (replyInputs[inquiryId] ?? '').trim()
-    if (!text) return
-    setSendingReply(inquiryId)
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) { setSendingReply(null); return }
-    const res = await fetch(`/api/exam-inquiries/${inquiryId}/reply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ body: text }),
-    })
-    if (res.ok) {
-      const { reply } = await res.json()
-      setInquiries(prev => prev.map(inq =>
-        inq.id === inquiryId
-          ? { ...inq, exam_inquiry_replies: [...inq.exam_inquiry_replies, reply] }
-          : inq
-      ))
-      setReplyInputs(prev => ({ ...prev, [inquiryId]: '' }))
-      setOpenReplyFor(null)
-    }
-    setSendingReply(null)
-  }
 
   // 그룹 부모 제외, 자식 순서대로 정렬된 채점 대상 문제 목록
   const allExamQs = examDetail?.questions ?? []
@@ -1008,6 +1037,7 @@ function AutoMonitorView({
   })
 
   return (
+    <>
     <div className="space-y-5">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
@@ -1052,6 +1082,14 @@ function AutoMonitorView({
                             {q.question_type === 'multiple_choice' ? '객관식' : '주관식'}
                           </span>
                           <span className="text-xs text-slate-400">{q.score}점</span>
+                          {(status === 'active' || status === 'closed') && (
+                            <button
+                              onClick={() => openEditQ(q, qChoices, qAnswers)}
+                              className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
+                            >
+                              수정
+                            </button>
+                          )}
                         </div>
                         {q.question_text && (
                           <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{q.question_text}</p>
@@ -1365,7 +1403,6 @@ function AutoMonitorView({
               <div className="divide-y divide-slate-100">
                 {groups.map(group => {
                   const isOpen = expandedGroups.has(group.key)
-                  const unanswered = group.items.filter(i => i.exam_inquiry_replies.length === 0).length
                   return (
                     <div key={group.key}>
                       <button
@@ -1385,49 +1422,15 @@ function AutoMonitorView({
                       {isOpen && (
                         <div className="border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/40">
                           {group.items.map(inq => {
-                            const replyOpen = openReplyFor === inq.id
                             return (
                               <div key={inq.id} className="px-4 py-3 space-y-2">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <span className="text-sm font-semibold text-slate-700 truncate">{inq.students?.name ?? '학생'}</span>
                                   <span className="text-xs text-slate-400 flex-shrink-0">{timeAgo(inq.created_at)}</span>
-                                  <button
-                                    onClick={() => setOpenReplyFor(prev => prev === inq.id ? null : inq.id)}
-                                    className={`ml-auto flex-shrink-0 p-1.5 rounded-lg transition-colors ${replyOpen ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
-                                  >
-                                    <MessageSquare size={14} />
-                                  </button>
                                 </div>
                                 <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 break-words">
                                   {inq.body}
                                 </div>
-                                {inq.exam_inquiry_replies.map(reply => (
-                                  <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                                    <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-sm break-words w-fit max-w-full">
-                                      {reply.body}
-                                    </div>
-                                    <p className="text-xs text-slate-400 pr-1">{reply.teacherName} · {timeAgo(reply.created_at)}</p>
-                                  </div>
-                                ))}
-                                {replyOpen && (
-                                  <div className="flex gap-2">
-                                    <input
-                                      value={replyInputs[inq.id] ?? ''}
-                                      onChange={e => setReplyInputs(prev => ({ ...prev, [inq.id]: e.target.value }))}
-                                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendReply(inq.id)}
-                                      placeholder="답변 입력..."
-                                      autoFocus
-                                      className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <button
-                                      onClick={() => sendReply(inq.id)}
-                                      disabled={sendingReply === inq.id || !(replyInputs[inq.id] ?? '').trim()}
-                                      className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 flex-shrink-0 transition-colors"
-                                    >
-                                      <Send size={16} />
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                             )
                           })}
@@ -1442,6 +1445,106 @@ function AutoMonitorView({
         )
       })()}
     </div>
+
+    {/* ── 문제 수정 모달 ── */}
+    {editingQ && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditingQ(null)}>
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 text-base">{editingQ.question_label ?? ''} 문제 수정</h3>
+            <button onClick={() => setEditingQ(null)} className="text-slate-400 hover:text-slate-600 p-1">✕</button>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* 문제 텍스트 */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">문제 내용</label>
+              <textarea
+                value={editQText}
+                onChange={e => setEditQText(e.target.value)}
+                rows={3}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="문제를 입력하세요"
+              />
+            </div>
+            {/* 배점 */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">배점</label>
+              <input
+                type="number"
+                value={editQScore}
+                onChange={e => setEditQScore(e.target.value)}
+                min={0}
+                step="any"
+                className="w-24 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-slate-400">점</span>
+            </div>
+            {/* 객관식: 선택지 + 정답 */}
+            {editingQ.question_type === 'multiple_choice' && (
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">선택지 및 정답</label>
+                <div className="space-y-2">
+                  {editQChoices.map((c, i) => (
+                    <div key={c.num} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="correctChoice"
+                        checked={editQCorrectChoice === c.num}
+                        onChange={() => setEditQCorrectChoice(c.num)}
+                        className="accent-emerald-500 flex-shrink-0"
+                      />
+                      <span className="text-xs font-semibold text-slate-400 w-4 flex-shrink-0">{c.num}.</span>
+                      <input
+                        type="text"
+                        value={c.text}
+                        onChange={e => setEditQChoices(prev => prev.map((ch, j) => j === i ? { ...ch, text: e.target.value } : ch))}
+                        className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={`${c.num}번 선택지`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">라디오 버튼으로 정답 선택</p>
+              </div>
+            )}
+            {/* 주관식: 정답 목록 */}
+            {editingQ.question_type === 'short_answer' && (
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">정답 (복수 정답 가능)</label>
+                <div className="space-y-2">
+                  {editQAnswers.map((ans, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={ans}
+                        onChange={e => setEditQAnswers(prev => prev.map((a, j) => j === i ? e.target.value : a))}
+                        className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="정답 입력"
+                      />
+                      {editQAnswers.length > 1 && (
+                        <button onClick={() => setEditQAnswers(prev => prev.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 text-sm px-1">✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setEditQAnswers(prev => [...prev, ''])} className="mt-2 text-xs text-blue-500 hover:text-blue-700 font-medium">+ 정답 추가</button>
+              </div>
+            )}
+          </div>
+          <div className="px-5 pb-5 flex gap-2 justify-end">
+            <button onClick={() => setEditingQ(null)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 font-medium">취소</button>
+            <button
+              onClick={saveEditQ}
+              disabled={savingQ}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+            >
+              {savingQ ? '저장 중...' : '저장 및 재채점'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
@@ -1682,6 +1785,17 @@ function GradesContent() {
     setSubmissions(json.students ?? [])
     setLastRefresh(new Date())
     setRefreshing(false)
+  }
+
+  async function refreshExamDetail() {
+    if (!selectedExam) return
+    const token = await getToken()
+    if (!token) return
+    const [detailRes] = await Promise.all([
+      fetch(`/api/exams/${selectedExam.id}`, { headers: { Authorization: `Bearer ${token}` } }),
+    ])
+    setExamDetail(await detailRes.json())
+    await refreshSubmissions()
   }
 
   async function addManualExam(e: React.FormEvent) {
@@ -2828,6 +2942,7 @@ function GradesContent() {
           onSaveNote={saveExamNote}
           examId={selectedExam?.id ?? ''}
           academyId={ctx?.academyId ?? ''}
+          onQuestionUpdated={refreshExamDetail}
         />
         )}
         </div>

@@ -135,11 +135,13 @@ export default function ExamTab({
   const [forfeiting, setForfeiting] = useState(false)
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null)
 
-  // 질문 (result 화면)
+  // 질문 (result 화면) — questionId → inquiryId 매핑
   const [openInquiryFor, setOpenInquiryFor] = useState<string | null>(null)
   const [inquiryText, setInquiryText] = useState('')
   const [submittingInquiry, setSubmittingInquiry] = useState(false)
-  const [submittedInquiries, setSubmittedInquiries] = useState<Set<string>>(new Set())
+  const [cancellingInquiry, setCancellingInquiry] = useState(false)
+  // questionId → inquiryId (전송 완료된 질문 추적)
+  const [submittedInquiries, setSubmittedInquiries] = useState<Map<string, string>>(new Map())
 
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -157,11 +159,28 @@ export default function ExamTab({
       body: JSON.stringify({ examId: examDetail.exam.id, questionId, body: inquiryText.trim() || '질문 있어요' }),
     })
     if (res.ok) {
-      setSubmittedInquiries(prev => new Set([...prev, questionId]))
+      const { inquiry } = await res.json()
+      setSubmittedInquiries(prev => new Map([...prev, [questionId, inquiry.id]]))
       setOpenInquiryFor(null)
       setInquiryText('')
     }
     setSubmittingInquiry(false)
+  }
+
+  async function cancelInquiry(questionId: string) {
+    const inquiryId = submittedInquiries.get(questionId)
+    if (!inquiryId) return
+    setCancellingInquiry(true)
+    const token = await getToken()
+    if (!token) { setCancellingInquiry(false); return }
+    const res = await fetch(`/api/exam-inquiries/${inquiryId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      setSubmittedInquiries(prev => { const m = new Map(prev); m.delete(questionId); return m })
+    }
+    setCancellingInquiry(false)
   }
 
   // Load exam list on mount or when classId changes
@@ -443,9 +462,18 @@ export default function ExamTab({
                       </button>
                     </div>
                   ) : submittedInquiries.has(q.id) ? (
-                    <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                      <CheckCircle2 size={12} /> 질문이 선생님께 전송됐어요
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                        <CheckCircle2 size={12} /> 질문이 선생님께 전송됐어요
+                      </p>
+                      <button
+                        onClick={() => cancelInquiry(q.id)}
+                        disabled={cancellingInquiry}
+                        className="text-xs text-slate-400 hover:text-red-500 underline underline-offset-2 disabled:opacity-50 transition-colors"
+                      >
+                        취소
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={() => { setOpenInquiryFor(q.id); setInquiryText('') }}

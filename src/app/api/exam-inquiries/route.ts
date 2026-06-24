@@ -81,28 +81,14 @@ export async function GET(req: NextRequest) {
 
     const { data: inquiries } = await db
       .from('exam_inquiries')
-      .select('id, exam_id, body, created_at, question_id, exam_questions (order_num, question_label, question_text), students (id, name), exam_inquiry_replies (id, body, created_at, teacher_id)')
+      .select('id, exam_id, body, created_at, question_id, exam_questions (order_num, question_label, question_text), students (id, name)')
       .in('exam_id', examIds)
       .order('created_at', { ascending: false })
-
-    // 선생님 이름 병합
-    const teacherIds = [...new Set((inquiries ?? []).flatMap(i =>
-      (i.exam_inquiry_replies as { teacher_id: string }[]).map(r => r.teacher_id)
-    ))]
-    const teacherMap: Record<string, string> = {}
-    if (teacherIds.length > 0) {
-      const { data: profiles } = await db.from('profiles').select('id, name').in('id', teacherIds)
-      ;(profiles ?? []).forEach(p => { teacherMap[p.id] = p.name })
-    }
 
     const result = (inquiries ?? []).map(inq => ({
       ...inq,
       examTitle: examInfoMap[inq.exam_id]?.title ?? '시험',
       examClass: examInfoMap[inq.exam_id]?.className ?? '',
-      exam_inquiry_replies: (inq.exam_inquiry_replies as { id: string; body: string; created_at: string; teacher_id: string }[]).map(r => ({
-        ...r,
-        teacherName: teacherMap[r.teacher_id] ?? '선생님'
-      }))
     }))
 
     return NextResponse.json({ inquiries: result })
