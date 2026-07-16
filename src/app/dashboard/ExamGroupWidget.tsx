@@ -193,7 +193,7 @@ export default function ExamGroupWidget() {
             {/* 데이터 없음 */}
             {!loading && data && data.dates.length === 0 && (
               <div className="text-center py-10 text-slate-400 text-sm">
-                최근 7일간 모아볼 시험이 없어요
+                모아볼 시험이 없어요
               </div>
             )}
 

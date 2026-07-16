@@ -38,20 +38,12 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // 최근 7일 (KST 기준) → UTC로 변환해서 쿼리
-  const nowKST = new Date(Date.now() + 9 * 3600 * 1000)
-  const cutoffKST = new Date(nowKST)
-  cutoffKST.setDate(nowKST.getDate() - 6)
-  cutoffKST.setUTCHours(0, 0, 0, 0)
-  const since = new Date(cutoffKST.getTime() - 9 * 3600 * 1000) // UTC
-
   // 시험 목록 (active + closed, start_at 있는 것만)
   const { data: exams } = await db
     .from('exams')
     .select('id, title, category, start_at, exam_type, max_score')
     .eq('class_id', classId)
     .in('status', ['active', 'closed'])
-    .gte('start_at', since.toISOString())
     .not('start_at', 'is', null)
     .order('start_at', { ascending: true })
 
