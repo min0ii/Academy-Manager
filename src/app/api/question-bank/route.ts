@@ -133,6 +133,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
+  if (action === 'move_folder') {
+    const { id, parentId } = body
+    await db.from('qb_folders').update({ parent_id: parentId ?? null, order_num: null }).eq('id', id).eq('academy_id', academyId)
+    return NextResponse.json({ success: true })
+  }
+
   if (action === 'reorder_sets') {
     const { orders } = body  // [{ id, order_num }]
     await Promise.all(

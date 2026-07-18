@@ -395,6 +395,7 @@ export default function QuestionBank() {
 
   // 모바일 이동 모달
   const [movingSetId, setMovingSetId] = useState<string | null>(null)
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null)
   const [allFolders, setAllFolders] = useState<QBFolder[]>([])
   const [loadingAllFolders, setLoadingAllFolders] = useState(false)
 
@@ -577,6 +578,29 @@ export default function QuestionBank() {
     })
     setSets(prev => prev.filter(s => s.id !== movingSetId))
     setMovingSetId(null)
+  }
+
+  async function openFolderMoveModal(id: string) {
+    setMovingFolderId(id)
+    setLoadingAllFolders(true)
+    const token = await getToken()
+    if (!token) { setLoadingAllFolders(false); return }
+    const res = await fetch('/api/question-bank?all=true', { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) setAllFolders((await res.json()).folders ?? [])
+    setLoadingAllFolders(false)
+  }
+
+  async function doMoveFolder(targetParentId: string | null) {
+    if (!movingFolderId) return
+    const token = await getToken()
+    if (!token) return
+    await fetch('/api/question-bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'move_folder', id: movingFolderId, parentId: targetParentId }),
+    })
+    setFolders(prev => prev.filter(f => f.id !== movingFolderId))
+    setMovingFolderId(null)
   }
 
   async function createFolder() {
@@ -1305,6 +1329,10 @@ export default function QuestionBank() {
                     <Folder size={18} className="text-amber-400 flex-shrink-0" />
                     <span className="text-sm font-semibold text-slate-700">{folder.name}</span>
                   </button>
+                  <button onClick={e => { e.stopPropagation(); void openFolderMoveModal(folder.id) }}
+                    className="md:hidden px-2 py-1 text-xs text-slate-400 hover:text-blue-500 rounded-lg transition-colors flex-shrink-0 font-medium">
+                    이동
+                  </button>
                   <button onClick={() => { setRenamingId(folder.id); setRenamingType('folder'); setRenameValue(folder.name) }}
                     className="p-1.5 text-slate-300 hover:text-slate-500 rounded-lg transition-colors"><Pencil size={14} /></button>
                   <button onClick={() => deleteItem('folder', folder.id, folder.name)}
@@ -1376,13 +1404,13 @@ export default function QuestionBank() {
         </div>
       )}
 
-      {/* 이동 모달 (모바일) */}
-      {movingSetId && createPortal(
+      {/* 이동 모달 (모바일) — 세트/폴더 공용 */}
+      {(movingSetId !== null || movingFolderId !== null) && createPortal(
         <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 sm:items-center sm:p-4">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-xl w-full sm:max-w-sm p-5 space-y-3 max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-800">어디로 이동할까요?</h2>
-              <button onClick={() => setMovingSetId(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setMovingSetId(null); setMovingFolderId(null) }} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
               </button>
             </div>
@@ -1393,7 +1421,7 @@ export default function QuestionBank() {
             ) : (
               <div className="overflow-y-auto space-y-1 flex-1">
                 <button
-                  onClick={() => void doMoveSet(null)}
+                  onClick={() => void (movingFolderId ? doMoveFolder(null) : doMoveSet(null))}
                   disabled={folderId === null}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${
                     folderId === null ? 'opacity-40 cursor-default' : 'text-slate-700 hover:bg-slate-50'
@@ -1404,21 +1432,23 @@ export default function QuestionBank() {
                   <span>루트 (최상위)</span>
                   {folderId === null && <span className="ml-auto text-xs text-slate-400">현재 위치</span>}
                 </button>
-                {allFolders.map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => void doMoveSet(f.id)}
-                    disabled={f.id === folderId}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${
-                      f.id === folderId ? 'opacity-40 cursor-default' : 'text-slate-700 hover:bg-slate-50'
-                    }`}>
-                    <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                      <Folder size={14} className="text-amber-400" />
-                    </div>
-                    <span>{f.name}</span>
-                    {f.id === folderId && <span className="ml-auto text-xs text-slate-400">현재 위치</span>}
-                  </button>
-                ))}
+                {allFolders
+                  .filter(f => f.id !== movingFolderId)
+                  .map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => void (movingFolderId ? doMoveFolder(f.id) : doMoveSet(f.id))}
+                      disabled={f.id === folderId}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${
+                        f.id === folderId ? 'opacity-40 cursor-default' : 'text-slate-700 hover:bg-slate-50'
+                      }`}>
+                      <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                        <Folder size={14} className="text-amber-400" />
+                      </div>
+                      <span>{f.name}</span>
+                      {f.id === folderId && <span className="ml-auto text-xs text-slate-400">현재 위치</span>}
+                    </button>
+                  ))}
               </div>
             )}
           </div>
