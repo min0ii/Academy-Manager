@@ -47,24 +47,20 @@ export async function POST(req: NextRequest) {
 
     const errors: string[] = []
 
-    // ── 학생 계정 삭제 ──
-    // 같은 전화번호(user_id)로 다른 학원에도 다니고 있으면 auth 계정은 유지하고
-    // 이 학원 학생 row의 user_id만 null로 초기화
-    if (targetType === 'student' || targetType === 'both') {
+    // ── 학생 삭제 태스크 ──
+    const studentTask = async () => {
+      if (targetType !== 'student' && targetType !== 'both') return
       for (const s of studentRows) {
         if (!s.user_id) continue
 
-        // 같은 user_id를 쓰는 다른 학생 행이 있는지 확인 (다른 학원)
-        const { data: allUserRows } = await db
-          .from('students').select('id').eq('user_id', s.user_id)
+        // 다른 학원 확인(SELECT)과 user_id 초기화(UPDATE)를 동시에 실행
+        const [{ data: allUserRows }] = await Promise.all([
+          db.from('students').select('id').eq('user_id', s.user_id),
+          db.from('students').update({ user_id: null }).eq('id', s.id),
+        ])
         const otherRows = (allUserRows ?? []).filter(r => !studentIds.includes(r.id))
 
-        // 이 학원 student row의 user_id 초기화 (항상)
-        await db.from('students').update({ user_id: null }).eq('id', s.id)
-
-        if (otherRows.length > 0) {
-          // 다른 학원에도 등록되어 있음 → auth 계정은 유지
-        } else {
+        if (otherRows.length === 0) {
           // 마지막 학원 → auth 계정 + profile 삭제
           const { error: delErr } = await db.auth.admin.deleteUser(s.user_id)
           if (delErr) errors.push(`${s.name} 학생 계정 삭제 오류: ${delErr.message}`)
@@ -73,9 +69,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 학부모 계정 삭제 ──
+    // ── 학부모 삭제 태스크 ──
     // 자녀가 여럿이거나 다른 학원에도 자녀가 있으면 계정 유지
-    if (targetType === 'parent' || targetType === 'both') {
+    const parentTask = async () => {
+      if (targetType !== 'parent' && targetType !== 'both') return
       for (const s of studentRows) {
         let deletedParentId: string | null = null
         let foundViaLink = false
@@ -91,15 +88,13 @@ export async function POST(req: NextRequest) {
           await db.from('parent_students')
             .delete().eq('parent_id', link.parent_id).eq('student_id', s.id)
 
-          // 남은 자녀 링크 확인
+          // 남은 자녀 링크 확인 (링크 삭제 후에 확인해야 정확함)
           const { data: remaining } = await db
             .from('parent_students').select('student_id').eq('parent_id', link.parent_id)
 
           if (!remaining || remaining.length === 0) {
-            // 마지막 자녀 → 학부모 계정 삭제 대상
             deletedParentId = link.parent_id
           }
-          // else: 다른 자녀 여전히 있음 → 계정 유지
         }
 
         // 방법 2: parent_phone 기반 fallback (parent_students 미사용 레거시 데이터)
@@ -109,19 +104,16 @@ export async function POST(req: NextRequest) {
             .from('profiles').select('id').eq('phone', parentPhone).eq('role', 'parent').maybeSingle()
 
           if (parentProfile) {
-            // 이 학부모의 다른 재원 자녀가 있는지 parent_phone으로 확인
             const { data: allSamePhone } = await db
               .from('students').select('id').eq('parent_phone', s.parent_phone)
             const otherChildren = (allSamePhone ?? []).filter(r => !studentIds.includes(r.id))
 
             if (otherChildren.length === 0) {
-              // 퇴원하는 학생이 유일한 자녀 → 학부모 계정 삭제 대상
               deletedParentId = parentProfile.id
             }
           }
         }
 
-        // 학부모 계정 삭제
         if (deletedParentId) {
           const { error: delErr } = await db.auth.admin.deleteUser(deletedParentId)
           if (delErr) errors.push(`학부모 계정 삭제 오류: ${delErr.message}`)
@@ -129,6 +121,9 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+
+    // 학생 삭제와 학부모 삭제를 동시에 실행
+    await Promise.all([studentTask(), parentTask()])
 
     return NextResponse.json({ success: true, errors })
   } catch {

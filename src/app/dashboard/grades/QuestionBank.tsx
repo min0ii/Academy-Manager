@@ -379,6 +379,7 @@ export default function QuestionBank() {
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
   const [editingSetTitle, setEditingSetTitle] = useState('')
   const [questions, setQuestions] = useState<QBQuestion[]>([newQ(1)])
+  const [loadingSet, setLoadingSet] = useState(false)
   const [savingSet, setSavingSet] = useState(false)
   const [savedSet, setSavedSet] = useState(false)
   const [openingExam, setOpeningExam] = useState(false)  // 시험 생성 모달 열기 중 (중복 실행 방지)
@@ -680,8 +681,9 @@ export default function QuestionBank() {
     setEditingSetId(set.id)
     setEditingSetTitle(set.title)
     setSavedSet(false)
+    setLoadingSet(true)
     const token = await getToken()
-    if (!token) return
+    if (!token) { setLoadingSet(false); return }
     const res = await fetch(`/api/question-bank/${set.id}`, { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) { setQuestions([newQ(1)]); return }
     const json = await res.json()
@@ -754,6 +756,7 @@ export default function QuestionBank() {
       }
     })
     setQuestions(loaded.length > 0 ? loaded : [newQ(1)])
+    setLoadingSet(false)
   }
 
   async function saveSet() {
@@ -991,12 +994,36 @@ export default function QuestionBank() {
 
         {/* 문제 목록 */}
         <div className="space-y-3">
-          {questions.map((q, i) => (
-            <QuestionCard key={q.clientId} q={q} idx={i} total={questions.length}
-              onChange={u => updateQ(i, u)}
-              onRemove={() => { setSavedSet(false); setQuestions(prev => prev.filter((_, pi) => pi !== i)) }}
-            />
-          ))}
+          {loadingSet ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 animate-pulse">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-7 bg-slate-100 rounded-lg" />
+                  <div className="w-24 h-7 bg-slate-100 rounded-lg" />
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="w-14 h-7 bg-slate-100 rounded-lg" />
+                    <div className="w-4 h-7 bg-slate-100 rounded-lg" />
+                  </div>
+                </div>
+                <div className="w-full h-16 bg-slate-100 rounded-xl" />
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <div key={j} className="flex items-center gap-2">
+                      <div className="w-5 h-5 bg-slate-100 rounded-full" />
+                      <div className="flex-1 h-5 bg-slate-100 rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            questions.map((q, i) => (
+              <QuestionCard key={q.clientId} q={q} idx={i} total={questions.length}
+                onChange={u => updateQ(i, u)}
+                onRemove={() => { setSavedSet(false); setQuestions(prev => prev.filter((_, pi) => pi !== i)) }}
+              />
+            ))
+          )}
         </div>
 
         {/* 문제 추가 버튼 */}
