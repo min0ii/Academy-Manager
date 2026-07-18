@@ -31,12 +31,18 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const folderId = searchParams.get('folderId') // null = 루트
+  const all = searchParams.get('all') === 'true'
 
   // 폴더 목록
   let folderQ = db.from('qb_folders').select('id, name, parent_id, created_at').eq('academy_id', academyId)
-  if (folderId) folderQ = folderQ.eq('parent_id', folderId)
-  else folderQ = folderQ.is('parent_id', null)
+  if (!all) {
+    if (folderId) folderQ = folderQ.eq('parent_id', folderId)
+    else folderQ = folderQ.is('parent_id', null)
+  }
   const { data: folders } = await folderQ.order('order_num', { ascending: true, nullsFirst: false })
+
+  // all=true: 폴더 목록만 반환 (이동 모달용)
+  if (all) return NextResponse.json({ folders: folders ?? [], sets: [] })
 
   // 세트 목록
   let setQ = db.from('qb_sets').select('id, title, folder_id, created_at, updated_at').eq('academy_id', academyId)

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Folder, FileText, Plus, ChevronRight, ChevronLeft,
+  Folder, FileText, Plus, ChevronRight, ChevronLeft, ChevronUp, ChevronDown,
   Pencil, Trash2, X, Check, BookOpen, ArrowLeft, Save,
   GraduationCap, GripVertical,
 } from 'lucide-react'
@@ -393,6 +393,11 @@ export default function QuestionBank() {
   const [dragOverFolderIdForSet, setDragOverFolderIdForSet] = useState<string | null>(null)
   const [dragOverParentZone, setDragOverParentZone] = useState(false)
 
+  // 모바일 이동 모달
+  const [movingSetId, setMovingSetId] = useState<string | null>(null)
+  const [allFolders, setAllFolders] = useState<QBFolder[]>([])
+  const [loadingAllFolders, setLoadingAllFolders] = useState(false)
+
   // 인라인 이름변경
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renamingType, setRenamingType] = useState<'folder' | 'set' | null>(null)
@@ -527,6 +532,51 @@ export default function QuestionBank() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action: 'move_set', id: set.id, folderId: parentId }),
     })
+  }
+
+  // 모바일 ▲▼ 순서 변경
+  function moveFolderUp(idx: number) {
+    if (idx === 0) return
+    const next = [...folders]; [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+    setFolders(next); void saveFolderOrder(next)
+  }
+  function moveFolderDown(idx: number) {
+    if (idx === folders.length - 1) return
+    const next = [...folders]; [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+    setFolders(next); void saveFolderOrder(next)
+  }
+  function moveSetUp(idx: number) {
+    if (idx === 0) return
+    const next = [...sets]; [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+    setSets(next); void saveSetOrder(next)
+  }
+  function moveSetDown(idx: number) {
+    if (idx === sets.length - 1) return
+    const next = [...sets]; [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+    setSets(next); void saveSetOrder(next)
+  }
+
+  // 모바일 이동 모달
+  async function openMoveModal(setId: string) {
+    setMovingSetId(setId)
+    setLoadingAllFolders(true)
+    const token = await getToken()
+    if (!token) { setLoadingAllFolders(false); return }
+    const res = await fetch('/api/question-bank?all=true', { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) setAllFolders((await res.json()).folders ?? [])
+    setLoadingAllFolders(false)
+  }
+  async function doMoveSet(targetFolderId: string | null) {
+    if (!movingSetId) return
+    const token = await getToken()
+    if (!token) return
+    await fetch('/api/question-bank', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'move_set', id: movingSetId, folderId: targetFolderId }),
+    })
+    setSets(prev => prev.filter(s => s.id !== movingSetId))
+    setMovingSetId(null)
   }
 
   async function createFolder() {
@@ -1240,7 +1290,17 @@ export default function QuestionBank() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <GripVertical size={16} className="text-slate-300 flex-shrink-0" />
+                  <GripVertical size={16} className="text-slate-300 flex-shrink-0 hidden md:block" />
+                  <div className="flex flex-col md:hidden flex-shrink-0">
+                    <button onClick={() => moveFolderUp(i)} disabled={i === 0}
+                      className="text-slate-300 hover:text-slate-500 disabled:opacity-20 transition-colors p-0.5">
+                      <ChevronUp size={13} />
+                    </button>
+                    <button onClick={() => moveFolderDown(i)} disabled={i === folders.length - 1}
+                      className="text-slate-300 hover:text-slate-500 disabled:opacity-20 transition-colors p-0.5">
+                      <ChevronDown size={13} />
+                    </button>
+                  </div>
                   <button onClick={() => enterFolder(folder)} className="flex items-center gap-3 flex-1 text-left">
                     <Folder size={18} className="text-amber-400 flex-shrink-0" />
                     <span className="text-sm font-semibold text-slate-700">{folder.name}</span>
@@ -1280,13 +1340,27 @@ export default function QuestionBank() {
                 </div>
               ) : (
                 <div className="flex items-center gap-1 px-2 py-3 hover:bg-slate-50 transition-colors group">
-                  <GripVertical size={16} className="text-slate-300 flex-shrink-0 mx-1" />
+                  <GripVertical size={16} className="text-slate-300 flex-shrink-0 mx-1 hidden md:block" />
+                  <div className="flex flex-col md:hidden flex-shrink-0 ml-1">
+                    <button onClick={() => moveSetUp(i)} disabled={i === 0}
+                      className="text-slate-300 hover:text-slate-500 disabled:opacity-20 transition-colors p-0.5">
+                      <ChevronUp size={13} />
+                    </button>
+                    <button onClick={() => moveSetDown(i)} disabled={i === sets.length - 1}
+                      className="text-slate-300 hover:text-slate-500 disabled:opacity-20 transition-colors p-0.5">
+                      <ChevronDown size={13} />
+                    </button>
+                  </div>
                   <button onClick={() => openEditSet(set)} className="flex items-center gap-3 flex-1 text-left min-w-0">
                     <FileText size={18} className="text-blue-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-700">{set.title}</p>
                       <p className="text-xs text-slate-400 mt-0.5">{set.questionCount}문제</p>
                     </div>
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); void openMoveModal(set.id) }}
+                    className="md:hidden px-2 py-1 text-xs text-slate-400 hover:text-blue-500 rounded-lg transition-colors flex-shrink-0 font-medium">
+                    이동
                   </button>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={e => { e.stopPropagation(); setRenamingId(set.id); setRenamingType('set'); setRenameValue(set.title) }}
@@ -1300,6 +1374,56 @@ export default function QuestionBank() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* 이동 모달 (모바일) */}
+      {movingSetId && createPortal(
+        <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 sm:items-center sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-xl w-full sm:max-w-sm p-5 space-y-3 max-h-[70vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-800">어디로 이동할까요?</h2>
+              <button onClick={() => setMovingSetId(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            {loadingAllFolders ? (
+              <div className="flex justify-center py-6">
+                <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-y-auto space-y-1 flex-1">
+                <button
+                  onClick={() => void doMoveSet(null)}
+                  disabled={folderId === null}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${
+                    folderId === null ? 'opacity-40 cursor-default' : 'text-slate-700 hover:bg-slate-50'
+                  }`}>
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <BookOpen size={14} className="text-slate-500" />
+                  </div>
+                  <span>루트 (최상위)</span>
+                  {folderId === null && <span className="ml-auto text-xs text-slate-400">현재 위치</span>}
+                </button>
+                {allFolders.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => void doMoveSet(f.id)}
+                    disabled={f.id === folderId}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${
+                      f.id === folderId ? 'opacity-40 cursor-default' : 'text-slate-700 hover:bg-slate-50'
+                    }`}>
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <Folder size={14} className="text-amber-400" />
+                    </div>
+                    <span>{f.name}</span>
+                    {f.id === folderId && <span className="ml-auto text-xs text-slate-400">현재 위치</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
