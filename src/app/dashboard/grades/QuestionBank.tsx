@@ -1432,6 +1432,20 @@ export default function QuestionBank() {
                   <span>루트 (최상위)</span>
                   {folderId === null && <span className="ml-auto text-xs text-slate-400">현재 위치</span>}
                 </button>
+                {folderId !== null && (
+                  <button
+                    onClick={() => {
+                      const parentId = breadcrumbs[breadcrumbs.length - 2]?.id ?? null
+                      void (movingFolderId ? doMoveFolder(parentId) : doMoveSet(parentId))
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left text-slate-700 hover:bg-slate-50 transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <ChevronUp size={14} className="text-blue-500" />
+                    </div>
+                    <span>상위 폴더로 꺼내기</span>
+                    <span className="ml-1.5 text-xs text-slate-400">→ {breadcrumbs[breadcrumbs.length - 2]?.name ?? '루트'}</span>
+                  </button>
+                )}
                 {allFolders
                   .filter(f => f.id !== movingFolderId)
                   .map(f => (
