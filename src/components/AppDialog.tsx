@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 
 type DialogState = {
   open: boolean
-  type: 'alert' | 'confirm' | 'prompt'
+  type: 'confirm' | 'prompt'
   message: string
   destructive?: boolean
   confirmText?: string
@@ -14,18 +14,11 @@ type DialogState = {
 }
 
 export function useDialog() {
-  const [state, setState] = useState<DialogState>({ open: false, type: 'alert', message: '' })
+  const [state, setState] = useState<DialogState>({ open: false, type: 'confirm', message: '' })
   const resolveRef = useRef<((v: any) => void) | null>(null)
   const [promptInput, setPromptInput] = useState('')
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-
-  const showAlert = useCallback((message: string): Promise<boolean> => {
-    return new Promise(resolve => {
-      resolveRef.current = resolve
-      setState({ open: true, type: 'alert', message })
-    })
-  }, [])
 
   const showConfirm = useCallback((message: string, opts?: { destructive?: boolean; confirmText?: string }): Promise<boolean> => {
     return new Promise(resolve => {
@@ -97,5 +90,6 @@ export function useDialog() {
     ? createPortal(dialogEl, document.body)
     : null
 
-  return { showAlert, showConfirm, showPrompt, dialog }
+  // showAlert는 showConfirm의 alias — 동작이 동일하므로 하나로 통일
+  return { showAlert: showConfirm, showConfirm, showPrompt, dialog }
 }
