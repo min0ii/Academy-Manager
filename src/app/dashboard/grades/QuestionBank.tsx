@@ -769,11 +769,25 @@ export default function QuestionBank() {
     setLoadingSet(false)
   }
 
+  function countEmptyMCAnswers(qs: QBQuestion[]) {
+    return qs.reduce((acc, q) => {
+      if (q.question_type === 'multiple_choice' && q.correctChoiceIdxs.length === 0) return acc + 1
+      if (q.question_type === 'group')
+        return acc + (q.children ?? []).filter(c => c.question_type === 'multiple_choice' && c.correctChoiceIdxs.length === 0).length
+      return acc
+    }, 0)
+  }
+
   async function saveSet() {
     if (!editingSetId) return
     setSavingSet(true); setSavedSet(false)
     const token = await getToken()
     if (!token) { setSavingSet(false); return }
+
+    const emptyCount = countEmptyMCAnswers(questions)
+    if (emptyCount > 0) {
+      await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 저장돼요.`)
+    }
 
     // 제목 저장
     const trimmedTitle = editingSetTitle.trim()
@@ -895,6 +909,11 @@ export default function QuestionBank() {
     }
     const selectedQs = questions.filter(q => selectedQClientIds.has(q.clientId))
     if (!selectedQs.length) { void showAlert('문제를 1개 이상 선택해주세요.'); return }
+
+    const emptyCount = countEmptyMCAnswers(selectedQs)
+    if (emptyCount > 0) {
+      await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 출제돼요.`)
+    }
 
     setCreatingExam(true)
     const token = await getToken()
