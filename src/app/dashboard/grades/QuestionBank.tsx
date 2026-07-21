@@ -1024,7 +1024,13 @@ export default function QuestionBank() {
         {dialog}
         {/* 헤더: 뒤로가기 / 제목 / 저장 / 시험생성 */}
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditingSetId(null)}
+          <button onClick={async () => {
+              if (!savedSet) {
+                const ok = await showConfirm('저장되지 않았어요.\n그대로 나갈까요?', { confirmText: '나가기' })
+                if (!ok) return
+              }
+              setEditingSetId(null)
+            }}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0">
             <ArrowLeft size={20} />
           </button>
