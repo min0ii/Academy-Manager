@@ -298,6 +298,15 @@ export default function ExamTab({
     if (!isExpired) saveAnswer(questionId, answer, qType)
   }
 
+  function handleMCToggle(questionId: string, choiceNum: string) {
+    const current = answers[questionId] ?? ''
+    const selected = current ? current.split(',') : []
+    const newSelected = selected.includes(choiceNum)
+      ? selected.filter(s => s !== choiceNum)
+      : [...selected, choiceNum].sort((a, b) => Number(a) - Number(b))
+    handleAnswer(questionId, newSelected.join(','), 'multiple_choice')
+  }
+
   async function submitExam() {
     if (!examDetail) return
     setSubmitting(true)
@@ -415,7 +424,7 @@ export default function ExamTab({
             {buildAnswerableQs(examDetail.questions).map((q, idx) => {
               const r = submitResult.answers.find(a => a.questionId === q.id)
               const qChoices = examDetail.choices.filter(c => c.question_id === q.id)
-              const choiceText = qChoices.find(c => String(c.choice_num) === r?.studentAnswer)?.choice_text
+              const studentNums = r?.studentAnswer ? r.studentAnswer.split(',') : []
               return (
                 <div key={q.id} className="px-4 py-3 space-y-2.5">
                   <div className="flex items-start gap-3">
@@ -430,7 +439,9 @@ export default function ExamTab({
                         </span>
                         {r?.studentAnswer ? (
                           <span className="text-xs text-slate-500">
-                            내 답: {q.question_type === 'multiple_choice' && choiceText ? `${r.studentAnswer}번 ${choiceText}` : r.studentAnswer}
+                            내 답: {q.question_type === 'multiple_choice'
+                              ? studentNums.map(n => `${n}번`).join(', ')
+                              : r.studentAnswer}
                           </span>
                         ) : (
                           <span className="text-xs text-slate-400">미답</span>
@@ -604,9 +615,9 @@ export default function ExamTab({
                                   <div className={`grid gap-1.5 ${isLong ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
                                     {qChoices.map(c => (
                                       <button key={c.id}
-                                        onClick={() => !isExpired && handleAnswer(child.id, String(c.choice_num), 'multiple_choice')}
+                                        onClick={() => !isExpired && handleMCToggle(child.id, String(c.choice_num))}
                                         disabled={isExpired}
-                                        className={`px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${currentAns === String(c.choice_num) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300'}`}>
+                                        className={`px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${(currentAns ?? '').split(',').includes(String(c.choice_num)) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300'}`}>
                                         <span className="font-bold mr-1.5">{c.choice_num}.</span>
                                         {c.choice_text || `선택지 ${c.choice_num}`}
                                       </button>
@@ -651,9 +662,9 @@ export default function ExamTab({
                         <div className={`grid gap-2 ${isLong ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
                           {qChoices.map(c => (
                             <button key={c.id}
-                              onClick={() => !isExpired && handleAnswer(q.id, String(c.choice_num), 'multiple_choice')}
+                              onClick={() => !isExpired && handleMCToggle(q.id, String(c.choice_num))}
                               disabled={isExpired}
-                              className={`px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${currentAns === String(c.choice_num) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
+                              className={`px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-left disabled:opacity-60 ${(currentAns ?? '').split(',').includes(String(c.choice_num)) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-blue-300'}`}>
                               <span className="font-bold mr-1.5">{c.choice_num}.</span>
                               {c.choice_text || `선택지 ${c.choice_num}`}
                             </button>
@@ -715,13 +726,13 @@ export default function ExamTab({
                       <div className="space-y-2">
                         {qChoices.map(c => (
                           <button key={c.id}
-                            onClick={() => !isExpired && handleAnswer(q.id, String(c.choice_num), 'multiple_choice')}
+                            onClick={() => !isExpired && handleMCToggle(q.id, String(c.choice_num))}
                             disabled={isExpired}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all disabled:opacity-60 ${currentAns === String(c.choice_num) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}>
-                            <span className={`w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0 ${currentAns === String(c.choice_num) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all disabled:opacity-60 ${(currentAns ?? '').split(',').includes(String(c.choice_num)) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}>
+                            <span className={`w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0 ${(currentAns ?? '').split(',').includes(String(c.choice_num)) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                               {c.choice_num}
                             </span>
-                            <span className={`text-sm ${currentAns === String(c.choice_num) ? 'text-blue-700 font-medium' : 'text-slate-700'}`}>
+                            <span className={`text-sm ${(currentAns ?? '').split(',').includes(String(c.choice_num)) ? 'text-blue-700 font-medium' : 'text-slate-700'}`}>
                               {c.choice_text || `선택지 ${c.choice_num}`}
                             </span>
                           </button>

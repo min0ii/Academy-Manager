@@ -25,9 +25,17 @@ async function verifyStudent(db: ReturnType<typeof admin>, token: string, examId
   return cs?.student_id ?? null
 }
 
-function gradeAnswer(studentAns: string, correctList: string[]): boolean {
+function gradeAnswer(studentAns: string, correctList: string[], questionType: string): boolean {
+  if (!studentAns.trim()) return false
+  if (questionType === 'multiple_choice') {
+    // 학생이 선택한 번호 집합과 정답 번호 집합이 완전히 일치해야 정답
+    const studentSet = new Set(studentAns.split(',').map(s => s.trim()).filter(Boolean))
+    const correctSet = new Set(correctList.map(c => c.trim()))
+    if (studentSet.size !== correctSet.size) return false
+    for (const s of studentSet) if (!correctSet.has(s)) return false
+    return true
+  }
   const norm = studentAns.trim().toLowerCase()
-  if (!norm) return false
   return correctList.some(c => c.trim().toLowerCase() === norm)
 }
 
@@ -108,7 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   const gradedAnswers = (questions ?? []).filter(q => q.question_type !== 'group').map(q => {
     const studentAns = answerMap.get(q.id) ?? ''
     const correctList = correctMap.get(q.id) ?? []
-    const isCorrect = gradeAnswer(studentAns, correctList)
+    const isCorrect = gradeAnswer(studentAns, correctList, q.question_type)
     const scoreEarned = isCorrect ? Number(q.score) : 0
     totalScore += scoreEarned
     return {

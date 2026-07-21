@@ -1314,7 +1314,7 @@ export default function StudentPage() {
                               내 답: <span className="font-semibold text-slate-700">
                                 {myAns?.student_answer
                                   ? (q.question_type === 'multiple_choice'
-                                    ? `${myAns.student_answer}번 — ${choices[Number(myAns.student_answer) - 1]?.choice_text ?? ''}`
+                                    ? myAns.student_answer.split(',').map(n => `${n}번`).join(', ')
                                     : myAns.student_answer)
                                   : '미제출'}
                               </span>
@@ -1387,7 +1387,7 @@ export default function StudentPage() {
                             {q.question_type === 'multiple_choice' && choices.length > 0 && (
                               <div className="space-y-1 mt-1">
                                 {choices.map((c) => {
-                                  const isMyChoice = myAns?.student_answer === String(c.choice_num)
+                                  const isMyChoice = myAns?.student_answer?.split(',').includes(String(c.choice_num)) ?? false
                                   const isCorrectChoice = correctList.some(cr => cr.answer_text === String(c.choice_num))
                                   return (
                                     <div key={c.choice_num} className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isCorrectChoice ? 'bg-emerald-100 text-emerald-800 font-semibold' : isMyChoice ? 'bg-red-100 text-red-700' : 'text-slate-600'}`}>
