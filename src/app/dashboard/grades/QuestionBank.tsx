@@ -779,16 +779,12 @@ export default function QuestionBank() {
   }
 
   async function saveSet() {
-    console.log('[DEBUG] saveSet() 시작 - editingSetId:', editingSetId)
     if (!editingSetId) return
     setSavingSet(true); setSavedSet(false)
-    console.log('[DEBUG] saveSet() - 토큰 요청 중...')
     const token = await getToken()
-    console.log('[DEBUG] saveSet() - 토큰 결과:', token ? '성공' : '실패(null)')
     if (!token) { setSavingSet(false); return }
 
     const emptyCount = countEmptyMCAnswers(questions)
-    console.log('[DEBUG] saveSet() - emptyCount:', emptyCount)
     if (emptyCount > 0) {
       await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 저장돼요.`)
     }
@@ -858,13 +854,11 @@ export default function QuestionBank() {
       }
     })
 
-    console.log('[DEBUG] saveSet() - PUT 요청 시작:', `/api/question-bank/${editingSetId}`, '문제 수:', payload.length)
     const res = await fetch(`/api/question-bank/${editingSetId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ questions: payload }),
     })
-    console.log('[DEBUG] saveSet() - PUT 응답 받음:', res.status, res.ok)
     setSavingSet(false)
     if (res.ok) {
       setSavedSet(true)
@@ -872,7 +866,6 @@ export default function QuestionBank() {
     } else {
       void showAlert('저장에 실패했어요.')
     }
-    console.log('[DEBUG] saveSet() 완료')
   }
 
   function updateQ(idx: number, updates: Partial<QBQuestion>) {
@@ -881,27 +874,16 @@ export default function QuestionBank() {
   }
 
   async function openCreateExam() {
-    console.log('[DEBUG] openCreateExam() 시작 - editingSetId:', editingSetId, '| openingExam:', openingExam, '| savedSet:', savedSet)
-    if (!editingSetId || openingExam) return  // 중복 실행 방지
+    if (!editingSetId || openingExam) return
     setOpeningExam(true)
     try {
-    if (!savedSet) {
-      console.log('[DEBUG] openCreateExam() - savedSet=false이므로 saveSet() 호출')
-      await saveSet()
-      console.log('[DEBUG] openCreateExam() - saveSet() 완료 후 돌아옴')
-    } else {
-      console.log('[DEBUG] openCreateExam() - 이미 저장됨, saveSet() 건너뜀')
-    }
-
-    // 전체 선택 초기화
+    // 모달은 메모리의 questions 상태를 직접 사용하므로 저장 불필요 — 즉시 열기
     setSelectedQClientIds(new Set(questions.map(q => q.clientId)))
     setExamNumbering('original')
     setExamModalStep(1)
     setExamTitle(editingSetTitle)
     setSelectedClassId(null)
-    console.log('[DEBUG] openCreateExam() - 모달 열기 직전 (setShowCreateExamModal(true))')
     setShowCreateExamModal(true)
-    console.log('[DEBUG] openCreateExam() - 모달 열기 완료')
 
     // 반 목록 로드
     setLoadingClasses(true)
