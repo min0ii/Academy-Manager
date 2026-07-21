@@ -898,11 +898,6 @@ export default function QuestionBank() {
     })
   }
 
-  async function closeExamModal() {
-    const ok = await showConfirm('저장되지 않았어요.\n그대로 종료할까요?', { confirmText: '예', destructive: true })
-    if (ok) setShowCreateExamModal(false)
-  }
-
   async function openCreateExam() {
     if (!editingSetId || openingExam) return
     setOpeningExam(true)
@@ -1132,7 +1127,7 @@ export default function QuestionBank() {
                     })() : '반과 시험 정보를 입력해주세요'}
                   </p>
                 </div>
-                <button onClick={closeExamModal} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => setShowCreateExamModal(false)} className="text-slate-400 hover:text-slate-600">
                   <X size={20} />
                 </button>
               </div>
