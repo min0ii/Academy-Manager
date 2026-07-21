@@ -793,16 +793,16 @@ export default function QuestionBank() {
     }, 0)
   }
 
-  async function saveSet() {
-    if (!editingSetId) return
+  async function saveSet(): Promise<boolean> {
+    if (!editingSetId) return false
     setSavingSet(true); setSavedSet(false)
     const token = await getToken()
-    if (!token) { setSavingSet(false); return }
+    if (!token) { setSavingSet(false); return false }
 
     const emptyCount = countEmptyMCAnswers(questions)
     if (emptyCount > 0) {
       const ok = await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 저장돼요.`)
-      if (!ok) { setSavingSet(false); return }
+      if (!ok) { setSavingSet(false); return false }
     }
 
     // 제목 저장
@@ -879,8 +879,10 @@ export default function QuestionBank() {
     if (res.ok) {
       setSavedSet(true)
       setSets(prev => prev.map(s => s.id === editingSetId ? { ...s, questionCount: questions.length } : s))
+      return true
     } else {
       void showAlert('저장에 실패했어요.')
+      return false
     }
   }
 
@@ -902,7 +904,10 @@ export default function QuestionBank() {
     if (!editingSetId || openingExam) return
     setOpeningExam(true)
     try {
-    if (!savedSet) await saveSet()
+    if (!savedSet) {
+      const saved = await saveSet()
+      if (!saved) return
+    }
 
     setSelectedQClientIds(new Set(questions.map(q => q.clientId)))
     setExamNumbering('original')
