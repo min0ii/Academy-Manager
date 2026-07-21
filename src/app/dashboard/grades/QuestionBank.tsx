@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Folder, FileText, Plus, ChevronRight, ChevronLeft, ChevronUp, ChevronDown,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDialog } from '@/components/AppDialog'
+import { useDragSort } from '@/lib/useDragSort'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -178,13 +179,16 @@ function QBSubQCard({
 // ── QuestionCard ──────────────────────────────────────────────────────────
 
 function QuestionCard({
-  q, idx, total, onChange, onRemove,
+  q, idx, total, onChange, onRemove, onDragStart, isDragging, isDragOver,
 }: {
   q: QBQuestion
   idx: number
   total: number
   onChange: (u: Partial<QBQuestion>) => void
   onRemove: () => void
+  onDragStart?: (e: React.PointerEvent) => void
+  isDragging?: boolean
+  isDragOver?: boolean
 }) {
   const parentLabel = q.customLabel.trim() || String(idx + 1)
 
@@ -204,8 +208,12 @@ function QuestionCard({
   if (q.question_type === 'group') {
     const children = q.children ?? []
     return (
-      <div className="bg-white border-2 border-purple-200 rounded-2xl p-4 space-y-3">
+      <div data-didx={idx}
+        className={`bg-white border-2 rounded-2xl p-4 space-y-3 transition-all ${isDragOver ? 'border-purple-500 ring-2 ring-purple-200' : 'border-purple-200'} ${isDragging ? 'opacity-40' : ''}`}>
         <div className="flex items-center gap-2">
+          <div onPointerDown={onDragStart} className="cursor-grab touch-none text-slate-300 hover:text-slate-500 flex-shrink-0 select-none">
+            <GripVertical size={16} />
+          </div>
           <input type="text" value={q.customLabel} onChange={e => onChange({ customLabel: e.target.value })}
             placeholder={String(idx + 1)} title="문제 번호"
             className="w-10 h-7 rounded-lg bg-purple-50 text-purple-600 text-xs font-bold text-center border border-purple-200 hover:border-purple-300 focus:border-purple-400 focus:bg-white focus:outline-none placeholder:text-purple-300 transition-colors" />
@@ -257,9 +265,13 @@ function QuestionCard({
 
   // ── 일반 문제 카드 ─────────────────────────────────────────────────────
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+    <div data-didx={idx}
+      className={`bg-white border rounded-2xl p-4 space-y-3 transition-all ${isDragOver ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'} ${isDragging ? 'opacity-40' : ''}`}>
       {/* Header */}
       <div className="flex items-center gap-2">
+        <div onPointerDown={onDragStart} className="cursor-grab touch-none text-slate-300 hover:text-slate-500 flex-shrink-0 select-none">
+          <GripVertical size={16} />
+        </div>
         <input
           type="text"
           value={q.customLabel}
@@ -392,7 +404,10 @@ export default function QuestionBank() {
   const [loadingSet, setLoadingSet] = useState(false)
   const [savingSet, setSavingSet] = useState(false)
   const [savedSet, setSavedSet] = useState(false)
-  const [openingExam, setOpeningExam] = useState(false)  // 시험 생성 모달 열기 중 (중복 실행 방지)
+  const [openingExam, setOpeningExam] = useState(false)
+
+  const { dragIdx: dragQIdx, dragOverIdx: dragQOverIdx, startDrag: startDragQ } =
+    useDragSort(setQuestions, () => setSavedSet(false))
 
   // 폴더 드래그 순서 변경
   const [dragFolderIdx, setDragFolderIdx] = useState<number | null>(null)
@@ -874,6 +889,15 @@ export default function QuestionBank() {
     setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, ...updates } : q))
   }
 
+  function insertQ(at: number) {
+    setSavedSet(false)
+    setQuestions(prev => {
+      const next = [...prev]
+      next.splice(at, 0, newQ(at + 1))
+      return next
+    })
+  }
+
   async function openCreateExam() {
     if (!editingSetId || openingExam) return
     setOpeningExam(true)
@@ -1049,10 +1073,21 @@ export default function QuestionBank() {
             ))
           ) : (
             questions.map((q, i) => (
-              <QuestionCard key={q.clientId} q={q} idx={i} total={questions.length}
-                onChange={u => updateQ(i, u)}
-                onRemove={() => { setSavedSet(false); setQuestions(prev => prev.filter((_, pi) => pi !== i)) }}
-              />
+              <Fragment key={q.clientId}>
+                <QuestionCard q={q} idx={i} total={questions.length}
+                  onChange={u => updateQ(i, u)}
+                  onRemove={() => { setSavedSet(false); setQuestions(prev => prev.filter((_, pi) => pi !== i)) }}
+                  onDragStart={e => startDragQ(e, i)}
+                  isDragging={dragQIdx === i}
+                  isDragOver={dragQOverIdx === i}
+                />
+                {i < questions.length - 1 && (
+                  <button onClick={() => insertQ(i + 1)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 border-2 border-dashed border-slate-200 text-slate-300 hover:border-blue-400 hover:text-blue-400 rounded-2xl text-xs font-medium transition-colors">
+                    <Plus size={13} /> 문제 삽입
+                  </button>
+                )}
+              </Fragment>
             ))
           )}
         </div>

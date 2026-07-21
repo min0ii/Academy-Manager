@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense, useRef } from 'react'
+import { useEffect, useState, Suspense, useRef, Fragment } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Plus, X, ChevronRight, ChevronLeft, ChevronDown, Trash2, AlertTriangle,
@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import QuestionBank from './QuestionBank'
 import { useDialog } from '@/components/AppDialog'
+import { useDragSort } from '@/lib/useDragSort'
 import { ListSkeleton } from '@/components/Skeleton'
 import { todayKST } from '@/lib/date'
 
@@ -394,7 +395,7 @@ function WizardSubQCard({
 
 function WizardQuestionCard({
   q, idx, total, onChange, onRemove, customLabels,
-  onDragStart, onDragOver, onDrop, isDragOver,
+  onDragStart, isDragging, isDragOver,
 }: {
   q: WizardQuestion
   idx: number
@@ -402,9 +403,8 @@ function WizardQuestionCard({
   onChange: (u: Partial<WizardQuestion>) => void
   onRemove: () => void
   customLabels?: boolean
-  onDragStart?: () => void
-  onDragOver?: (e: React.DragEvent) => void
-  onDrop?: () => void
+  onDragStart?: (e: React.PointerEvent) => void
+  isDragging?: boolean
   isDragOver?: boolean
 }) {
   const parentLabel = customLabels ? (q.customLabel || String(idx + 1)) : String(idx + 1)
@@ -429,19 +429,14 @@ function WizardQuestionCard({
   if (q.questionType === 'group') {
     const children = q.children ?? []
     return (
-      <div
-        className={`bg-white border-2 rounded-2xl p-4 space-y-3 transition-colors ${isDragOver ? 'border-purple-400 bg-purple-50' : 'border-purple-200'}`}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+      <div data-didx={idx}
+        className={`bg-white border-2 rounded-2xl p-4 space-y-3 transition-all ${isDragOver ? 'border-purple-500 ring-2 ring-purple-200' : 'border-purple-200'} ${isDragging ? 'opacity-40' : ''}`}
       >
         {/* 그룹 헤더 */}
         <div className="flex items-center gap-2">
-          {onDragStart && (
-            <div draggable onDragStart={onDragStart}
-              className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0">
-              <GripVertical size={16} />
-            </div>
-          )}
+          <div onPointerDown={onDragStart} className="cursor-grab touch-none text-slate-300 hover:text-slate-500 flex-shrink-0 select-none">
+            <GripVertical size={16} />
+          </div>
           {customLabels ? (
             <input type="text" value={q.customLabel}
               onChange={e => onChange({ customLabel: e.target.value })}
@@ -513,22 +508,17 @@ function WizardQuestionCard({
 
   // ── 일반 문제 카드 ─────────────────────────────────────────────────────────
   return (
-    <div
-      className={`bg-white border rounded-2xl p-4 space-y-3 transition-colors ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-slate-200'}`}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+    <div data-didx={idx}
+      className={`bg-white border rounded-2xl p-4 space-y-3 transition-all ${isDragOver ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'} ${isDragging ? 'opacity-40' : ''}`}
     >
       {/* Header row */}
       <div className="flex items-center gap-2">
-        {onDragStart && (
-          <div
-            draggable
-            onDragStart={onDragStart}
-            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 flex-shrink-0"
-          >
-            <GripVertical size={16} />
-          </div>
-        )}
+        <div
+          onPointerDown={onDragStart}
+          className="cursor-grab touch-none text-slate-300 hover:text-slate-500 flex-shrink-0 select-none"
+        >
+          <GripVertical size={16} />
+        </div>
         {customLabels ? (
           <input
             type="text"
@@ -1615,8 +1605,9 @@ function GradesContent() {
 
   // Custom labels for wizard
   const [wizardCustomLabels, setWizardCustomLabels] = useState(false)
-  const [wDragIdx, setWDragIdx] = useState<number | null>(null)
-  const [wDragOverIdx, setWDragOverIdx] = useState<number | null>(null)
+  const wizardScrollRef = useRef<HTMLDivElement>(null)
+  const { dragIdx: wDragIdx, dragOverIdx: wDragOverIdx, startDrag: startDragW } =
+    useDragSort(setWizardQs, undefined, wizardScrollRef)
 
   // Edit exam modal (scheduled)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -1627,15 +1618,9 @@ function GradesContent() {
   const [editWizardQs, setEditWizardQs] = useState<WizardQuestion[]>([newWizardQ()])
   const [editCustomLabels, setEditCustomLabels] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
-  const [eDragIdx, setEDragIdx] = useState<number | null>(null)
-  const [eDragOverIdx, setEDragOverIdx] = useState<number | null>(null)
-
-  function reorderQs(arr: WizardQuestion[], from: number, to: number) {
-    const next = [...arr]
-    const [item] = next.splice(from, 1)
-    next.splice(to, 0, item)
-    return next
-  }
+  const editScrollRef = useRef<HTMLDivElement>(null)
+  const { dragIdx: eDragIdx, dragOverIdx: eDragOverIdx, startDrag: startDragE } =
+    useDragSort(setEditWizardQs, undefined, editScrollRef)
 
   // Title-only edit (active/closed)
   const [showTitleEdit, setShowTitleEdit] = useState(false)
@@ -2731,21 +2716,24 @@ function GradesContent() {
               </div>
               <button onClick={() => setAddModal('none')} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div ref={wizardScrollRef} className="flex-1 overflow-y-auto p-5 space-y-3">
               {wizardQs.map((q, idx) => (
-                <WizardQuestionCard key={q.clientId} q={q} idx={idx} total={wizardQs.length}
-                  customLabels={wizardCustomLabels}
-                  onChange={updates => updateWizardQ(idx, updates)}
-                  onRemove={() => setWizardQs(prev => prev.filter((_, i) => i !== idx))}
-                  onDragStart={() => setWDragIdx(idx)}
-                  onDragOver={e => { e.preventDefault(); setWDragOverIdx(idx) }}
-                  onDrop={() => {
-                    if (wDragIdx !== null && wDragIdx !== idx)
-                      setWizardQs(prev => reorderQs(prev, wDragIdx, idx))
-                    setWDragIdx(null); setWDragOverIdx(null)
-                  }}
-                  isDragOver={wDragOverIdx === idx}
-                />
+                <Fragment key={q.clientId}>
+                  <WizardQuestionCard q={q} idx={idx} total={wizardQs.length}
+                    customLabels={wizardCustomLabels}
+                    onChange={updates => updateWizardQ(idx, updates)}
+                    onRemove={() => setWizardQs(prev => prev.filter((_, i) => i !== idx))}
+                    onDragStart={e => startDragW(e, idx)}
+                    isDragging={wDragIdx === idx}
+                    isDragOver={wDragOverIdx === idx}
+                  />
+                  {idx < wizardQs.length - 1 && (
+                    <button onClick={() => setWizardQs(prev => { const n=[...prev]; n.splice(idx+1,0,newWizardQ()); return n })}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 border-2 border-dashed border-slate-200 text-slate-300 hover:border-blue-400 hover:text-blue-400 rounded-2xl text-xs font-medium transition-colors">
+                      <Plus size={13} /> 문제 삽입
+                    </button>
+                  )}
+                </Fragment>
               ))}
               <button onClick={() => setWizardQs(prev => [...prev, newWizardQ()])}
                 className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
@@ -3019,21 +3007,24 @@ function GradesContent() {
                   </div>
                   <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div ref={editScrollRef} className="flex-1 overflow-y-auto p-5 space-y-3">
                   {editWizardQs.map((q, idx) => (
-                    <WizardQuestionCard key={q.clientId} q={q} idx={idx} total={editWizardQs.length}
-                      customLabels={editCustomLabels}
-                      onChange={updates => setEditWizardQs(prev => prev.map((x, i) => i === idx ? { ...x, ...updates } : x))}
-                      onRemove={() => setEditWizardQs(prev => prev.filter((_, i) => i !== idx))}
-                      onDragStart={() => setEDragIdx(idx)}
-                      onDragOver={e => { e.preventDefault(); setEDragOverIdx(idx) }}
-                      onDrop={() => {
-                        if (eDragIdx !== null && eDragIdx !== idx)
-                          setEditWizardQs(prev => reorderQs(prev, eDragIdx, idx))
-                        setEDragIdx(null); setEDragOverIdx(null)
-                      }}
-                      isDragOver={eDragOverIdx === idx}
-                    />
+                    <Fragment key={q.clientId}>
+                      <WizardQuestionCard q={q} idx={idx} total={editWizardQs.length}
+                        customLabels={editCustomLabels}
+                        onChange={updates => setEditWizardQs(prev => prev.map((x, i) => i === idx ? { ...x, ...updates } : x))}
+                        onRemove={() => setEditWizardQs(prev => prev.filter((_, i) => i !== idx))}
+                        onDragStart={e => startDragE(e, idx)}
+                        isDragging={eDragIdx === idx}
+                        isDragOver={eDragOverIdx === idx}
+                      />
+                      {idx < editWizardQs.length - 1 && (
+                        <button onClick={() => setEditWizardQs(prev => { const n=[...prev]; n.splice(idx+1,0,newWizardQ()); return n })}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 border-2 border-dashed border-slate-200 text-slate-300 hover:border-blue-400 hover:text-blue-400 rounded-2xl text-xs font-medium transition-colors">
+                          <Plus size={13} /> 문제 삽입
+                        </button>
+                      )}
+                    </Fragment>
                   ))}
                   <button onClick={() => setEditWizardQs(prev => [...prev, newWizardQ()])}
                     className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors text-sm font-medium flex items-center justify-center gap-2">
