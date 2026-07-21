@@ -877,7 +877,8 @@ export default function QuestionBank() {
     if (!editingSetId || openingExam) return
     setOpeningExam(true)
     try {
-    // 모달은 메모리의 questions 상태를 직접 사용하므로 저장 불필요 — 즉시 열기
+    if (!savedSet) await saveSet()
+
     setSelectedQClientIds(new Set(questions.map(q => q.clientId)))
     setExamNumbering('original')
     setExamModalStep(1)
@@ -989,6 +990,7 @@ export default function QuestionBank() {
     }, 0)
     return (
       <div className="space-y-4 pb-6">
+        {dialog}
         {/* 헤더: 뒤로가기 / 제목 / 저장 / 시험생성 */}
         <div className="flex items-center gap-2">
           <button onClick={() => setEditingSetId(null)}
