@@ -658,7 +658,7 @@ export default function QuestionBank() {
     })
     if (res.ok) {
       const { set } = await res.json()
-      setSets(prev => [{ ...set, questionCount: 0 }, ...prev])
+      setSets(prev => [...prev, { ...set, questionCount: 0 }])
       openEditSet({ ...set, questionCount: 0 })
     }
     setCreatingSet(false); setNewSetTitle(''); setCreating(false)
