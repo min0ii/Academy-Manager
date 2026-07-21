@@ -786,7 +786,8 @@ export default function QuestionBank() {
 
     const emptyCount = countEmptyMCAnswers(questions)
     if (emptyCount > 0) {
-      await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 저장돼요.`)
+      const ok = await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 저장돼요.`)
+      if (!ok) { setSavingSet(false); return }
     }
 
     // 제목 저장
@@ -911,7 +912,8 @@ export default function QuestionBank() {
 
     const emptyCount = countEmptyMCAnswers(selectedQs)
     if (emptyCount > 0) {
-      await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 출제돼요.`)
+      const ok = await showAlert(`정답이 선택되지 않은 객관식 문제가 ${emptyCount}개 있어요.\n의도한 경우 그대로 출제돼요.`)
+      if (!ok) return
     }
 
     setCreatingExam(true)

@@ -20,9 +20,9 @@ export function useDialog() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  const showAlert = useCallback((message: string): Promise<void> => {
+  const showAlert = useCallback((message: string): Promise<boolean> => {
     return new Promise(resolve => {
-      resolveRef.current = () => resolve()
+      resolveRef.current = resolve
       setState({ open: true, type: 'alert', message })
     })
   }, [])
@@ -71,15 +71,13 @@ export function useDialog() {
             className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
           />
         )}
-        <div className={`flex gap-2.5 ${state.type === 'alert' ? 'justify-center' : 'justify-end'}`}>
-          {(state.type === 'confirm' || state.type === 'prompt') && (
-            <button
-              onClick={() => close(false)}
-              className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-            >
-              취소
-            </button>
-          )}
+        <div className="flex gap-2.5 justify-end">
+          <button
+            onClick={() => close(false)}
+            className="px-5 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+          >
+            취소
+          </button>
           <button
             onClick={() => close(true)}
             className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
