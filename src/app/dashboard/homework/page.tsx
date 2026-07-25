@@ -90,95 +90,91 @@ export default function HomeworkPage() {
     setDetail(null)
     setLoading(true)
 
-    // 소속 학생 목록 (재원 학생만)
-    const { data: csData } = await supabase
-      .from('class_students')
-      .select('student_id, students!inner(id, name)')
-      .eq('class_id', cls.id)
-      .eq('students.status', 'active')
+    // Round 1: cls.id만 있으면 되는 쿼리 모두 병렬 실행
+    const [
+      { data: csData },
+      { data: hwList },
+      { data: clinicList },
+      { data: clinicScheds },
+    ] = await Promise.all([
+      supabase
+        .from('class_students')
+        .select('student_id, students!inner(id, name)')
+        .eq('class_id', cls.id)
+        .eq('students.status', 'active'),
+      supabase
+        .from('homework')
+        .select('id, title, assigned_date, due_date, description')
+        .eq('class_id', cls.id)
+        .order('assigned_date', { ascending: false }),
+      supabase
+        .from('clinic_sessions')
+        .select('id, date, name, note')
+        .eq('class_id', cls.id)
+        .order('date', { ascending: false }),
+      supabase
+        .from('clinic_schedules')
+        .select('day_of_week, name')
+        .eq('class_id', cls.id),
+    ])
 
     const studentList: { id: string; name: string }[] = (csData ?? [])
       .map((r: any) => r.students)
       .filter(Boolean)
       .sort((a: any, b: any) => a.name.localeCompare(b.name, 'ko'))
-
     const totalStudents = studentList.length
 
-    // 과제 목록
-    const { data: hwList } = await supabase
-      .from('homework')
-      .select('id, title, assigned_date, due_date, description')
-      .eq('class_id', cls.id)
-      .order('assigned_date', { ascending: false })
-
-    // 클리닉 세션 목록
-    const { data: clinicList } = await supabase
-      .from('clinic_sessions')
-      .select('id, date, name, note')
-      .eq('class_id', cls.id)
-      .order('date', { ascending: false })
-
-    // 클리닉 정기일정 이름 맵 (day_of_week → name)
-    const { data: clinicScheds } = await supabase
-      .from('clinic_schedules')
-      .select('day_of_week, name')
-      .eq('class_id', cls.id)
     const schedNameMap: Record<number, string> = {}
     for (const s of clinicScheds ?? []) {
       if (s.name) schedNameMap[s.day_of_week] = s.name
     }
 
-    // 과제별 완료 현황 집계
     const hwIds = (hwList ?? []).map((h: { id: string }) => h.id)
+    const clinicIds = (clinicList ?? []).map((c: { id: string }) => c.id)
+
+    // Round 2: ID 목록이 준비된 후 상태 쿼리 병렬 실행
+    const [{ data: hwStatuses }, { data: clinicStatuses }] = await Promise.all([
+      hwIds.length > 0
+        ? supabase.from('homework_status').select('homework_id, student_id, status').in('homework_id', hwIds)
+        : Promise.resolve({ data: [] as { homework_id: string; student_id: string; status: string }[] }),
+      clinicIds.length > 0
+        ? supabase.from('clinic_attendance').select('clinic_session_id, student_id, status').in('clinic_session_id', clinicIds)
+        : Promise.resolve({ data: [] as { clinic_session_id: string; student_id: string; status: string }[] }),
+    ])
+
+    // 과제별 완료 현황 집계
     const hwStatusMap: Record<string, { done: number; partial: number; none: number }> = {}
     const hwStudentMap: Record<string, StudentHwStat> = {}
     for (const s of studentList) {
       hwStudentMap[s.id] = { student_id: s.id, name: s.name, done: 0, partial: 0, none: 0, total: hwIds.length }
     }
+    for (const r of (hwStatuses ?? []) as { homework_id: string; student_id: string; status: string }[]) {
+      if (!hwStatusMap[r.homework_id]) hwStatusMap[r.homework_id] = { done: 0, partial: 0, none: 0 }
+      if (r.status === 'done')         hwStatusMap[r.homework_id].done++
+      else if (r.status === 'partial') hwStatusMap[r.homework_id].partial++
+      else                             hwStatusMap[r.homework_id].none++
 
-    if (hwIds.length > 0) {
-      const { data: hwStatuses } = await supabase
-        .from('homework_status')
-        .select('homework_id, student_id, status')
-        .in('homework_id', hwIds)
-
-      for (const r of (hwStatuses ?? []) as { homework_id: string; student_id: string; status: string }[]) {
-        if (!hwStatusMap[r.homework_id]) hwStatusMap[r.homework_id] = { done: 0, partial: 0, none: 0 }
-        if (r.status === 'done')         hwStatusMap[r.homework_id].done++
-        else if (r.status === 'partial') hwStatusMap[r.homework_id].partial++
-        else                             hwStatusMap[r.homework_id].none++
-
-        if (hwStudentMap[r.student_id]) {
-          if (r.status === 'done')         hwStudentMap[r.student_id].done++
-          else if (r.status === 'partial') hwStudentMap[r.student_id].partial++
-          else                             hwStudentMap[r.student_id].none++
-        }
+      if (hwStudentMap[r.student_id]) {
+        if (r.status === 'done')         hwStudentMap[r.student_id].done++
+        else if (r.status === 'partial') hwStudentMap[r.student_id].partial++
+        else                             hwStudentMap[r.student_id].none++
       }
     }
 
     // 클리닉별 완료 현황 집계
-    const clinicIds = (clinicList ?? []).map((c: { id: string }) => c.id)
     const clinicStatusMap: Record<string, { done: number; not_done: number }> = {}
     const clinicStudentMap: Record<string, StudentClinicStat> = {}
     for (const s of studentList) {
       clinicStudentMap[s.id] = { student_id: s.id, name: s.name, done: 0, not_done: 0, total: clinicIds.length }
     }
+    for (const r of (clinicStatuses ?? []) as { clinic_session_id: string; student_id: string; status: string }[]) {
+      if (!clinicStatusMap[r.clinic_session_id]) clinicStatusMap[r.clinic_session_id] = { done: 0, not_done: 0 }
+      if (r.status === 'done') clinicStatusMap[r.clinic_session_id].done++
+      else                     clinicStatusMap[r.clinic_session_id].not_done++
 
-    if (clinicIds.length > 0) {
-      const { data: clinicStatuses } = await supabase
-        .from('clinic_attendance')
-        .select('clinic_session_id, student_id, status')
-        .in('clinic_session_id', clinicIds)
-
-      for (const r of (clinicStatuses ?? []) as { clinic_session_id: string; student_id: string; status: string }[]) {
-        if (!clinicStatusMap[r.clinic_session_id]) clinicStatusMap[r.clinic_session_id] = { done: 0, not_done: 0 }
-        if (r.status === 'done') clinicStatusMap[r.clinic_session_id].done++
-        else                     clinicStatusMap[r.clinic_session_id].not_done++
-
-        if (clinicStudentMap[r.student_id]) {
-          if (r.status === 'done') clinicStudentMap[r.student_id].done++
-          else                     clinicStudentMap[r.student_id].not_done++
-        }
+      if (clinicStudentMap[r.student_id]) {
+        if (r.status === 'done') clinicStudentMap[r.student_id].done++
+        else                     clinicStudentMap[r.student_id].not_done++
       }
     }
 

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare, Loader2,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare, Loader2, RefreshCw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -154,6 +154,7 @@ export default function ClassDetailPage() {
   const [homeworkStatuses, setHomeworkStatuses] = useState<Record<string, HomeworkStatusRecord[]>>({})
   const [expandedHomeworkId, setExpandedHomeworkId] = useState<string | null>(null)
   const [hwDueDateEdits, setHwDueDateEdits]         = useState<Record<string, string>>({})
+  const [hwTitleEdits, setHwTitleEdits]             = useState<Record<string, string>>({})
   const [showAddHomework, setShowAddHomework]   = useState(false)
   const [homeworkForm, setHomeworkForm]         = useState({ title: '', assigned_date: '', due_date: '', description: '' })
   const [savingHomework, setSavingHomework]     = useState(false)
@@ -886,11 +887,26 @@ async function resetAllLives() {
     if (!await showConfirm('이 과제를 삭제할까요?', { destructive: true })) return
     const affectedHwStudents = (homeworkStatuses[hwId] ?? []).filter(r => r.status !== null).map(r => r.student_id)
     const hwDate = dateHomeworks.find(h => h.id === hwId)?.assigned_date ?? selectedDate ?? ''
-    await supabase.from('homework_status').delete().eq('homework_id', hwId)
-    await supabase.from('homework').delete().eq('id', hwId)
+    const { error: delStatusErr } = await supabase.from('homework_status').delete().eq('homework_id', hwId)
+    if (delStatusErr) { void showAlert('삭제 오류: ' + delStatusErr.message); return }
+    const { error: delHwErr } = await supabase.from('homework').delete().eq('id', hwId)
+    if (delHwErr) { void showAlert('삭제 오류: ' + delHwErr.message); return }
     setDateHomeworks(prev => prev.filter(h => h.id !== hwId))
     if (expandedHomeworkId === hwId) setExpandedHomeworkId(null)
     affectedHwStudents.forEach(sid => applyLivesRule(sid, 'homework', { status: null, date: hwDate }))
+  }
+
+  async function saveHomeworkTitle(hwId: string, title: string) {
+    const trimmed = title.trim()
+    if (!trimmed) {
+      const hw = dateHomeworks.find(h => h.id === hwId)
+      setHwTitleEdits(prev => ({ ...prev, [hwId]: hw?.title ?? '' }))
+      return
+    }
+    const { error } = await supabase.from('homework').update({ title: trimmed }).eq('id', hwId)
+    if (error) { void showAlert('저장 오류: ' + error.message); return }
+    setDateHomeworks(prev => prev.map(h => h.id === hwId ? { ...h, title: trimmed } : h))
+    setHwTitleEdits(prev => { const next = { ...prev }; delete next[hwId]; return next })
   }
 
   async function saveHomeworkDueDate(hwId: string, dueDate: string) {
@@ -905,8 +921,8 @@ async function resetAllLives() {
     setDateHomeworks(prev => prev.map(h => h.id === hwId ? { ...h, due_date: value } : h))
   }
 
-  async function loadHomeworkStatuses(hwId: string) {
-    if (homeworkStatuses[hwId]) return
+  async function loadHomeworkStatuses(hwId: string, force = false) {
+    if (!force && homeworkStatuses[hwId]) return
     const { data } = await supabase.from('homework_status').select('id, student_id, status, note').eq('homework_id', hwId)
     const sm: Record<string, any> = {}
     for (const s of (data ?? [])) sm[s.student_id] = s
@@ -922,14 +938,16 @@ async function resetAllLives() {
     const hwDate = dateHomeworks.find(h => h.id === hwId)?.assigned_date ?? selectedDate ?? ''
     if (rec?.id) {
       if (rec.status === status) {
-        await supabase.from('homework_status').delete().eq('id', rec.id)
+        const { error } = await supabase.from('homework_status').delete().eq('id', rec.id)
+        if (error) { void showAlert('저장 오류: ' + error.message); return }
         setHomeworkStatuses(prev => ({
           ...prev,
           [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, id: null, status: null, note: null } : r),
         }))
         applyLivesRule(studentId, 'homework', { status: null, date: hwDate })
       } else {
-        await supabase.from('homework_status').update({ status }).eq('id', rec.id)
+        const { error } = await supabase.from('homework_status').update({ status }).eq('id', rec.id)
+        if (error) { void showAlert('저장 오류: ' + error.message); return }
         setHomeworkStatuses(prev => ({
           ...prev,
           [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, status } : r),
@@ -937,9 +955,10 @@ async function resetAllLives() {
         applyLivesRule(studentId, 'homework', { status, date: hwDate })
       }
     } else {
-      const { data: nr } = await supabase.from('homework_status').insert({
+      const { data: nr, error } = await supabase.from('homework_status').insert({
         homework_id: hwId, student_id: studentId, status,
       }).select().single()
+      if (error) { void showAlert('저장 오류: ' + error.message); return }
       setHomeworkStatuses(prev => ({
         ...prev,
         [hwId]: (prev[hwId] ?? students.map(s => ({ id: null, student_id: s.id, status: null, note: null }))).map(r =>
@@ -958,8 +977,12 @@ async function resetAllLives() {
   }
   async function saveHwNote(hwId: string, studentId: string, note: string) {
     const rec = (homeworkStatuses[hwId] ?? []).find(r => r.student_id === studentId)
-    if (!rec?.id) return
-    await supabase.from('homework_status').update({ note: note || null }).eq('id', rec.id)
+    if (!rec?.id) {
+      void showAlert('과제 완료 여부를 먼저 선택해야 메모를 저장할 수 있어요.')
+      return
+    }
+    const { error } = await supabase.from('homework_status').update({ note: note || null }).eq('id', rec.id)
+    if (error) void showAlert('메모 저장 오류: ' + error.message)
   }
 
   // ── 캘린더 계산
@@ -1767,7 +1790,14 @@ async function resetAllLives() {
                                   <BookOpen size={15} className="text-orange-500" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-slate-800 text-sm truncate">{hw.title}</p>
+                                  <input
+                                    type="text"
+                                    value={hwTitleEdits[hw.id] ?? hw.title}
+                                    onChange={e => setHwTitleEdits(prev => ({ ...prev, [hw.id]: e.target.value }))}
+                                    onBlur={e => saveHomeworkTitle(hw.id, e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                                    className="w-full font-medium text-slate-800 text-sm bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-400 focus:outline-none truncate"
+                                  />
                                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                     <div className="flex items-center gap-1">
                                       <span className="text-xs text-slate-400">마감</span>
@@ -1787,6 +1817,11 @@ async function resetAllLives() {
                                     )}
                                   </div>
                                 </div>
+                                <button onClick={() => loadHomeworkStatuses(hw.id, true)}
+                                  title="현황 새로고침"
+                                  className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors flex-shrink-0">
+                                  <RefreshCw size={14} />
+                                </button>
                                 <button onClick={() => deleteHomework(hw.id)}
                                   className="p-1.5 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
                                   <Trash2 size={14} />

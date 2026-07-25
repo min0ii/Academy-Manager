@@ -90,7 +90,8 @@ export default function ClassesPage() {
   async function handleDelete(id: string, className: string, e: React.MouseEvent) {
     e.stopPropagation()
     if (!await showConfirm(`"${className}" 반을 삭제할까요?\n소속 학생의 반 배정 정보와 수업 세션이 모두 삭제돼요.`, { destructive: true })) return
-    await supabase.from('classes').delete().eq('id', id)
+    const { error } = await supabase.from('classes').delete().eq('id', id)
+    if (error) { void showAlert('삭제 오류: ' + error.message); return }
     await loadData(academyId!)
   }
 
