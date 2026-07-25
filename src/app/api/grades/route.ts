@@ -47,22 +47,24 @@ async function verifyClassAccess(db: ReturnType<typeof admin>, studentId: string
 }
 
 // 코멘트 공개 설정 조회 (classId → academyId 자동 조회)
-const DEFAULT_VIS = { attStudent: true, attParent: true, hwStudent: true, hwParent: true, clinicStudent: true, clinicParent: true, examStudent: true, examParent: true }
+const DEFAULT_VIS = { attStudent: true, attParent: true, hwStudent: true, hwParent: true, clinicStudent: true, clinicParent: true, examStudent: true, examParent: true, showClassAvgParent: true, showClassAvgStudent: true }
 async function getCommentVis(db: ReturnType<typeof admin>, classId: string) {
   const { data: cls } = await db.from('classes').select('academy_id').eq('id', classId).single()
   if (!cls?.academy_id) return DEFAULT_VIS
   const { data } = await db.from('academies')
-    .select('comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent')
+    .select('comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent, show_class_avg_parent, show_class_avg_student')
     .eq('id', cls.academy_id).single()
   return {
-    attStudent:    data?.comment_vis_att_student    ?? true,
-    attParent:     data?.comment_vis_att_parent     ?? true,
-    hwStudent:     data?.comment_vis_hw_student     ?? true,
-    hwParent:      data?.comment_vis_hw_parent      ?? true,
-    clinicStudent: data?.comment_vis_clinic_student ?? true,
-    clinicParent:  data?.comment_vis_clinic_parent  ?? true,
-    examStudent:   data?.comment_vis_exam_student   ?? true,
-    examParent:    data?.comment_vis_exam_parent    ?? true,
+    attStudent:          data?.comment_vis_att_student    ?? true,
+    attParent:           data?.comment_vis_att_parent     ?? true,
+    hwStudent:           data?.comment_vis_hw_student     ?? true,
+    hwParent:            data?.comment_vis_hw_parent      ?? true,
+    clinicStudent:       data?.comment_vis_clinic_student ?? true,
+    clinicParent:        data?.comment_vis_clinic_parent  ?? true,
+    examStudent:         data?.comment_vis_exam_student   ?? true,
+    examParent:          data?.comment_vis_exam_parent    ?? true,
+    showClassAvgParent:  data?.show_class_avg_parent      ?? true,
+    showClassAvgStudent: data?.show_class_avg_student     ?? true,
   }
 }
 
@@ -98,8 +100,13 @@ export async function GET(req: NextRequest) {
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
     if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data: _sr1 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
-    const enrolledAt1 = _sr1?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const [{ data: _sr1 }, { data: _cs1 }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
+    const enrolledAt1Raw = _sr1?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const joinedAt1 = _cs1?.joined_at ?? null
+    const enrolledAt1 = joinedAt1 && joinedAt1 > enrolledAt1Raw ? joinedAt1 : enrolledAt1Raw
 
     const records: Record<string, unknown>[] = []
     const vis = await getCommentVis(db, classId!)
@@ -195,6 +202,9 @@ export async function GET(req: NextRequest) {
     }
 
     records.sort((a, b) => ((a.date as string) ?? '').localeCompare((b.date as string) ?? ''))
+    if (!vis.showClassAvgParent) {
+      for (const r of records) { r.avgScore = null; r.avgPct = null; r.classHigh = null; r.classLow = null }
+    }
     return NextResponse.json({ records })
   }
 
@@ -233,8 +243,13 @@ export async function GET(req: NextRequest) {
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
     if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data: _sr2 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
-    const enrolledAt2 = _sr2?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const [{ data: _sr2 }, { data: _cs2 }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
+    const enrolledAt2Raw = _sr2?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const joinedAt2 = _cs2?.joined_at ?? null
+    const enrolledAt2 = joinedAt2 && joinedAt2 > enrolledAt2Raw ? joinedAt2 : enrolledAt2Raw
 
     const { data: hwList } = await db.from('homework')
       .select('id, title, assigned_date, due_date, description')
@@ -277,8 +292,13 @@ export async function GET(req: NextRequest) {
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
     if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data: _sr3 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
-    const enrolledAt3 = _sr3?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const [{ data: _sr3 }, { data: _cs3 }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
+    const enrolledAt3Raw = _sr3?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const joinedAt3 = _cs3?.joined_at ?? null
+    const enrolledAt3 = joinedAt3 && joinedAt3 > enrolledAt3Raw ? joinedAt3 : enrolledAt3Raw
 
     const [{ data: sessions }, { data: myAtt }] = await Promise.all([
       db.from('clinic_sessions').select('id, name, date, note').eq('class_id', classId).gte('date', enrolledAt3).order('date', { ascending: false }),
@@ -310,8 +330,13 @@ export async function GET(req: NextRequest) {
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
     if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data: _sr4 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
-    const enrolledAt4 = _sr4?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const [{ data: _sr4 }, { data: _cs4 }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
+    const enrolledAt4Raw = _sr4?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const joinedAt4 = _cs4?.joined_at ?? null
+    const enrolledAt4 = joinedAt4 && joinedAt4 > enrolledAt4Raw ? joinedAt4 : enrolledAt4Raw
 
     const { data: hwList } = await db.from('homework')
       .select('id, title, assigned_date, due_date, description')
@@ -356,10 +381,14 @@ export async function GET(req: NextRequest) {
 
     const sixMonthsAgoStr = monthsAgoKST(6)
 
-    // 등록일 조회 — 6개월 전 vs 등록일 중 더 늦은 날짜부터 표시
-    const { data: studentRow } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
+    const [{ data: studentRow }, { data: _csAtt }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
     const enrolledAt = studentRow?.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
-    const fromDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
+    const baseDateAtt = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
+    const joinedAtAtt = _csAtt?.joined_at ?? null
+    const fromDate = joinedAtAtt && joinedAtAtt > baseDateAtt ? joinedAtAtt : baseDateAtt
 
     const { data: sessions } = await db.from('sessions')
       .select('id, date, status')
@@ -404,8 +433,13 @@ export async function GET(req: NextRequest) {
     if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
     if (!await verifyClassAccess(db, studentId, classId)) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data: _sr5 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
-    const enrolledAt5 = _sr5?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const [{ data: _sr5 }, { data: _cs5 }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
+    const enrolledAt5Raw = _sr5?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const joinedAt5 = _cs5?.joined_at ?? null
+    const enrolledAt5 = joinedAt5 && joinedAt5 > enrolledAt5Raw ? joinedAt5 : enrolledAt5Raw
 
     // 구시스템(tests) + 신시스템(exams) 병렬 조회
     // exams: 마감된 시험 OR 마감없는 시험 OR 수동채점 active 시험
@@ -555,6 +589,9 @@ export async function GET(req: NextRequest) {
 
     // 날짜순 정렬
     records.sort((a, b) => ((a.date as string) ?? '').localeCompare((b.date as string) ?? ''))
+    if (!vis.showClassAvgStudent) {
+      for (const r of records) { r.avgScore = null; r.avgPct = null; r.classHigh = null; r.classLow = null }
+    }
 
     return NextResponse.json({ records })
   }
@@ -659,15 +696,25 @@ export async function GET(req: NextRequest) {
     const { data: clsOwn } = await db.from('classes').select('id').eq('id', classId).eq('academy_id', academyId).maybeSingle()
     if (!clsOwn) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
 
-    const { data: _sr7 } = await db.from('students').select('enrolled_at').eq('id', studentId).single()
-    const enrolledAt7 = _sr7?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    // 이전 반 조회 시 날짜 범위 파라미터 우선 적용
+    const paramFrom = searchParams.get('fromDate')
+    const paramTo   = searchParams.get('toDate')
+
+    const [{ data: _sr7 }, { data: _cs7 }] = await Promise.all([
+      db.from('students').select('enrolled_at').eq('id', studentId).single(),
+      db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
+    ])
+    const enrolledAt7Raw = _sr7?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const joinedAt7 = _cs7?.joined_at ?? null
+    const enrolledAt7 = paramFrom ?? (joinedAt7 && joinedAt7 > enrolledAt7Raw ? joinedAt7 : enrolledAt7Raw)
 
     const points: { name: string; 내점수: number | null; 반평균: number | null }[] = []
     const records: Record<string, unknown>[] = []
 
     // 구시스템
-    const { data: tests } = await db.from('tests')
-      .select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt7).order('date', { ascending: true })
+    let testsQ7 = db.from('tests').select('id, name, max_score, date').eq('class_id', classId).gte('date', enrolledAt7)
+    if (paramTo) testsQ7 = testsQ7.lte('date', paramTo)
+    const { data: tests } = await testsQ7.order('date', { ascending: true })
     if (tests?.length) {
       const testIds = tests.map(t => t.id)
       const [{ data: myScores }, { data: allScores }] = await Promise.all([
@@ -716,7 +763,7 @@ export async function GET(req: NextRequest) {
       if (seenExamIds2.has(e.id)) return false
       seenExamIds2.add(e.id)
       const dateStr = (e.start_at ?? e.created_at).slice(0, 10)
-      return dateStr >= enrolledAt7
+      return dateStr >= enrolledAt7 && (!paramTo || dateStr <= paramTo)
     })
     if (allExams2.length) {
       const examIds = allExams2.map(e => e.id)

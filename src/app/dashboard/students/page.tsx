@@ -370,7 +370,7 @@ export default function StudentsPage() {
       if (updateError) { setError('저장 중 오류가 발생했어요.'); setSaving(false); return }
       await supabase.from('class_students').delete().eq('student_id', editingId)
       if (form.classIds.length > 0)
-        await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: editingId })))
+        await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: editingId, joined_at: todayKST() })))
     } else {
       // 퇴원 학생 재등록 감지 — 같은 전화번호의 inactive 학생 확인
       const inactiveMatch = students.find(s => s.phone === digits && (s.status ?? 'active') === 'inactive')
@@ -418,7 +418,7 @@ export default function StudentsPage() {
         await supabase.from('class_students').delete().eq('student_id', inactiveMatch.id)
         if (form.classIds.length > 0) {
           await supabase.from('class_students').insert(
-            form.classIds.map(cid => ({ class_id: cid, student_id: inactiveMatch.id }))
+            form.classIds.map(cid => ({ class_id: cid, student_id: inactiveMatch.id, joined_at: todayKST() }))
           )
         }
       } else {
@@ -432,7 +432,7 @@ export default function StudentsPage() {
         }).select().single()
         if (insertError) { setError('저장 중 오류가 발생했어요.'); setSaving(false); return }
         if (form.classIds.length > 0)
-          await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: newStudent.id })))
+          await supabase.from('class_students').insert(form.classIds.map(cid => ({ class_id: cid, student_id: newStudent.id, joined_at: todayKST() })))
       }
     }
 
@@ -599,7 +599,7 @@ export default function StudentsPage() {
       if (dbError) { setImportError(`가져오기 오류: ${dbError.message}`); setImporting(false); return }
       if (classFilter && classFilter !== 'none' && inserted && inserted.length > 0) {
         await supabase.from('class_students').insert(
-          inserted.map((s: { id: string }) => ({ class_id: classFilter, student_id: s.id }))
+          inserted.map((s: { id: string }) => ({ class_id: classFilter, student_id: s.id, joined_at: todayKST() }))
         )
       }
     }
@@ -626,7 +626,7 @@ export default function StudentsPage() {
     }
     if (classFilter && classFilter !== 'none' && conflicts.length > 0) {
       await supabase.from('class_students').upsert(
-        conflicts.map(({ existing }) => ({ class_id: classFilter, student_id: existing.id })),
+        conflicts.map(({ existing }) => ({ class_id: classFilter, student_id: existing.id, joined_at: todayKST() })),
         { onConflict: 'class_id,student_id' }
       )
     }

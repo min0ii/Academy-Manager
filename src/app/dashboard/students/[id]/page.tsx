@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X, Heart, ChevronDown, ChevronUp, Check, Loader2, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
+import { todayKST } from '@/lib/date'
 import { useAcademy } from '@/lib/academy-context'
 import { useDialog } from '@/components/AppDialog'
 import { PageLoading, ListSkeleton } from '@/components/Skeleton'
@@ -21,6 +22,7 @@ type Student = {
 }
 type AllClass = { id: string; name: string }
 type ClassInfo = { id: string; name: string }
+type TransferHistory = { id: string; class_id: string; class_name: string; joined_at: string; left_at: string }
 type AttendanceRow = {
   date: string
   status: 'present' | 'absent' | 'late' | 'early_leave' | null
@@ -75,6 +77,8 @@ function StudentReportContent() {
   const [showAllClinic, setShowAllClinic]     = useState(false)
   const [showAllGrades, setShowAllGrades]     = useState(false)
   const [allClasses, setAllClasses]           = useState<AllClass[]>([])
+  const [historyClasses, setHistoryClasses]   = useState<TransferHistory[]>([])
+  const [selectedHistoryRange, setSelectedHistoryRange] = useState<{ from: string; to: string; className: string } | null>(null)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferClassIds, setTransferClassIds]   = useState<string[]>([])
   const [transferring, setTransferring]           = useState(false)
@@ -100,18 +104,20 @@ function StudentReportContent() {
   const [livesSaved, setLivesSaved]       = useState(false)
 
   useEffect(() => { if (ctx) loadStudent(ctx.academyId) }, [studentId, ctx])
-  useEffect(() => { if (selectedClassId) loadClassDetail(selectedClassId) }, [selectedClassId])
+  useEffect(() => { if (selectedClassId) loadClassDetail(selectedClassId, selectedHistoryRange ?? undefined) }, [selectedClassId, selectedHistoryRange])
 
   async function loadStudent(academyId: string) {
     setLoading(true)
 
-    // 학생 정보 + 소속 반 + 전체 반 목록을 동시에 조회
-    const [{ data }, { data: csData }, { data: ac }] = await Promise.all([
+    // 학생 정보 + 소속 반 + 전체 반 목록 + 전반 이력을 동시에 조회
+    const [{ data }, { data: csData }, { data: ac }, { data: histData }] = await Promise.all([
       supabase.from('students')
         .select('id, name, school_name, grade, phone, parent_phone, parent_relation, memo, enrolled_at, status, withdrawn_at')
         .eq('id', studentId).single(),
       supabase.from('class_students').select('classes(id, name)').eq('student_id', studentId),
       supabase.from('classes').select('id, name').eq('academy_id', academyId).order('name'),
+      supabase.from('class_transfer_history').select('id, class_id, class_name, joined_at, left_at')
+        .eq('student_id', studentId).order('left_at', { ascending: false }),
     ])
 
     if (!data) { router.push('/dashboard/students'); return }
@@ -120,7 +126,11 @@ function StudentReportContent() {
     const classList: ClassInfo[] = ((csData ?? []) as any[]).map(cs => cs.classes).filter(Boolean)
     setClasses(classList)
     setAllClasses(ac ?? [])
-    if (classList.length > 0) setSelectedClassId(classList[0].id)
+    setHistoryClasses((histData ?? []) as TransferHistory[])
+    if (classList.length > 0) {
+      setSelectedClassId(classList[0].id)
+      setSelectedHistoryRange(null)
+    }
 
     // 목숨 로드
     const token = await getToken()
@@ -327,10 +337,45 @@ function StudentReportContent() {
 
   async function handleTransfer() {
     setTransferring(true)
+    const todayStr = todayKST()
+
+    // 1. 현재 반 정보 조회 (joined_at + 반 이름 포함)
+    const { data: currentEnrollments } = await supabase
+      .from('class_students')
+      .select('class_id, joined_at, classes(name)')
+      .eq('student_id', studentId)
+
+    // 2. 나가는 반 (새 선택에 없는 반) → 이력 저장
+    const leavingClasses = (currentEnrollments ?? []).filter(
+      (e: any) => !transferClassIds.includes(e.class_id)
+    )
+    if (leavingClasses.length > 0) {
+      await supabase.from('class_transfer_history').insert(
+        leavingClasses.map((e: any) => ({
+          student_id: studentId,
+          class_id: e.class_id,
+          class_name: e.classes?.name ?? '알 수 없음',
+          joined_at: e.joined_at ?? student?.enrolled_at?.slice(0, 10) ?? todayStr,
+          left_at: todayStr,
+        }))
+      )
+    }
+
+    // 3. 기존 반 배정 삭제 후 재삽입 (joined_at 유지 또는 오늘 날짜)
+    const currentMap: Record<string, string | null> = {}
+    for (const e of (currentEnrollments ?? []) as any[]) currentMap[e.class_id] = e.joined_at ?? null
+
     await supabase.from('class_students').delete().eq('student_id', studentId)
     if (transferClassIds.length > 0) {
-      await supabase.from('class_students').insert(transferClassIds.map(cid => ({ class_id: cid, student_id: studentId })))
+      await supabase.from('class_students').insert(
+        transferClassIds.map(cid => ({
+          class_id: cid,
+          student_id: studentId,
+          joined_at: currentMap[cid] ?? todayStr,
+        }))
+      )
     }
+
     setShowTransferModal(false)
     await loadStudent(ctx!.academyId)
     setTransferring(false)
@@ -341,17 +386,23 @@ function StudentReportContent() {
     return session?.access_token ?? null
   }
 
-  async function loadClassDetail(classId: string) {
+  async function loadClassDetail(classId: string, historyRange?: { from: string; to: string }) {
     setLoadingDetail(true)
     setShowAllHomework(false)
     setShowAllClinic(false)
 
     const token = await getToken()
 
-    // 등록일 이후 세션만 표시 (등록 전 수업은 "기록 없음"으로 표시되지 않도록)
-    const enrolledAt = student?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const fromDate = historyRange?.from ?? student?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
+    const toDate   = historyRange?.to
 
     // ── 1단계: 출결·과제·클리닉 메타 + 성적 그래프 전부 동시에 조회
+    const sessQ    = supabase.from('sessions').select('id, date').eq('class_id', classId).gte('date', fromDate)
+    const hwQ      = supabase.from('homework').select('id, title, assigned_date, due_date').eq('class_id', classId).gte('assigned_date', fromDate)
+    const clinicQ  = supabase.from('clinic_sessions').select('id, date, name').eq('class_id', classId).gte('date', fromDate)
+
+    const gradesUrl = `/api/grades?action=student-chart&classId=${classId}&studentId=${studentId}&fromDate=${fromDate}${toDate ? `&toDate=${toDate}` : ''}`
+
     const [
       { data: sessions },
       { data: hwData },
@@ -359,15 +410,12 @@ function StudentReportContent() {
       { data: clinicScheds },
       gradesJson,
     ] = await Promise.all([
-      supabase.from('sessions').select('id, date').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
-      supabase.from('homework').select('id, title, assigned_date, due_date').eq('class_id', classId).gte('assigned_date', enrolledAt).order('assigned_date'),
-      supabase.from('clinic_sessions').select('id, date, name').eq('class_id', classId).gte('date', enrolledAt).order('date', { ascending: false }),
+      (toDate ? sessQ.lte('date', toDate) : sessQ).order('date', { ascending: false }),
+      (toDate ? hwQ.lte('assigned_date', toDate) : hwQ).order('assigned_date'),
+      (toDate ? clinicQ.lte('date', toDate) : clinicQ).order('date', { ascending: false }),
       supabase.from('clinic_schedules').select('day_of_week, name').eq('class_id', classId),
-      // test_scores RLS 우회 — 서비스 롤 API로 직접 호출
       token
-        ? fetch(`/api/grades?action=student-chart&classId=${classId}&studentId=${studentId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }).then(r => r.json())
+        ? fetch(gradesUrl, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
         : Promise.resolve({ points: [], records: [] }),
     ])
 
@@ -709,17 +757,27 @@ function StudentReportContent() {
         </div>
       ) : (
         <>
-          {/* 반 선택 탭 */}
-          {classes.length > 1 && (
+          {/* 반 선택 탭 (현재 반 + 이전 반) */}
+          {(classes.length > 1 || historyClasses.length > 0) && (
             <div className="flex gap-2 flex-wrap">
               {classes.map(c => (
-                <button key={c.id} onClick={() => setSelectedClassId(c.id)}
+                <button key={c.id} onClick={() => { setSelectedClassId(c.id); setSelectedHistoryRange(null) }}
                   className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-                    selectedClassId === c.id
+                    selectedClassId === c.id && !selectedHistoryRange
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
                   }`}>
                   {c.name}
+                </button>
+              ))}
+              {historyClasses.map(h => (
+                <button key={h.id} onClick={() => { setSelectedClassId(h.class_id); setSelectedHistoryRange({ from: h.joined_at, to: h.left_at, className: h.class_name }) }}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                    selectedHistoryRange?.className === h.class_name && selectedHistoryRange?.from === h.joined_at
+                      ? 'bg-slate-500 text-white border-slate-500'
+                      : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-400'
+                  }`}>
+                  {h.class_name} <span className="text-xs opacity-70">(이전)</span>
                 </button>
               ))}
             </div>

@@ -405,7 +405,7 @@ export default function ClassDetailPage() {
     if (selectedNewIds.size === 0) return
     setAssigning(true)
     await supabase.from('class_students').insert(
-      [...selectedNewIds].map(id => ({ class_id: classId, student_id: id }))
+      [...selectedNewIds].map(id => ({ class_id: classId, student_id: id, joined_at: todayKST() }))
     )
     setAssigning(false); setShowAddStudent(false)
     setSelectedNewIds(new Set()); setStudentSearch('')

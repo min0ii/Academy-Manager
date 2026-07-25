@@ -245,7 +245,10 @@ export default function ParentPage() {
     setAttendLoaded(true); setAttendLoading(true)
     const sixMonthsAgoStr = monthsAgoKST(6)
     const enrolledAt = s.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
-    const fromDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
+    const baseDate = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
+    const { data: csRow } = await supabase.from('class_students').select('joined_at').eq('class_id', ci.id).eq('student_id', s.id).maybeSingle()
+    const joinedAt = csRow?.joined_at ?? null
+    const fromDate = joinedAt && joinedAt > baseDate ? joinedAt : baseDate
     const { data: sessions } = await supabase
       .from('sessions')
       .select('id, date, status, attendance(student_id, status, note, late_minutes, early_leave_minutes)')

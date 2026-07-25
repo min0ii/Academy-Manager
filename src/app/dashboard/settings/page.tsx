@@ -144,6 +144,11 @@ export default function SettingsPage() {
   const [commentVis, setCommentVis]     = useState<CommentVis>({ attStudent: true, attParent: true, hwStudent: true, hwParent: true, clinicStudent: true, clinicParent: true, examStudent: true, examParent: true })
   const [savingCommentVis, setSavingCommentVis] = useState(false)
 
+  // 반 평균 공개 설정
+  const [showClassAvgParent,  setShowClassAvgParent]  = useState(true)
+  const [showClassAvgStudent, setShowClassAvgStudent] = useState(true)
+  const [savingClassAvg, setSavingClassAvg] = useState(false)
+
   // 보안 질문
   const [currentSQ, setCurrentSQ]     = useState<string | null>(null)
   const [sqLoaded, setSqLoaded]       = useState(false)
@@ -177,7 +182,7 @@ export default function SettingsPage() {
 
   async function loadLivesSettings(aId: string) {
     const { data } = await supabase.from('academies')
-      .select('lives_enabled, lives_default, lives_billboard_enabled, lives_billboard_show_last, comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent')
+      .select('lives_enabled, lives_default, lives_billboard_enabled, lives_billboard_show_last, comment_vis_att_student, comment_vis_att_parent, comment_vis_hw_student, comment_vis_hw_parent, comment_vis_clinic_student, comment_vis_clinic_parent, comment_vis_exam_student, comment_vis_exam_parent, show_class_avg_parent, show_class_avg_student')
       .eq('id', aId).single()
     setLivesEnabled(data?.lives_enabled ?? false)
     setLivesDefault(data?.lives_default ?? 3)
@@ -193,6 +198,8 @@ export default function SettingsPage() {
       examStudent:   data.comment_vis_exam_student   ?? true,
       examParent:    data.comment_vis_exam_parent    ?? true,
     })
+    setShowClassAvgParent(data?.show_class_avg_parent   ?? true)
+    setShowClassAvgStudent(data?.show_class_avg_student ?? true)
     setLivesLoaded(true)
   }
 
@@ -493,6 +500,13 @@ export default function SettingsPage() {
     void saveCommentVis(next)
   }
 
+  async function saveClassAvgVis(parent: boolean, student: boolean) {
+    if (!academyId) return
+    setSavingClassAvg(true)
+    await supabase.from('academies').update({ show_class_avg_parent: parent, show_class_avg_student: student }).eq('id', academyId)
+    setSavingClassAvg(false)
+  }
+
   async function saveAcademyName() {
     if (!academyName.trim()) return
     setSavingAcademy(true)
@@ -694,6 +708,55 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── 반 평균 공개 설정 카드 ── */}
+      {tab === 'academy' && livesLoaded && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-slate-800">반 평균 공개 설정</h2>
+            {savingClassAvg && <span className="text-xs text-slate-400">저장 중...</span>}
+          </div>
+          <p className="text-xs text-slate-400">학생·학부모 앱의 성적 탭에서 반 평균을 표시할지 설정해요.</p>
+
+          <div className="flex items-center gap-4 py-3">
+            <span className="text-sm font-semibold text-slate-700 flex-1">학생 앱에 반 평균 표시</span>
+            <button
+              onClick={() => {
+                const next = !showClassAvgStudent
+                setShowClassAvgStudent(next)
+                void saveClassAvgVis(showClassAvgParent, next)
+              }}
+              className="flex items-center gap-2.5"
+            >
+              <div className={`w-11 h-6 rounded-full relative flex-shrink-0 transition-colors duration-200 ${showClassAvgStudent ? 'bg-blue-500' : 'bg-slate-200'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${showClassAvgStudent ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+              <span className={`text-xs font-medium whitespace-nowrap transition-colors ${showClassAvgStudent ? 'text-blue-600' : 'text-slate-400'}`}>
+                {showClassAvgStudent ? '공개' : '숨김'}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4 py-3 border-t border-slate-100">
+            <span className="text-sm font-semibold text-slate-700 flex-1">학부모 앱에 반 평균 표시</span>
+            <button
+              onClick={() => {
+                const next = !showClassAvgParent
+                setShowClassAvgParent(next)
+                void saveClassAvgVis(next, showClassAvgStudent)
+              }}
+              className="flex items-center gap-2.5"
+            >
+              <div className={`w-11 h-6 rounded-full relative flex-shrink-0 transition-colors duration-200 ${showClassAvgParent ? 'bg-violet-500' : 'bg-slate-200'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${showClassAvgParent ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+              <span className={`text-xs font-medium whitespace-nowrap transition-colors ${showClassAvgParent ? 'text-violet-600' : 'text-slate-400'}`}>
+                {showClassAvgParent ? '공개' : '숨김'}
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
