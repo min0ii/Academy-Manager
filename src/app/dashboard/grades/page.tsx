@@ -86,7 +86,8 @@ type WizardSubQ = {
   questionText: string
   score: string
   choices: string[]
-  correctChoiceIdx: number
+  correctChoiceIdxs: number[]
+  multipleCorrect: boolean
   saAnswers: string[]
 }
 
@@ -96,7 +97,8 @@ type WizardQuestion = {
   questionText: string
   score: string
   choices: string[]
-  correctChoiceIdx: number
+  correctChoiceIdxs: number[]
+  multipleCorrect: boolean
   saAnswers: string[]
   customLabel: string
   groupContext?: string
@@ -174,7 +176,8 @@ function newWizardQ(): WizardQuestion {
     questionText: '',
     score: '1',
     choices: ['', '', '', '', ''],
-    correctChoiceIdx: 0,
+    correctChoiceIdxs: [0],
+    multipleCorrect: false,
     saAnswers: [''],
     customLabel: '',
   }
@@ -187,7 +190,8 @@ function newWizardSubQ(): WizardSubQ {
     questionText: '',
     score: '1',
     choices: ['', '', '', '', ''],
-    correctChoiceIdx: 0,
+    correctChoiceIdxs: [0],
+    multipleCorrect: false,
     saAnswers: [''],
   }
 }
@@ -303,7 +307,8 @@ function WizardSubQCard({
   function removeChoice(ci: number) {
     if (child.choices.length <= 2) return
     const next = child.choices.filter((_, i) => i !== ci)
-    onChange({ choices: next, correctChoiceIdx: Math.min(child.correctChoiceIdx, next.length - 1) })
+    const idxs = child.correctChoiceIdxs.filter(i => i < next.length)
+    onChange({ choices: next, correctChoiceIdxs: idxs.length > 0 ? idxs : [0] })
   }
 
   return (
@@ -342,22 +347,47 @@ function WizardSubQCard({
       {/* 객관식 선택지 */}
       {child.questionType === 'multiple_choice' && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-slate-500">선택지 — 정답을 체크하세요</p>
-          {child.choices.map((text, ci) => (
-            <div key={ci} className="flex items-center gap-2">
-              <button onClick={() => onChange({ correctChoiceIdx: ci })}
-                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${child.correctChoiceIdx === ci ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}>
-                {child.correctChoiceIdx === ci && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-              </button>
-              <span className="text-xs text-slate-400 w-4 flex-shrink-0">{ci + 1}.</span>
-              <input type="text" value={text} onChange={e => updateChoice(ci, e.target.value)}
-                placeholder={`${ci + 1}번 선택지`}
-                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              {child.choices.length > 2 && (
-                <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={12} /></button>
-              )}
-            </div>
-          ))}
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-medium text-slate-500 flex-1">선택지 — 정답을 체크하세요</p>
+            <button
+              onClick={() => {
+                const next = !child.multipleCorrect
+                onChange({ multipleCorrect: next, correctChoiceIdxs: next ? child.correctChoiceIdxs : [child.correctChoiceIdxs[0] ?? 0] })
+              }}
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${child.multipleCorrect ? 'bg-blue-600 text-white border-blue-600' : 'text-slate-400 border-slate-200 hover:border-blue-400 hover:text-blue-500'}`}
+            >
+              복수정답
+            </button>
+          </div>
+          {child.choices.map((text, ci) => {
+            const selected = child.correctChoiceIdxs.includes(ci)
+            return (
+              <div key={ci} className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (child.multipleCorrect) {
+                      const idxs = selected
+                        ? child.correctChoiceIdxs.filter(i => i !== ci)
+                        : [...child.correctChoiceIdxs, ci].sort((a, b) => a - b)
+                      onChange({ correctChoiceIdxs: idxs.length > 0 ? idxs : [ci] })
+                    } else {
+                      onChange({ correctChoiceIdxs: [ci] })
+                    }
+                  }}
+                  className={`w-4 h-4 flex-shrink-0 border-2 flex items-center justify-center transition-colors ${child.multipleCorrect ? 'rounded-md' : 'rounded-full'} ${selected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}
+                >
+                  {selected && <div className={`bg-white ${child.multipleCorrect ? 'w-1.5 h-1.5 rounded-sm' : 'w-1.5 h-1.5 rounded-full'}`} />}
+                </button>
+                <span className="text-xs text-slate-400 w-4 flex-shrink-0">{ci + 1}.</span>
+                <input type="text" value={text} onChange={e => updateChoice(ci, e.target.value)}
+                  placeholder={`${ci + 1}번 선택지`}
+                  className="flex-1 px-2 py-1 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                {child.choices.length > 2 && (
+                  <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={12} /></button>
+                )}
+              </div>
+            )
+          })}
           {child.choices.length < 5 && (
             <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
               <Plus size={11} /> 선택지 추가
@@ -419,7 +449,8 @@ function WizardQuestionCard({
   function removeChoice(ci: number) {
     if (q.choices.length <= 2) return
     const next = q.choices.filter((_, i) => i !== ci)
-    onChange({ choices: next, correctChoiceIdx: Math.min(q.correctChoiceIdx, next.length - 1) })
+    const idxs = q.correctChoiceIdxs.filter(i => i < next.length)
+    onChange({ choices: next, correctChoiceIdxs: idxs.length > 0 ? idxs : [0] })
   }
   function updateSA(ai: number, val: string) {
     const next = [...q.saAnswers]; next[ai] = val; onChange({ saAnswers: next })
@@ -565,27 +596,51 @@ function WizardQuestionCard({
       {/* MC choices */}
       {q.questionType === 'multiple_choice' && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-500">선택지 — 정답을 체크하세요</p>
-          {q.choices.map((text, ci) => (
-            <div key={ci} className="flex items-center gap-2">
-              <button
-                onClick={() => onChange({ correctChoiceIdx: ci })}
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${q.correctChoiceIdx === ci ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}>
-                {q.correctChoiceIdx === ci && <div className="w-2 h-2 rounded-full bg-white" />}
-              </button>
-              <span className="text-xs text-slate-400 w-4 flex-shrink-0 mt-1.5">{ci + 1}.</span>
-              <textarea value={text} onChange={e => updateChoice(ci, e.target.value)}
-                placeholder={`${ci + 1}번 선택지`}
-                rows={1}
-                className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-hidden leading-relaxed"
-                style={{ height: 'auto' }}
-                onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px' }}
-              />
-              {q.choices.length > 2 && (
-                <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={14} /></button>
-              )}
-            </div>
-          ))}
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-medium text-slate-500 flex-1">선택지 — 정답을 체크하세요</p>
+            <button
+              onClick={() => {
+                const next = !q.multipleCorrect
+                onChange({ multipleCorrect: next, correctChoiceIdxs: next ? q.correctChoiceIdxs : [q.correctChoiceIdxs[0] ?? 0] })
+              }}
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${q.multipleCorrect ? 'bg-blue-600 text-white border-blue-600' : 'text-slate-400 border-slate-200 hover:border-blue-400 hover:text-blue-500'}`}
+            >
+              복수정답
+            </button>
+          </div>
+          {q.choices.map((text, ci) => {
+            const selected = q.correctChoiceIdxs.includes(ci)
+            return (
+              <div key={ci} className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (q.multipleCorrect) {
+                      const idxs = selected
+                        ? q.correctChoiceIdxs.filter(i => i !== ci)
+                        : [...q.correctChoiceIdxs, ci].sort((a, b) => a - b)
+                      onChange({ correctChoiceIdxs: idxs.length > 0 ? idxs : [ci] })
+                    } else {
+                      onChange({ correctChoiceIdxs: [ci] })
+                    }
+                  }}
+                  className={`w-5 h-5 flex-shrink-0 border-2 flex items-center justify-center transition-colors ${q.multipleCorrect ? 'rounded-md' : 'rounded-full'} ${selected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 hover:border-blue-400'}`}
+                >
+                  {selected && <div className={`bg-white ${q.multipleCorrect ? 'w-2 h-2 rounded-sm' : 'w-2 h-2 rounded-full'}`} />}
+                </button>
+                <span className="text-xs text-slate-400 w-4 flex-shrink-0 mt-1.5">{ci + 1}.</span>
+                <textarea value={text} onChange={e => updateChoice(ci, e.target.value)}
+                  placeholder={`${ci + 1}번 선택지`}
+                  rows={1}
+                  className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-hidden leading-relaxed"
+                  style={{ height: 'auto' }}
+                  onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px' }}
+                />
+                {q.choices.length > 2 && (
+                  <button onClick={() => removeChoice(ci)} className="text-slate-300 hover:text-red-400 flex-shrink-0"><X size={14} /></button>
+                )}
+              </div>
+            )
+          })}
           {q.choices.length < 5 && (
             <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
               <Plus size={12} /> 선택지 추가
@@ -1880,7 +1935,7 @@ function GradesContent() {
             score: parseFloat(child.score) || 0,
             choices: child.questionType === 'multiple_choice' ? child.choices.map((text, i) => ({ num: i + 1, text })) : [],
             answers: child.questionType === 'multiple_choice'
-              ? [String(child.correctChoiceIdx + 1)]
+              ? child.correctChoiceIdxs.slice().sort((a, b) => a - b).map(i => String(i + 1))
               : child.saAnswers.filter(a => a.trim()),
           })),
         }
@@ -1894,7 +1949,7 @@ function GradesContent() {
           questionType: 'multiple_choice',
           score,
           choices: q.choices.map((text, i) => ({ num: i + 1, text })),
-          answers: [String(q.correctChoiceIdx + 1)],
+          answers: q.correctChoiceIdxs.slice().sort((a, b) => a - b).map(i => String(i + 1)),
         }
       }
       return {
@@ -2092,22 +2147,25 @@ function GradesContent() {
           questionText: '',
           score: '0',
           choices: [],
-          correctChoiceIdx: 0,
+          correctChoiceIdxs: [0],
+          multipleCorrect: false,
           saAnswers: [''],
           customLabel: q.question_label ?? '',
           groupContext: q.group_context ?? '',
           children: children.map(child => {
             const childChoices = examDetail.choices.filter(c => c.question_id === child.id).sort((a, b) => a.choice_num - b.choice_num)
             const childAnswers = examDetail.answers.filter(a => a.question_id === child.id)
-            const correctChoiceIdx = child.question_type === 'multiple_choice'
-              ? Math.max(0, parseInt(childAnswers[0]?.answer_text ?? '1') - 1) : 0
+            const correctChoiceIdxs = child.question_type === 'multiple_choice' && childAnswers.length > 0
+              ? childAnswers.map(a => Math.max(0, parseInt(a.answer_text) - 1))
+              : [0]
             return {
               clientId: child.id,
               questionType: child.question_type as 'multiple_choice' | 'short_answer',
               questionText: child.question_text ?? '',
               score: String(child.score),
               choices: childChoices.length > 0 ? childChoices.map(c => c.choice_text ?? '') : ['', '', '', '', ''],
-              correctChoiceIdx,
+              correctChoiceIdxs,
+              multipleCorrect: correctChoiceIdxs.length > 1,
               saAnswers: child.question_type === 'short_answer' && childAnswers.length > 0
                 ? childAnswers.map(a => a.answer_text) : [''],
             }
@@ -2116,15 +2174,17 @@ function GradesContent() {
       }
       const qChoices = examDetail.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
       const qAnswers = examDetail.answers.filter(a => a.question_id === q.id)
-      const correctChoiceIdx = q.question_type === 'multiple_choice'
-        ? Math.max(0, parseInt(qAnswers[0]?.answer_text ?? '1') - 1) : 0
+      const correctChoiceIdxs = q.question_type === 'multiple_choice' && qAnswers.length > 0
+        ? qAnswers.map(a => Math.max(0, parseInt(a.answer_text) - 1))
+        : [0]
       return {
         clientId: q.id,
         questionType: q.question_type as 'multiple_choice' | 'short_answer',
         questionText: q.question_text ?? '',
         score: String(q.score),
         choices: qChoices.length > 0 ? qChoices.map(c => c.choice_text ?? '') : ['', '', '', '', ''],
-        correctChoiceIdx,
+        correctChoiceIdxs,
+        multipleCorrect: correctChoiceIdxs.length > 1,
         saAnswers: q.question_type === 'short_answer' && qAnswers.length > 0 ? qAnswers.map(a => a.answer_text) : [''],
         customLabel: q.question_label ?? '',
       }
@@ -2180,7 +2240,7 @@ function GradesContent() {
             score: parseFloat(child.score) || 0,
             choices: child.questionType === 'multiple_choice' ? child.choices.map((text, i) => ({ num: i + 1, text })) : [],
             answers: child.questionType === 'multiple_choice'
-              ? [String(child.correctChoiceIdx + 1)]
+              ? child.correctChoiceIdxs.slice().sort((a, b) => a - b).map(i => String(i + 1))
               : child.saAnswers.filter(a => a.trim()),
           })),
         }
@@ -2194,7 +2254,7 @@ function GradesContent() {
           questionType: 'multiple_choice',
           score,
           choices: q.choices.map((text, i) => ({ num: i + 1, text })),
-          answers: [String(q.correctChoiceIdx + 1)],
+          answers: q.correctChoiceIdxs.slice().sort((a, b) => a - b).map(i => String(i + 1)),
         }
       }
       return {
