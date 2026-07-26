@@ -18,7 +18,7 @@ type Class = {
 }
 
 export default function ClassesPage() {
-  const { showConfirm, dialog } = useDialog()
+  const { showAlert, showConfirm, dialog } = useDialog()
   const router = useRouter()
   const [classes, setClasses] = useState<Class[]>([])
   const [academyId, setAcademyId] = useState<string | null>(null)
