@@ -109,7 +109,7 @@
   - **복수정답**: 문제별로 복수정답 토글 가능 (시험 직접 생성 + 문제은행 모두)
 - **과제·클리닉**: `/dashboard/homework` — 과제/클리닉 현황, 미완료 학생 파악
   - 과제 제목 인라인 편집 가능
-  - 학생 현황 새로고침 버튼
+  - 학생별 과제 완료 현황 확인
 - **코멘트**: `/dashboard/comments`
 - **설정**: `/dashboard/settings`
   - 학원 로고 업로드
@@ -194,7 +194,7 @@ export function monthsAgoKST(months: number): string  // n개월 전 날짜 (KST
 - `markAllPresent()`, `markAllClinicDone()` — 전체 처리
 - `addHomework()`, `deleteHomework()`, `saveHomeworkTitle()` — 과제 관리 (제목 인라인 편집 포함)
 - `setHomeworkStatus()`, `saveHwNote()` — 과제 상태·메모 저장 (오류 시 사용자 알림)
-- `loadHomeworkStatuses(hwId, force?)` — 지연 로드, force=true면 캐시 무시 재조회
+- `loadHomeworkStatuses(hwId)` — 지연 로드 (이미 로드된 hwId는 스킵)
 - `addExtraSession()`, `addExtraClinicSession()` — 비정기 수업/클리닉 추가
 - `deleteSession()`, `deleteClinicSession()` — 삭제
 - `loadAttendanceStats()` — 출결 통계 (enrolled_at 기준 필터)
