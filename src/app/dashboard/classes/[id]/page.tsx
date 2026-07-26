@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare, Loader2, RefreshCw,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare, Loader2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -921,8 +921,8 @@ async function resetAllLives() {
     setDateHomeworks(prev => prev.map(h => h.id === hwId ? { ...h, due_date: value } : h))
   }
 
-  async function loadHomeworkStatuses(hwId: string, force = false) {
-    if (!force && homeworkStatuses[hwId]) return
+  async function loadHomeworkStatuses(hwId: string) {
+    if (homeworkStatuses[hwId]) return
     const { data } = await supabase.from('homework_status').select('id, student_id, status, note').eq('homework_id', hwId)
     const sm: Record<string, any> = {}
     for (const s of (data ?? [])) sm[s.student_id] = s
@@ -1817,11 +1817,6 @@ async function resetAllLives() {
                                     )}
                                   </div>
                                 </div>
-                                <button onClick={() => loadHomeworkStatuses(hw.id, true)}
-                                  title="현황 새로고침"
-                                  className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors flex-shrink-0">
-                                  <RefreshCw size={14} />
-                                </button>
                                 <button onClick={() => deleteHomework(hw.id)}
                                   className="p-1.5 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
                                   <Trash2 size={14} />
