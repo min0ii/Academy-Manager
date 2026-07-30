@@ -161,12 +161,10 @@ function QBSubQCard({
               )}
             </div>
           ))}
-          {child.choices.length < 5 && (
-            <button onClick={() => onChange({ choices: [...child.choices, ''] })}
-              className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
-              <Plus size={11} /> 선택지 추가
-            </button>
-          )}
+          <button onClick={() => onChange({ choices: [...child.choices, ''] })}
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            <Plus size={11} /> 선택지 추가
+          </button>
         </div>
       )}
       {child.question_type === 'short_answer' && (
@@ -366,12 +364,10 @@ function QuestionCard({
               )}
             </div>
           ))}
-          {q.choices.length < 5 && (
-            <button onClick={() => onChange({ choices: [...q.choices, ''] })}
-              className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1 mt-1">
-              <Plus size={12} /> 선택지 추가
-            </button>
-          )}
+          <button onClick={() => onChange({ choices: [...q.choices, ''] })}
+            className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1 mt-1">
+            <Plus size={12} /> 선택지 추가
+          </button>
         </div>
       )}
 

@@ -301,7 +301,6 @@ function WizardSubQCard({
     const next = [...child.choices]; next[ci] = val; onChange({ choices: next })
   }
   function addChoice() {
-    if (child.choices.length >= 5) return
     onChange({ choices: [...child.choices, ''] })
   }
   function removeChoice(ci: number) {
@@ -388,11 +387,9 @@ function WizardSubQCard({
               </div>
             )
           })}
-          {child.choices.length < 5 && (
-            <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
-              <Plus size={11} /> 선택지 추가
-            </button>
-          )}
+          <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            <Plus size={11} /> 선택지 추가
+          </button>
         </div>
       )}
 
@@ -443,7 +440,6 @@ function WizardQuestionCard({
     const next = [...q.choices]; next[ci] = val; onChange({ choices: next })
   }
   function addChoice() {
-    if (q.choices.length >= 5) return
     onChange({ choices: [...q.choices, ''] })
   }
   function removeChoice(ci: number) {
@@ -641,11 +637,9 @@ function WizardQuestionCard({
               </div>
             )
           })}
-          {q.choices.length < 5 && (
-            <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
-              <Plus size={12} /> 선택지 추가
-            </button>
-          )}
+          <button onClick={addChoice} className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1">
+            <Plus size={12} /> 선택지 추가
+          </button>
         </div>
       )}
 
