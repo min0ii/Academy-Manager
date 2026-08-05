@@ -411,7 +411,7 @@ function StudentReportContent() {
       gradesJson,
     ] = await Promise.all([
       (toDate ? sessQ.lte('date', toDate) : sessQ).order('date', { ascending: false }),
-      (toDate ? hwQ.lte('assigned_date', toDate) : hwQ).order('assigned_date'),
+      (toDate ? hwQ.lte('assigned_date', toDate) : hwQ).order('assigned_date', { ascending: false }),
       (toDate ? clinicQ.lte('date', toDate) : clinicQ).order('date', { ascending: false }),
       supabase.from('clinic_schedules').select('day_of_week, name').eq('class_id', classId),
       token
