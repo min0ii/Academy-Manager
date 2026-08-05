@@ -1295,7 +1295,7 @@ function AutoMonitorView({
                           <tbody>
                             {gradableQuestions.map((q, qi) => {
                               const ans = s.answers.find(a => a.question_id === q.id)
-                              const correctAns = examDetail.answers.find(a => a.question_id === q.id)
+                              const correctAnsList = examDetail.answers.filter(a => a.question_id === q.id).sort((a, b) => a.order_num - b.order_num)
                               const ok = ans?.is_correct
                               const overridden = ans?.manually_overridden
                               return (
@@ -1306,7 +1306,7 @@ function AutoMonitorView({
                                     {overridden && <span className="ml-1 text-violet-400 font-normal">(처리)</span>}
                                   </td>
                                   <td className="px-2 py-1.5 text-center font-bold text-slate-700">
-                                    {correctAns?.answer_text ?? '—'}
+                                    {correctAnsList.length > 0 ? correctAnsList.map(a => a.answer_text).join(', ') : '—'}
                                   </td>
                                   {onToggleOverride && s.submissionId && (
                                     <td className="px-2 py-1.5 text-center">
