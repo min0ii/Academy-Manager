@@ -475,6 +475,7 @@ export default function QuestionBank() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
   const [examTitle, setExamTitle] = useState('')
   const [examNoDeadline, setExamNoDeadline] = useState(true)
+  const [examReveal, setExamReveal] = useState<'after_close' | 'never'>('after_close')
   const [creatingExam, setCreatingExam] = useState(false)
 
   async function getToken() {
@@ -989,7 +990,7 @@ export default function QuestionBank() {
       title: examTitle.trim(),
       examType: 'auto',
       noDeadline: examNoDeadline,
-      answerReveal: 'after_close',
+      answerReveal: examReveal,
       questions: selectedQs.map((q, i) => {
         const label = examNumbering === 'original'
           ? (q.customLabel.trim() || String(questions.indexOf(q) + 1))
@@ -1311,6 +1312,31 @@ export default function QuestionBank() {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* 정답 공개 설정 */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-2">정답 공개 설정</label>
+                    <div className="flex rounded-xl border border-slate-200 overflow-hidden">
+                      {(examNoDeadline
+                        ? [{ val: 'after_close', label: '제출 즉시 공개' }, { val: 'never', label: '볼 수 없게' }] as const
+                        : [{ val: 'after_close', label: '마감 후 보이게' }, { val: 'never', label: '볼 수 없게' }] as const
+                      ).map(({ val, label }) => (
+                        <button key={val} onClick={() => setExamReveal(val)}
+                          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${examReveal === val ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      {examNoDeadline
+                        ? examReveal === 'after_close'
+                          ? '학생이 제출하면 즉시 성적 탭에서 정답·오답을 확인할 수 있어요.'
+                          : '학생은 점수만 볼 수 있고, 정답은 선생님이 직접 공개해야 해요.'
+                        : examReveal === 'after_close'
+                        ? '시험 마감 후 학생이 성적 탭에서 정답·오답을 확인할 수 있어요.'
+                        : '선생님이 직접 "정답 공개" 버튼을 누르기 전까지 학생은 정답을 볼 수 없어요.'}
+                    </p>
                   </div>
 
                   <button onClick={doCreateExam}
