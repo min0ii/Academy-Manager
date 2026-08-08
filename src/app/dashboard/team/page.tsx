@@ -112,13 +112,16 @@ export default function TeamPage() {
 
   async function removeTeacher(member: TeamMember) {
     if (member.teacher_id === myId) return
-    if (!await showConfirm(`${member.name} 선생님을 팀에서 제거할까요?\n로그인은 불가능해지지만 계정은 유지돼요.`, { destructive: true, confirmText: '제거' })) return
+    if (!await showConfirm(`${member.name} 선생님 계정을 완전히 삭제할까요?\n계정이 영구 삭제되며 되돌릴 수 없어요.`, { destructive: true, confirmText: '삭제' })) return
     setTeamError('')
-    const { error } = await supabase
-      .from('academy_teachers')
-      .delete()
-      .eq('id', member.id)
-    if (error) { setTeamError(error.message); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/delete-teacher', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ teacher_id: member.teacher_id }),
+    })
+    const result = await res.json()
+    if (!res.ok) { setTeamError(result.error ?? '삭제 오류가 발생했어요.'); return }
     await loadTeam(academyId)
   }
 
