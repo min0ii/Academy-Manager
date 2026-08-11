@@ -96,15 +96,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
   if (sub.is_submitted) return NextResponse.json({ error: '이미 제출된 시험이에요.' }, { status: 403 })
   const submissionId = sub.id
 
-  // 답안 upsert
-  await db.from('exam_student_answers').upsert({
-    submission_id: submissionId,
-    question_id: questionId,
-    student_answer: answer ?? null,
-    is_correct: null,
-    score_earned: 0,
-    manually_overridden: false,
-  }, { onConflict: 'submission_id,question_id' })
+  // 이미 채점된 행은 덮어쓰지 않음 (드래프트-제출 레이스 컨디션 방지)
+  const { data: updated } = await db.from('exam_student_answers')
+    .update({ student_answer: answer ?? null })
+    .eq('submission_id', submissionId)
+    .eq('question_id', questionId)
+    .is('is_correct', null)
+    .select('id')
+
+  if (!updated?.length) {
+    await db.from('exam_student_answers').upsert({
+      submission_id: submissionId,
+      question_id: questionId,
+      student_answer: answer ?? null,
+      is_correct: null,
+      score_earned: 0,
+      manually_overridden: false,
+    }, { onConflict: 'submission_id,question_id', ignoreDuplicates: true })
+  }
 
   return NextResponse.json({ success: true, submissionId })
 }

@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
     ])
     const enrolledAt1Raw = _sr1?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
-    const joinedAt1 = _cs1?.joined_at ?? null
+    const joinedAt1 = _cs1?.joined_at?.slice(0, 10) ?? null
     const enrolledAt1 = joinedAt1 && joinedAt1 > enrolledAt1Raw ? joinedAt1 : enrolledAt1Raw
 
     const records: Record<string, unknown>[] = []
@@ -248,7 +248,7 @@ export async function GET(req: NextRequest) {
       db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
     ])
     const enrolledAt2Raw = _sr2?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
-    const joinedAt2 = _cs2?.joined_at ?? null
+    const joinedAt2 = _cs2?.joined_at?.slice(0, 10) ?? null
     const enrolledAt2 = joinedAt2 && joinedAt2 > enrolledAt2Raw ? joinedAt2 : enrolledAt2Raw
 
     const { data: hwList } = await db.from('homework')
@@ -297,7 +297,7 @@ export async function GET(req: NextRequest) {
       db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
     ])
     const enrolledAt3Raw = _sr3?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
-    const joinedAt3 = _cs3?.joined_at ?? null
+    const joinedAt3 = _cs3?.joined_at?.slice(0, 10) ?? null
     const enrolledAt3 = joinedAt3 && joinedAt3 > enrolledAt3Raw ? joinedAt3 : enrolledAt3Raw
 
     const [{ data: sessions }, { data: myAtt }] = await Promise.all([
@@ -335,7 +335,7 @@ export async function GET(req: NextRequest) {
       db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
     ])
     const enrolledAt4Raw = _sr4?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
-    const joinedAt4 = _cs4?.joined_at ?? null
+    const joinedAt4 = _cs4?.joined_at?.slice(0, 10) ?? null
     const enrolledAt4 = joinedAt4 && joinedAt4 > enrolledAt4Raw ? joinedAt4 : enrolledAt4Raw
 
     const { data: hwList } = await db.from('homework')
@@ -387,7 +387,7 @@ export async function GET(req: NextRequest) {
     ])
     const enrolledAt = studentRow?.enrolled_at?.slice(0, 10) ?? sixMonthsAgoStr
     const baseDateAtt = enrolledAt > sixMonthsAgoStr ? enrolledAt : sixMonthsAgoStr
-    const joinedAtAtt = _csAtt?.joined_at ?? null
+    const joinedAtAtt = _csAtt?.joined_at?.slice(0, 10) ?? null
     const fromDate = joinedAtAtt && joinedAtAtt > baseDateAtt ? joinedAtAtt : baseDateAtt
 
     const { data: sessions } = await db.from('sessions')
@@ -438,7 +438,7 @@ export async function GET(req: NextRequest) {
       db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
     ])
     const enrolledAt5Raw = _sr5?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
-    const joinedAt5 = _cs5?.joined_at ?? null
+    const joinedAt5 = _cs5?.joined_at?.slice(0, 10) ?? null
     const enrolledAt5 = joinedAt5 && joinedAt5 > enrolledAt5Raw ? joinedAt5 : enrolledAt5Raw
 
     // 구시스템(tests) + 신시스템(exams) 병렬 조회
@@ -705,7 +705,7 @@ export async function GET(req: NextRequest) {
       db.from('class_students').select('joined_at').eq('class_id', classId).eq('student_id', studentId).maybeSingle(),
     ])
     const enrolledAt7Raw = _sr7?.enrolled_at?.slice(0, 10) ?? '2000-01-01'
-    const joinedAt7 = _cs7?.joined_at ?? null
+    const joinedAt7 = _cs7?.joined_at?.slice(0, 10) ?? null
     const enrolledAt7 = paramFrom ?? (joinedAt7 && joinedAt7 > enrolledAt7Raw ? joinedAt7 : enrolledAt7Raw)
 
     const points: { name: string; 내점수: number | null; 반평균: number | null }[] = []
