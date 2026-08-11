@@ -425,6 +425,16 @@ export default function StudentPage() {
     setLoadingExamResult(false)
   }
 
+  async function deleteInquiry(inquiryId: string) {
+    const token = await getToken()
+    if (!token) return
+    const res = await fetch(`/api/exam-inquiries/${inquiryId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) setExamInquiries(prev => prev.filter(i => i.id !== inquiryId))
+  }
+
   async function submitInquiry(questionId: string | null) {
     if (!currentExamId) return
     setSubmittingInquiry(true)
@@ -1225,7 +1235,12 @@ export default function StudentPage() {
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">질문</p>
                       {examInquiries.filter(i => i.question_id === null).map(inq => (
                         <div key={inq.id} className="space-y-2">
-                          <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-slate-700">{inq.body}</div>
+                          <div className="flex items-start gap-1.5">
+                            <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-slate-700 flex-1">{inq.body}</div>
+                            {inq.exam_inquiry_replies.length === 0 && (
+                              <button onClick={() => deleteInquiry(inq.id)} className="mt-1 p-1 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={14} /></button>
+                            )}
+                          </div>
                           {inq.exam_inquiry_replies.map(reply => (
                             <div key={reply.id} className="flex flex-col items-end gap-0.5">
                               <div className="bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm max-w-[85%]">{reply.body}</div>
@@ -1328,7 +1343,12 @@ export default function StudentPage() {
                                 <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-1.5">
                                   {qInqs.map(inq => (
                                     <div key={inq.id} className="space-y-1">
-                                      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words">{inq.body}</div>
+                                      <div className="flex items-start gap-1">
+                                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words flex-1">{inq.body}</div>
+                                        {inq.exam_inquiry_replies.length === 0 && (
+                                          <button onClick={() => deleteInquiry(inq.id)} className="mt-0.5 p-0.5 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
+                                        )}
+                                      </div>
                                       {inq.exam_inquiry_replies.map(reply => (
                                         <div key={reply.id} className="flex flex-col items-end gap-0.5">
                                           <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
@@ -1416,7 +1436,12 @@ export default function StudentPage() {
                                 <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
                                   {qInqs.map(inq => (
                                     <div key={inq.id} className="space-y-1">
-                                      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words">{inq.body}</div>
+                                      <div className="flex items-start gap-1">
+                                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words flex-1">{inq.body}</div>
+                                        {inq.exam_inquiry_replies.length === 0 && (
+                                          <button onClick={() => deleteInquiry(inq.id)} className="mt-0.5 p-0.5 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
+                                        )}
+                                      </div>
                                       {inq.exam_inquiry_replies.map(reply => (
                                         <div key={reply.id} className="flex flex-col items-end gap-0.5">
                                           <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
