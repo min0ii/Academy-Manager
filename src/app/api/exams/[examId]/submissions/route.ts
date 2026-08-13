@@ -277,13 +277,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
     const { data: correctAnswers } = await db.from('exam_correct_answers')
       .select('answer_text').eq('question_id', questionId)
 
-    // 문항 배점 조회
-    const { data: question } = await db.from('exam_questions').select('score').eq('id', questionId).single()
+    // 문항 배점 + 유형 조회
+    const { data: question } = await db.from('exam_questions').select('score, question_type').eq('id', questionId).single()
     if (!question) return NextResponse.json({ error: '문항을 찾을 수 없어요.' }, { status: 404 })
 
-    const correctTexts = (correctAnswers ?? []).map(a => a.answer_text.trim().toLowerCase())
-    const given = (studentAns?.student_answer ?? '').trim().toLowerCase()
-    const isCorrect = correctTexts.length > 0 && correctTexts.includes(given)
+    const given = studentAns?.student_answer ?? ''
+    let isCorrect = false
+    if ((correctAnswers ?? []).length > 0 && given.trim()) {
+      if (question.question_type === 'multiple_choice') {
+        const studentSet = new Set(given.split(',').map((s: string) => s.trim()).filter(Boolean))
+        const correctSet = new Set((correctAnswers ?? []).map(a => a.answer_text.trim()))
+        isCorrect = studentSet.size === correctSet.size && [...studentSet].every(s => correctSet.has(s))
+      } else {
+        const norm = given.trim().toLowerCase()
+        isCorrect = (correctAnswers ?? []).some(a => a.answer_text.trim().toLowerCase() === norm)
+      }
+    }
     const scoreEarned = isCorrect ? question.score : 0
 
     // 원래 채점으로 복원

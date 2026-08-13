@@ -1414,6 +1414,7 @@ export default function StudentPage() {
                                       <span className="w-4 text-center font-medium">{c.choice_num}.</span>
                                       <span className="flex-1">{c.choice_text}</span>
                                       {isCorrectChoice && <span className="text-emerald-600">✓ 정답</span>}
+                                      {isMyChoice && isCorrectChoice && <span className="text-emerald-600">· 내 답</span>}
                                       {isMyChoice && !isCorrectChoice && <span className="text-red-500">내 답</span>}
                                     </div>
                                   )
