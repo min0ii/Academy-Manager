@@ -1199,8 +1199,8 @@ export default function StudentPage() {
 
         {/* ── 시험 결과 상세 모달 ── */}
         {examResultModal && (
-          <div className="fixed inset-0 z-50 flex flex-col bg-white overflow-y-auto sm:items-center sm:justify-center sm:bg-black/40 sm:px-4">
-            <div className="bg-white sm:rounded-2xl w-full sm:max-w-lg sm:max-h-[90vh] sm:overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center sm:bg-black/40 sm:px-4">
+            <div className="bg-white w-full h-full overflow-y-auto sm:h-auto sm:rounded-2xl sm:max-w-lg sm:max-h-[90vh]">
               {/* 헤더 */}
               <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3 z-10">
                 <button onClick={closeExamResult} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20} /></button>
