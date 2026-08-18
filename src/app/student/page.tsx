@@ -1388,6 +1388,7 @@ export default function StudentPage() {
           <ExamTab
             classId={classInfo?.id ?? null}
             studentId={student?.id ?? null}
+            onSubmitted={() => setGradesLoaded(false)}
           />
         )}
 

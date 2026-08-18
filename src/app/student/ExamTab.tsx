@@ -99,10 +99,11 @@ function fmtDT(dt: string | null): string {
 // ── Main ExamTab Component ──────────────────────────────────────────────────
 
 export default function ExamTab({
-  classId, studentId,
+  classId, studentId, onSubmitted,
 }: {
   classId: string | null
   studentId: string | null
+  onSubmitted?: () => void
 }) {
   const [examList, setExamList] = useState<AvailableExam[]>([])
   const [listLoading, setListLoading] = useState(false)
@@ -344,6 +345,7 @@ export default function ExamTab({
       setView('result')
       if (timerRef.current) clearInterval(timerRef.current)
       await loadExamList()
+      onSubmitted?.()
     }
     setShowSubmitModal(false)
   }
