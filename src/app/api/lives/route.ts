@@ -46,9 +46,14 @@ export async function GET(req: NextRequest) {
     if (!studentRow) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
     const academyId = studentRow.academy_id
-    const { data: academy } = await db
-      .from('academies').select('lives_enabled, lives_default').eq('id', academyId).single()
+    const [{ data: academy }, { data: classStudent }] = await Promise.all([
+      db.from('academies').select('lives_enabled, lives_default').eq('id', academyId).single(),
+      db.from('class_students').select('classes(lives_enabled)').eq('student_id', studentId).maybeSingle(),
+    ])
     if (!academy?.lives_enabled) return NextResponse.json({ enabled: false, lives: 0 })
+
+    const classLivesEnabled = (classStudent as any)?.classes?.lives_enabled ?? true
+    if (!classLivesEnabled) return NextResponse.json({ enabled: false, lives: 0 })
 
     const { data: rec } = await db
       .from('student_lives').select('lives').eq('academy_id', academyId).eq('student_id', studentId).single()

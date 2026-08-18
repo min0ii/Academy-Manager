@@ -162,6 +162,7 @@ export default function ClassDetailPage() {
   // ── 목숨
   const [academyId, setAcademyId]           = useState('')
   const [livesEnabled, setLivesEnabled]     = useState(false)
+  const [classLivesEnabled, setClassLivesEnabled] = useState(true)
   const [livesDefault, setLivesDefault]     = useState(3)
   const [studentLives, setStudentLives]     = useState<Record<string, number>>({})
   const [pendingLivesMap, setPendingLivesMap] = useState<Record<string, number>>({})
@@ -238,7 +239,7 @@ export default function ClassDetailPage() {
       { data: clinicScheduleData },
       { data: csData },
     ] = await Promise.all([
-      supabase.from('classes').select('name, academy_id').eq('id', classId).single(),
+      supabase.from('classes').select('name, academy_id, lives_enabled').eq('id', classId).single(),
       supabase.from('class_schedules').select('*').eq('class_id', classId).order('day_of_week').order('start_time'),
       supabase.from('clinic_schedules').select('*').eq('class_id', classId).order('day_of_week').order('start_time'),
       supabase.from('class_students')
@@ -249,6 +250,7 @@ export default function ClassDetailPage() {
     if (!classData) { router.push('/dashboard/classes'); return }
     const aId = (classData as any).academy_id
     setClassName(classData.name)
+    setClassLivesEnabled((classData as any).lives_enabled ?? true)
     setAcademyId(aId)
     setSchedules(scheduleData ?? [])
     setClinicSchedules(clinicScheduleData ?? [])
@@ -701,6 +703,13 @@ export default function ClassDetailPage() {
     await loadMonthSessions()
   }
 
+  // ── 반별 목숨 ON/OFF 토글
+  async function toggleClassLives() {
+    const next = !classLivesEnabled
+    setClassLivesEnabled(next)
+    await supabase.from('classes').update({ lives_enabled: next }).eq('id', classId)
+  }
+
   // ── 목숨 자동화 fire-and-forget 트리거
   function applyLivesRule(studentId: string, eventType: string, eventDetail: Record<string, unknown>) {
     if (!livesEnabled || !academyId) return
@@ -1060,7 +1069,7 @@ async function resetAllLives() {
           { key: 'stats'    as Tab, label: '출결 현황', Icon: TrendingUp },
           { key: 'students' as Tab, label: '학생',       Icon: Users },
           { key: 'schedule' as Tab, label: '수업 설정', Icon: Clock },
-          ...(livesEnabled ? [{ key: 'lives' as Tab, label: '목숨', Icon: Heart }] : []),
+          ...(livesEnabled && classLivesEnabled ? [{ key: 'lives' as Tab, label: '목숨', Icon: Heart }] : []),
         ]).map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 min-w-max flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors ${
@@ -1303,6 +1312,22 @@ async function resetAllLives() {
               </div>
             )}
           </div>
+
+          {/* ── 반별 목숨 설정 ── */}
+          {livesEnabled && (
+            <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">이 반 목숨 사용</p>
+                <p className="text-xs text-slate-400 mt-0.5">OFF로 설정하면 이 반 학생들에게 목숨이 표시되지 않아요</p>
+              </div>
+              <button
+                onClick={toggleClassLives}
+                className={`relative w-12 h-6 rounded-full transition-colors ${classLivesEnabled ? 'bg-red-500' : 'bg-slate-200'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${classLivesEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          )}
 
           {/* ── 위험 구역 ── */}
           <div className="border border-red-200 rounded-2xl overflow-hidden">
