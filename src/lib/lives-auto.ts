@@ -106,21 +106,27 @@ function makeEntry(academyId: string, studentId: string, rule: any, created_at: 
 }
 
 async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[], triggeredAt: string) {
-  // 삭제 전에 기존 항목 조회 → event_key + delta가 동일하면 triggered_at 유지 (실제 변경 없음)
+  // 기존 rule/init 항목 조회 → triggered_at 보존용
   const { data: existing } = await db
     .from('student_lives_log')
-    .select('event_key, delta, triggered_at')
+    .select('id, event_key, delta, triggered_at, created_at')
     .eq('academy_id', academyId)
     .eq('student_id', studentId)
     .in('source', ['rule', 'init'])
-  // event_key 기준 맵 (신규 데이터용)
   const existingMap = new Map<string, { delta: number; triggered_at: string }>()
-  // (created_at + delta) 기준 맵 — event_key 없는 기존 데이터 매칭용
   const existingByDateDelta = new Map<string, string>()
   for (const e of existing ?? []) {
     if (e.event_key) existingMap.set(e.event_key as string, { delta: e.delta as number, triggered_at: e.triggered_at as string })
     if (e.triggered_at) existingByDateDelta.set(`${e.created_at}:${e.delta}`, e.triggered_at as string)
   }
+
+  // manual 항목 조회 — 삭제하지 않고 lives_after만 재계산
+  const { data: manualEntries } = await db
+    .from('student_lives_log')
+    .select('id, delta, created_at')
+    .eq('academy_id', academyId)
+    .eq('student_id', studentId)
+    .eq('source', 'manual')
 
   await db.from('student_lives_log')
     .delete()
@@ -128,20 +134,35 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     .eq('student_id', studentId)
     .in('source', ['rule', 'init'])
 
-  logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
-  let acc = 0
+  // triggered_at 보존 처리
   for (const e of logEntries) {
-    acc += e.delta
-    e.lives_after = acc
     const prev = existingMap.get(e.event_key)
     if (prev !== undefined) {
-      // event_key 매칭: delta 동일 → 유지 / 변경 → 지금 시각
       e.triggered_at = prev.delta === e.delta ? prev.triggered_at : triggeredAt
     } else {
-      // event_key 없는 기존 데이터: (created_at + delta)로 매칭 → triggered_at 보존
-      // 완전히 새 항목이면 지금 시각
       e.triggered_at = existingByDateDelta.get(`${e.created_at}:${e.delta}`) ?? triggeredAt
     }
+  }
+
+  // init/rule + manual 전부 날짜순 정렬 후 lives_after 재계산
+  type AnyEntry = { id?: string; created_at: string; delta: number; lives_after: number; isManual?: boolean }
+  const allEntries: AnyEntry[] = [
+    ...logEntries.map(e => ({ ...e, isManual: false })),
+    ...(manualEntries ?? []).map((e: any) => ({ id: e.id, created_at: e.created_at, delta: e.delta, lives_after: 0, isManual: true })),
+  ]
+  allEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  let acc = 0
+  const manualUpdates: { id: string; lives_after: number }[] = []
+  for (const e of allEntries) {
+    acc += e.delta
+    e.lives_after = acc
+    if (e.isManual && e.id) manualUpdates.push({ id: e.id, lives_after: acc })
+  }
+
+  // manual 항목 lives_after 업데이트
+  for (const u of manualUpdates) {
+    await db.from('student_lives_log').update({ lives_after: u.lives_after }).eq('id', u.id)
   }
 
   await db.from('student_lives').upsert(
@@ -478,13 +499,23 @@ export async function recalculate(db: DB, academyId: string) {
   const subByStudent    = groupBy(subData, 'student_id')
 
   // 삭제 전 기존 로그 조회 → event_key + delta 동일하면 triggered_at 유지
-  const existingLogs = await fetchAll((f, t) =>
-    db.from('student_lives_log')
-      .select('student_id, event_key, delta, triggered_at')
-      .eq('academy_id', academyId)
-      .in('source', ['rule', 'init'])
-      .range(f, t)
-  )
+  const [existingLogs, manualLogs] = await Promise.all([
+    fetchAll((f, t) =>
+      db.from('student_lives_log')
+        .select('student_id, event_key, delta, triggered_at, created_at')
+        .eq('academy_id', academyId)
+        .in('source', ['rule', 'init'])
+        .range(f, t)
+    ),
+    fetchAll((f, t) =>
+      db.from('student_lives_log')
+        .select('id, student_id, delta, created_at')
+        .eq('academy_id', academyId)
+        .eq('source', 'manual')
+        .range(f, t)
+    ),
+  ])
+
   // Map<studentId, Map<event_key, {delta, triggered_at}>> — 신규 데이터용
   const existingByStudent = new Map<string, Map<string, { delta: number; triggered_at: string }>>()
   // Map<studentId, Map<created_at:delta, triggered_at>> — event_key 없는 기존 데이터용
@@ -496,7 +527,10 @@ export async function recalculate(db: DB, academyId: string) {
     if (e.triggered_at) existingDateDeltaByStudent.get(e.student_id)!.set(`${e.created_at}:${e.delta}`, e.triggered_at)
   }
 
-  // 로그 삭제: 학원 전체 한 번에
+  // manual 항목 학생별 인덱스
+  const manualByStudent = groupBy(manualLogs, 'student_id')
+
+  // 로그 삭제: 학원 전체 한 번에 (manual은 제외)
   await db.from('student_lives_log')
     .delete()
     .eq('academy_id', academyId)
@@ -586,20 +620,42 @@ export async function recalculate(db: DB, academyId: string) {
       }
     }
 
-    // 날짜 순 정렬 + lives_after 재계산 + triggered_at 보존 처리
-    logEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
+    // triggered_at 보존 처리
     const studentExistingMap = existingByStudent.get(studentId)
     const studentDateDeltaMap = existingDateDeltaByStudent.get(studentId)
-    let acc = 0
     for (const e of logEntries) {
-      acc += e.delta
-      e.lives_after = acc
       const prev = studentExistingMap?.get(e.event_key)
       if (prev !== undefined) {
         e.triggered_at = prev.delta === e.delta ? prev.triggered_at : triggeredAt
       } else {
         e.triggered_at = studentDateDeltaMap?.get(`${e.created_at}:${e.delta}`) ?? triggeredAt
       }
+    }
+
+    // init/rule + manual 전부 날짜순 정렬 후 lives_after 재계산
+    type AnyEntry = { id?: string; created_at: string; delta: number; lives_after: number; isManual?: boolean }
+    const allEntries: AnyEntry[] = [
+      ...logEntries.map(e => ({ ...e, isManual: false })),
+      ...(manualByStudent.get(studentId) ?? []).map((e: any) => ({ id: e.id, created_at: e.created_at, delta: e.delta, lives_after: 0, isManual: true })),
+    ]
+    allEntries.sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+    let acc = 0
+    const manualUpdates: { id: string; lives_after: number }[] = []
+    for (const e of allEntries) {
+      acc += e.delta
+      e.lives_after = acc
+      if (e.isManual && e.id) manualUpdates.push({ id: e.id, lives_after: acc })
+    }
+    // logEntries의 lives_after도 allEntries 기준으로 업데이트
+    for (const e of logEntries) {
+      const found = allEntries.find(a => !a.isManual && a.created_at === e.created_at && a.delta === e.delta)
+      if (found) e.lives_after = found.lives_after
+    }
+
+    // manual 항목 lives_after 일괄 업데이트 (비동기, fire-and-forget)
+    for (const u of manualUpdates) {
+      db.from('student_lives_log').update({ lives_after: u.lives_after }).eq('id', u.id).then(() => {})
     }
 
     allLogEntries.push(...logEntries)
