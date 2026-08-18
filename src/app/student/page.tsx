@@ -1188,293 +1188,6 @@ export default function StudentPage() {
           </>
         )}
 
-        {/* ── 시험 결과 로딩 오버레이 ── */}
-        {loadingExamResult && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-2xl px-8 py-6 text-center">
-              <p className="text-slate-600 text-sm font-medium">불러오는 중...</p>
-            </div>
-          </div>
-        )}
-
-        {/* ── 시험 결과 상세 모달 ── */}
-        {examResultModal && (
-          <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center sm:bg-black/40 sm:px-4">
-            <div className="bg-white w-full h-full overflow-y-auto sm:h-auto sm:rounded-2xl sm:max-w-lg sm:max-h-[90vh]">
-              {/* 헤더 */}
-              <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3 z-10">
-                <button onClick={closeExamResult} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20} /></button>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800 truncate">{examResultModal.title}</p>
-                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    <p className="text-xs text-slate-400">
-                      {examResultModal.isAbsent ? '결시' : examResultModal.myScore !== null ? `${examResultModal.myScore}점${examResultModal.maxScore ? ` / ${examResultModal.maxScore}점` : ''}` : '점수 없음'}
-                    </p>
-                    {examResultRankInfo && !examResultModal.isAbsent && (
-                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                        {examResultRankInfo.total}명 중 {examResultRankInfo.rank}위
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button onClick={() => { setExamResultModal(null); setExamResultRankInfo(null) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
-              </div>
-
-              <div className="p-5 space-y-4">
-                {/* 수동 시험 */}
-                {examResultModal.examType === 'manual' && (
-                  <>
-                    <div className="bg-slate-50 rounded-2xl p-5 text-center space-y-2">
-                      <p className="text-slate-500 text-sm">수동 입력 시험은 상세 결과가 없어요.</p>
-                      {examResultModal.myScore !== null && (
-                        <p className="text-2xl font-black text-blue-600">{examResultModal.myScore}점</p>
-                      )}
-                    </div>
-                    {/* 일반 질문 섹션 */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">질문</p>
-                      {examInquiries.filter(i => i.question_id === null).map(inq => (
-                        <div key={inq.id} className="space-y-2">
-                          <div className="flex items-start gap-1.5">
-                            <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-slate-700 flex-1">{inq.body}</div>
-                            {inq.exam_inquiry_replies.length === 0 && (
-                              <button onClick={() => deleteInquiry(inq.id)} className="mt-1 p-1 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={14} /></button>
-                            )}
-                          </div>
-                          {inq.exam_inquiry_replies.map(reply => (
-                            <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                              <div className="bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm max-w-[85%]">{reply.body}</div>
-                              <p className="text-xs text-slate-400 pr-1">{reply.teacherName}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                      {openInquiryFor === 'general' ? (
-                        <div className="space-y-2">
-                          <textarea value={inquiryText} onChange={e => setInquiryText(e.target.value)}
-                            placeholder="시험에 대해 질문을 입력해주세요" rows={3}
-                            className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                          <div className="flex gap-2">
-                            <button onClick={() => submitInquiry(null)} disabled={submittingInquiry}
-                              className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl disabled:opacity-50">
-                              {submittingInquiry ? '전송 중...' : '질문 보내기'}
-                            </button>
-                            <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
-                              className="py-2.5 px-4 border border-slate-200 text-slate-600 text-sm rounded-xl">취소</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button onClick={() => { setOpenInquiryFor('general'); setInquiryText('') }}
-                          className="w-full py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-2 transition-colors">
-                          <HelpCircle size={15} /> 질문하기
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* 자동 채점 — 공통 요약 그리드 */}
-                {examResultModal.examType === 'auto' && (() => {
-                  const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
-                  const wrong   = examResultModal.myAnswers.filter(a => a.is_correct === false).length
-                  const total   = examResultModal.questions.filter(q => q.question_type !== 'group').length
-                  return (
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                        <p className="text-xl font-black text-emerald-600">{correct}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
-                      </div>
-                      <div className="bg-red-50 rounded-xl p-3 text-center">
-                        <p className="text-xl font-black text-red-500">{wrong}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
-                      </div>
-                      <div className="bg-slate-50 rounded-xl p-3 text-center">
-                        <p className="text-xl font-black text-slate-600">{total}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {/* 자동 채점 시험 — 정답 확인 불가 (never) */}
-                {examResultModal.examType === 'auto' && !examResultModal.canReveal && (
-                  <>
-                    <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-2">
-                      <span className="text-amber-500 mt-0.5">🔒</span>
-                      <p className="text-xs text-amber-700">선생님이 정답 확인을 막아뒀어요. 맞힌 문제 수와 내 답만 확인할 수 있어요.</p>
-                    </div>
-                    {/* 문제별 내 답 (정답 숨김) */}
-                    <div className="space-y-2">
-                      {buildSortedAnswerableQs(examResultModal.questions).map((q) => {
-                        const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
-                        const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
-                        const isCorrect = myAns?.is_correct
-                        return (
-                          <div key={q.id} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xs font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
-                                {q.question_label ?? q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
-                              </span>
-                              <div className="ml-auto flex items-center gap-2">
-                                <span className="text-xs text-slate-400">{q.score}점</span>
-                                <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
-                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${openInquiryFor === q.id ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
-                                  {openInquiryFor === q.id ? <X size={11} /> : <HelpCircle size={11} />}
-                                  {openInquiryFor === q.id ? '닫기' : '질문'}
-                                </button>
-                              </div>
-                            </div>
-                            {q.question_text && <p className="text-xs text-slate-600 mb-2">{q.question_text}</p>}
-                            <p className="text-xs text-slate-500">
-                              내 답: <span className="font-semibold text-slate-700">
-                                {myAns?.student_answer
-                                  ? (q.question_type === 'multiple_choice'
-                                    ? myAns.student_answer.split(',').map(n => `${n}번`).join(', ')
-                                    : myAns.student_answer)
-                                  : '미제출'}
-                              </span>
-                            </p>
-                            {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
-                            {(() => {
-                              const qInqs = examInquiries.filter(i => i.question_id === q.id)
-                              const isOpen = openInquiryFor === q.id
-                              if (!isOpen && qInqs.length === 0) return null
-                              return (
-                                <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-1.5">
-                                  {qInqs.map(inq => (
-                                    <div key={inq.id} className="space-y-1">
-                                      <div className="flex items-start gap-1">
-                                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words flex-1">{inq.body}</div>
-                                        {inq.exam_inquiry_replies.length === 0 && (
-                                          <button onClick={() => deleteInquiry(inq.id)} className="mt-0.5 p-0.5 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
-                                        )}
-                                      </div>
-                                      {inq.exam_inquiry_replies.map(reply => (
-                                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
-                                          <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ))}
-                                  {isOpen && (
-                                    <div className="flex gap-2 mt-1">
-                                      <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                                        placeholder="내용 없이 보내면 '질문 있어요'로 전송돼요"
-                                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-300" />
-                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
-                                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {/* 자동 채점 시험 — 정답 공개 (after_close 또는 revealed) */}
-                {examResultModal.examType === 'auto' && examResultModal.canReveal && (
-                  <>
-                    {/* 문제별 정오 + 정답 */}
-                    <div className="space-y-3">
-                      {buildSortedAnswerableQs(examResultModal.questions).map((q) => {
-                        const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
-                        const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
-                        const correctList = examResultModal.correctAnswers.filter(c => c.question_id === q.id).sort((a, b) => a.order_num - b.order_num)
-                        const isCorrect = myAns?.is_correct
-                        return (
-                          <div key={q.id} className={`rounded-xl border p-4 space-y-2 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-sm font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
-                                {q.question_label ?? q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
-                              </span>
-                              <div className="ml-auto flex items-center gap-2">
-                                <span className="text-xs text-slate-400 whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
-                                <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
-                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${openInquiryFor === q.id ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
-                                  {openInquiryFor === q.id ? <X size={11} /> : <HelpCircle size={11} />}
-                                  {openInquiryFor === q.id ? '닫기' : '질문'}
-                                </button>
-                              </div>
-                            </div>
-                            {q.question_text && <p className="text-sm text-slate-700">{q.question_text}</p>}
-                            {/* 객관식 선택지 */}
-                            {q.question_type === 'multiple_choice' && choices.length > 0 && (
-                              <div className="space-y-1 mt-1">
-                                {choices.map((c) => {
-                                  const isMyChoice = myAns?.student_answer?.split(',').includes(String(c.choice_num)) ?? false
-                                  const isCorrectChoice = correctList.some(cr => cr.answer_text === String(c.choice_num))
-                                  return (
-                                    <div key={c.choice_num} className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isCorrectChoice ? 'bg-emerald-100 text-emerald-800 font-semibold' : isMyChoice ? 'bg-red-100 text-red-700' : 'text-slate-600'}`}>
-                                      <span className="w-4 text-center font-medium">{c.choice_num}.</span>
-                                      <span className="flex-1">{c.choice_text}</span>
-                                      {isCorrectChoice && <span className="text-emerald-600">✓ 정답</span>}
-                                      {isMyChoice && isCorrectChoice && <span className="text-emerald-600">· 내 답</span>}
-                                      {isMyChoice && !isCorrectChoice && <span className="text-red-500">내 답</span>}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                            {/* 주관식 */}
-                            {q.question_type === 'short_answer' && (
-                              <div className="space-y-1 text-xs">
-                                <p className="text-slate-500">내 답: <span className="font-semibold text-slate-700">{myAns?.student_answer ?? '미제출'}</span></p>
-                                <p className="text-emerald-700">정답: <span className="font-semibold">{correctList.map(c => c.answer_text).join(' / ')}</span></p>
-                              </div>
-                            )}
-                            {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
-                            {(() => {
-                              const qInqs = examInquiries.filter(i => i.question_id === q.id)
-                              const isOpen = openInquiryFor === q.id
-                              if (!isOpen && qInqs.length === 0) return null
-                              return (
-                                <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
-                                  {qInqs.map(inq => (
-                                    <div key={inq.id} className="space-y-1">
-                                      <div className="flex items-start gap-1">
-                                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words flex-1">{inq.body}</div>
-                                        {inq.exam_inquiry_replies.length === 0 && (
-                                          <button onClick={() => deleteInquiry(inq.id)} className="mt-0.5 p-0.5 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
-                                        )}
-                                      </div>
-                                      {inq.exam_inquiry_replies.map(reply => (
-                                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
-                                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
-                                          <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ))}
-                                  {isOpen && (
-                                    <div className="flex gap-2 mt-1">
-                                      <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
-                                        placeholder="내용 없이 보내면 '질문 있어요'로 전송돼요"
-                                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-300" />
-                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
-                                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ── 과제·클리닉 ── */}
         {tab === 'homework-clinic' && (
           <>
@@ -1754,6 +1467,293 @@ export default function StudentPage() {
           </div>
         )}
       </main>
+
+        {/* ── 시험 결과 로딩 오버레이 ── */}
+        {loadingExamResult && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl px-8 py-6 text-center">
+              <p className="text-slate-600 text-sm font-medium">불러오는 중...</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── 시험 결과 상세 모달 ── */}
+        {examResultModal && (
+          <div className="fixed inset-0 z-[70] flex flex-col sm:items-center sm:justify-center sm:bg-black/40 sm:px-4">
+            <div className="bg-white w-full h-full overflow-y-auto sm:h-auto sm:rounded-2xl sm:max-w-lg sm:max-h-[90vh]">
+              {/* 헤더 */}
+              <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3 z-10">
+                <button onClick={closeExamResult} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20} /></button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 truncate">{examResultModal.title}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <p className="text-xs text-slate-400">
+                      {examResultModal.isAbsent ? '결시' : examResultModal.myScore !== null ? `${examResultModal.myScore}점${examResultModal.maxScore ? ` / ${examResultModal.maxScore}점` : ''}` : '점수 없음'}
+                    </p>
+                    {examResultRankInfo && !examResultModal.isAbsent && (
+                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                        {examResultRankInfo.total}명 중 {examResultRankInfo.rank}위
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => { setExamResultModal(null); setExamResultRankInfo(null) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* 수동 시험 */}
+                {examResultModal.examType === 'manual' && (
+                  <>
+                    <div className="bg-slate-50 rounded-2xl p-5 text-center space-y-2">
+                      <p className="text-slate-500 text-sm">수동 입력 시험은 상세 결과가 없어요.</p>
+                      {examResultModal.myScore !== null && (
+                        <p className="text-2xl font-black text-blue-600">{examResultModal.myScore}점</p>
+                      )}
+                    </div>
+                    {/* 일반 질문 섹션 */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">질문</p>
+                      {examInquiries.filter(i => i.question_id === null).map(inq => (
+                        <div key={inq.id} className="space-y-2">
+                          <div className="flex items-start gap-1.5">
+                            <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-slate-700 flex-1">{inq.body}</div>
+                            {inq.exam_inquiry_replies.length === 0 && (
+                              <button onClick={() => deleteInquiry(inq.id)} className="mt-1 p-1 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={14} /></button>
+                            )}
+                          </div>
+                          {inq.exam_inquiry_replies.map(reply => (
+                            <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                              <div className="bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm max-w-[85%]">{reply.body}</div>
+                              <p className="text-xs text-slate-400 pr-1">{reply.teacherName}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      {openInquiryFor === 'general' ? (
+                        <div className="space-y-2">
+                          <textarea value={inquiryText} onChange={e => setInquiryText(e.target.value)}
+                            placeholder="시험에 대해 질문을 입력해주세요" rows={3}
+                            className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                          <div className="flex gap-2">
+                            <button onClick={() => submitInquiry(null)} disabled={submittingInquiry}
+                              className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl disabled:opacity-50">
+                              {submittingInquiry ? '전송 중...' : '질문 보내기'}
+                            </button>
+                            <button onClick={() => { setOpenInquiryFor(null); setInquiryText('') }}
+                              className="py-2.5 px-4 border border-slate-200 text-slate-600 text-sm rounded-xl">취소</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setOpenInquiryFor('general'); setInquiryText('') }}
+                          className="w-full py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center gap-2 transition-colors">
+                          <HelpCircle size={15} /> 질문하기
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* 자동 채점 — 공통 요약 그리드 */}
+                {examResultModal.examType === 'auto' && (() => {
+                  const correct = examResultModal.myAnswers.filter(a => a.is_correct).length
+                  const wrong   = examResultModal.myAnswers.filter(a => a.is_correct === false).length
+                  const total   = examResultModal.questions.filter(q => q.question_type !== 'group').length
+                  return (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-emerald-600">{correct}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">맞힌 문제</p>
+                      </div>
+                      <div className="bg-red-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-red-500">{wrong}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">틀린 문제</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-slate-600">{total}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">총 문제</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* 자동 채점 시험 — 정답 확인 불가 (never) */}
+                {examResultModal.examType === 'auto' && !examResultModal.canReveal && (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-2">
+                      <span className="text-amber-500 mt-0.5">🔒</span>
+                      <p className="text-xs text-amber-700">선생님이 정답 확인을 막아뒀어요. 맞힌 문제 수와 내 답만 확인할 수 있어요.</p>
+                    </div>
+                    {/* 문제별 내 답 (정답 숨김) */}
+                    <div className="space-y-2">
+                      {buildSortedAnswerableQs(examResultModal.questions).map((q) => {
+                        const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
+                        const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
+                        const isCorrect = myAns?.is_correct
+                        return (
+                          <div key={q.id} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xs font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
+                                {q.question_label ?? q.order_num}번 {isCorrect ? '✓' : isCorrect === false ? '✗' : '—'}
+                              </span>
+                              <div className="ml-auto flex items-center gap-2">
+                                <span className="text-xs text-slate-400">{q.score}점</span>
+                                <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
+                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${openInquiryFor === q.id ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                                  {openInquiryFor === q.id ? <X size={11} /> : <HelpCircle size={11} />}
+                                  {openInquiryFor === q.id ? '닫기' : '질문'}
+                                </button>
+                              </div>
+                            </div>
+                            {q.question_text && <p className="text-xs text-slate-600 mb-2">{q.question_text}</p>}
+                            <p className="text-xs text-slate-500">
+                              내 답: <span className="font-semibold text-slate-700">
+                                {myAns?.student_answer
+                                  ? (q.question_type === 'multiple_choice'
+                                    ? myAns.student_answer.split(',').map(n => `${n}번`).join(', ')
+                                    : myAns.student_answer)
+                                  : '미제출'}
+                              </span>
+                            </p>
+                            {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
+                            {(() => {
+                              const qInqs = examInquiries.filter(i => i.question_id === q.id)
+                              const isOpen = openInquiryFor === q.id
+                              if (!isOpen && qInqs.length === 0) return null
+                              return (
+                                <div className="mt-2 pt-2 border-t border-slate-200/60 space-y-1.5">
+                                  {qInqs.map(inq => (
+                                    <div key={inq.id} className="space-y-1">
+                                      <div className="flex items-start gap-1">
+                                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words flex-1">{inq.body}</div>
+                                        {inq.exam_inquiry_replies.length === 0 && (
+                                          <button onClick={() => deleteInquiry(inq.id)} className="mt-0.5 p-0.5 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
+                                        )}
+                                      </div>
+                                      {inq.exam_inquiry_replies.map(reply => (
+                                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
+                                          <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  {isOpen && (
+                                    <div className="flex gap-2 mt-1">
+                                      <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
+                                        placeholder="내용 없이 보내면 '질문 있어요'로 전송돼요"
+                                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-300" />
+                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
+                                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* 자동 채점 시험 — 정답 공개 (after_close 또는 revealed) */}
+                {examResultModal.examType === 'auto' && examResultModal.canReveal && (
+                  <>
+                    {/* 문제별 정오 + 정답 */}
+                    <div className="space-y-3">
+                      {buildSortedAnswerableQs(examResultModal.questions).map((q) => {
+                        const myAns = examResultModal.myAnswers.find(a => a.question_id === q.id)
+                        const choices = examResultModal.choices.filter(c => c.question_id === q.id).sort((a, b) => a.choice_num - b.choice_num)
+                        const correctList = examResultModal.correctAnswers.filter(c => c.question_id === q.id).sort((a, b) => a.order_num - b.order_num)
+                        const isCorrect = myAns?.is_correct
+                        return (
+                          <div key={q.id} className={`rounded-xl border p-4 space-y-2 ${isCorrect ? 'border-emerald-200 bg-emerald-50' : isCorrect === false ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold whitespace-nowrap ${isCorrect ? 'text-emerald-600' : isCorrect === false ? 'text-red-500' : 'text-slate-400'}`}>
+                                {q.question_label ?? q.order_num}번 {isCorrect ? '✓ 정답' : isCorrect === false ? '✗ 오답' : '—'}
+                              </span>
+                              <div className="ml-auto flex items-center gap-2">
+                                <span className="text-xs text-slate-400 whitespace-nowrap">{myAns?.score_earned ?? 0} / {q.score}점</span>
+                                <button onClick={() => { setOpenInquiryFor(openInquiryFor === q.id ? null : q.id); setInquiryText('') }}
+                                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${openInquiryFor === q.id ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                                  {openInquiryFor === q.id ? <X size={11} /> : <HelpCircle size={11} />}
+                                  {openInquiryFor === q.id ? '닫기' : '질문'}
+                                </button>
+                              </div>
+                            </div>
+                            {q.question_text && <p className="text-sm text-slate-700">{q.question_text}</p>}
+                            {/* 객관식 선택지 */}
+                            {q.question_type === 'multiple_choice' && choices.length > 0 && (
+                              <div className="space-y-1 mt-1">
+                                {choices.map((c) => {
+                                  const isMyChoice = myAns?.student_answer?.split(',').includes(String(c.choice_num)) ?? false
+                                  const isCorrectChoice = correctList.some(cr => cr.answer_text === String(c.choice_num))
+                                  return (
+                                    <div key={c.choice_num} className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isCorrectChoice ? 'bg-emerald-100 text-emerald-800 font-semibold' : isMyChoice ? 'bg-red-100 text-red-700' : 'text-slate-600'}`}>
+                                      <span className="w-4 text-center font-medium">{c.choice_num}.</span>
+                                      <span className="flex-1">{c.choice_text}</span>
+                                      {isCorrectChoice && <span className="text-emerald-600">✓ 정답</span>}
+                                      {isMyChoice && isCorrectChoice && <span className="text-emerald-600">· 내 답</span>}
+                                      {isMyChoice && !isCorrectChoice && <span className="text-red-500">내 답</span>}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            {/* 주관식 */}
+                            {q.question_type === 'short_answer' && (
+                              <div className="space-y-1 text-xs">
+                                <p className="text-slate-500">내 답: <span className="font-semibold text-slate-700">{myAns?.student_answer ?? '미제출'}</span></p>
+                                <p className="text-emerald-700">정답: <span className="font-semibold">{correctList.map(c => c.answer_text).join(' / ')}</span></p>
+                              </div>
+                            )}
+                            {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
+                            {(() => {
+                              const qInqs = examInquiries.filter(i => i.question_id === q.id)
+                              const isOpen = openInquiryFor === q.id
+                              if (!isOpen && qInqs.length === 0) return null
+                              return (
+                                <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
+                                  {qInqs.map(inq => (
+                                    <div key={inq.id} className="space-y-1">
+                                      <div className="flex items-start gap-1">
+                                        <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 break-words flex-1">{inq.body}</div>
+                                        {inq.exam_inquiry_replies.length === 0 && (
+                                          <button onClick={() => deleteInquiry(inq.id)} className="mt-0.5 p-0.5 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={12} /></button>
+                                        )}
+                                      </div>
+                                      {inq.exam_inquiry_replies.map(reply => (
+                                        <div key={reply.id} className="flex flex-col items-end gap-0.5">
+                                          <div className="bg-blue-600 text-white rounded-xl px-3 py-2 text-xs max-w-[90%] break-words">{reply.body}</div>
+                                          <p className="text-[10px] text-slate-400 pr-0.5">{reply.teacherName}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  {isOpen && (
+                                    <div className="flex gap-2 mt-1">
+                                      <input value={inquiryText} onChange={e => setInquiryText(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && submitInquiry(q.id)}
+                                        placeholder="내용 없이 보내면 '질문 있어요'로 전송돼요"
+                                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-300" />
+                                      <button onClick={() => submitInquiry(q.id)} disabled={submittingInquiry}
+                                        className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 flex-shrink-0"><Send size={14} /></button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-[60] safe-area-bottom">
         {TABS.map(({ key, label, Icon }) => (
