@@ -596,6 +596,8 @@ export default function StudentPage() {
   const avgPct = pcts.length > 0 ? Math.round(pcts.reduce((a,b) => a+b, 0) / pcts.length) : null
   const maxPct = pcts.length > 0 ? Math.round(Math.max(...pcts)) : null
   const minPct = pcts.length > 0 ? Math.round(Math.min(...pcts)) : null
+  const classAvgPcts = scoredTests.filter(t => t.avgScore !== null).map(t => (t.avgScore! / t.maxScore!) * 100)
+  const classAvgPct = classAvgPcts.length > 0 ? Math.round(classAvgPcts.reduce((a,b) => a+b, 0) / classAvgPcts.length) : null
   const testNames = filteredTests.map(t => t.name)
   const duplicateTestNames = new Set(testNames.filter((n, i) => testNames.indexOf(n) !== i))
 
@@ -1002,11 +1004,10 @@ export default function StudentPage() {
                 {scoredTests.length > 0 && (
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                     <h2 className="font-bold text-slate-800 text-sm">성적 요약</h2>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: '평균 득점률', value: avgPct !== null ? `${avgPct}%` : '-', color: 'text-blue-700' },
-                        { label: '최고 득점률', value: maxPct !== null ? `${maxPct}%` : '-', color: 'text-emerald-700' },
-                        { label: '최저 득점률', value: minPct !== null ? `${minPct}%` : '-', color: 'text-red-600' },
+                        { label: '내 평균 득점률', value: avgPct !== null ? `${avgPct}%` : '-', color: 'text-blue-700' },
+                        { label: '반 평균 득점률', value: classAvgPct !== null ? `${classAvgPct}%` : '-', color: 'text-violet-700' },
                       ].map(({ label, value, color }) => (
                         <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
                           <p className={`text-2xl font-black ${color}`}>{value}</p>
