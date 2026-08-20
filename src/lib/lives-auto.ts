@@ -120,13 +120,17 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     if (e.triggered_at) existingByDateDelta.set(`${e.created_at}:${e.delta}`, e.triggered_at as string)
   }
 
-  // manual 항목 조회 — 삭제하지 않고 lives_after만 재계산
-  const { data: manualEntries } = await db
+  // manual 항목 조회 — effectiveFrom 이후 것만, 삭제하지 않고 lives_after만 재계산
+  const effectiveFrom = logEntries.find(e => e.source === 'init')?.created_at ?? null
+  const manualQuery = db
     .from('student_lives_log')
     .select('id, delta, created_at')
     .eq('academy_id', academyId)
     .eq('student_id', studentId)
     .eq('source', 'manual')
+  const { data: manualEntries } = effectiveFrom
+    ? await manualQuery.gte('created_at', effectiveFrom)
+    : await manualQuery
 
   await db.from('student_lives_log')
     .delete()
@@ -512,6 +516,7 @@ export async function recalculate(db: DB, academyId: string) {
         .select('id, student_id, delta, created_at')
         .eq('academy_id', academyId)
         .eq('source', 'manual')
+        .gte('created_at', `${autoFrom}T00:00:00.000Z`)
         .range(f, t)
     ),
   ])
