@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X, Heart, ChevronDown, ChevronUp, Check, Loader2, Trash2 } from 'lucide-react'
+import { ArrowLeft, BookOpen, Activity, LogOut, RotateCcw, ArrowRightLeft, X, Heart, ChevronDown, ChevronUp, Check, Loader2, Trash2, EyeOff, Eye } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
 import { todayKST } from '@/lib/date'
@@ -94,8 +94,9 @@ function StudentReportContent() {
   const [livesDefault, setLivesDefault]   = useState(3)
   const [currentLives, setCurrentLives]   = useState(0)
   const [showLivesLog, setShowLivesLog]   = useState(false)
-  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string; triggered_at: string }[]>([])
+  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string; triggered_at: string; hidden: boolean }[]>([])
   const [livesLogLoading, setLivesLogLoading] = useState(false)
+  const [showHiddenLogs, setShowHiddenLogs] = useState(false)
   // 수동 조정 (디바운스)
   const [pendingLives, setPendingLives]   = useState<number | null>(null)
   const [livesSaveTimer, setLivesSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -159,6 +160,17 @@ function StudentReportContent() {
     })
     if (res.ok) setLivesLog((await res.json()).logs ?? [])
     setLivesLogLoading(false)
+  }
+
+  async function setLogHidden(logId: string, hidden: boolean) {
+    const token = await getToken()
+    if (!token) return
+    const res = await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'set-log-hidden', logId, hidden }),
+    })
+    if (res.ok) setLivesLog(prev => prev.map(l => l.id === logId ? { ...l, hidden } : l))
   }
 
   function adjustLives(delta: number) {
@@ -726,12 +738,12 @@ function StudentReportContent() {
             <div className="border border-slate-100 rounded-xl overflow-hidden">
               {livesLogLoading ? (
                 <div className="p-4 text-center text-xs text-slate-400">불러오는 중...</div>
-              ) : livesLog.length === 0 ? (
+              ) : livesLog.filter(l => !l.hidden).length === 0 && !showHiddenLogs ? (
                 <div className="p-4 text-center text-xs text-slate-400">변동 내역이 없어요</div>
               ) : (
                 <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto">
-                  {livesLog.map(log => (
-                    <div key={log.id} className="flex items-center gap-3 px-3 py-2">
+                  {livesLog.filter(l => showHiddenLogs || !l.hidden).map(log => (
+                    <div key={log.id} className={`flex items-center gap-3 px-3 py-2 ${log.hidden ? 'opacity-40' : ''}`}>
                       <span className={`text-sm font-bold flex-shrink-0 w-10 text-right ${log.delta > 0 ? 'text-emerald-600' : log.delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
                         {log.delta > 0 ? `+${log.delta}` : log.delta === 0 ? '기준' : log.delta}
                       </span>
@@ -740,9 +752,24 @@ function StudentReportContent() {
                         <p className="text-xs text-slate-400">{new Date(log.triggered_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                       <span className="text-xs text-slate-400 flex-shrink-0">→ {log.lives_after}</span>
+                      <button
+                        onClick={() => setLogHidden(log.id, !log.hidden)}
+                        className="flex-shrink-0 p-1 text-slate-300 hover:text-slate-500 transition-colors"
+                        title={log.hidden ? '복원' : '숨기기'}
+                      >
+                        {log.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
+                      </button>
                     </div>
                   ))}
                 </div>
+              )}
+              {livesLog.some(l => l.hidden) && (
+                <button
+                  onClick={() => setShowHiddenLogs(v => !v)}
+                  className="w-full py-2 text-xs text-slate-400 hover:text-slate-600 transition-colors border-t border-slate-50"
+                >
+                  {showHiddenLogs ? '숨긴 내역 접기' : `숨긴 내역 보기 (${livesLog.filter(l => l.hidden).length}개)`}
+                </button>
               )}
             </div>
           )}

@@ -106,11 +106,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '권한 없음' }, { status: 403 })
     }
 
-    const { data: logs } = await db.from('student_lives_log')
-      .select('id, delta, reason, source, lives_after, created_at, triggered_at')
+    const isTeacher = profile?.role === 'teacher'
+    const query = db.from('student_lives_log')
+      .select('id, delta, reason, source, lives_after, created_at, triggered_at, hidden')
       .eq('academy_id', academyId)
       .eq('student_id', studentId)
       .order('triggered_at', { ascending: false, nullsFirst: false })
+
+    const { data: logs } = isTeacher ? await query : await query.eq('hidden', false)
 
     return NextResponse.json({ logs: logs ?? [] })
   }
@@ -281,6 +284,20 @@ export async function POST(req: NextRequest) {
 
     if (studentId) await recalculateStudent(db, academyId, studentId)
     else await recalculate(db, academyId)
+    return NextResponse.json({ success: true })
+  }
+
+  if (action === 'set-log-hidden') {
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    const { logId, hidden } = body
+    if (!logId || typeof hidden !== 'boolean') return NextResponse.json({ error: '파라미터 누락' }, { status: 400 })
+
+    const { data: log } = await db.from('student_lives_log').select('academy_id').eq('id', logId).single()
+    if (!log || log.academy_id !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    await db.from('student_lives_log').update({ hidden }).eq('id', logId)
     return NextResponse.json({ success: true })
   }
 

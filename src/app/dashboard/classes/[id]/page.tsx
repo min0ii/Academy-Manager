@@ -1322,9 +1322,9 @@ async function resetAllLives() {
               </div>
               <button
                 onClick={toggleClassLives}
-                className={`relative w-12 h-6 rounded-full transition-colors ${classLivesEnabled ? 'bg-red-500' : 'bg-slate-200'}`}
+                className={`relative flex-shrink-0 w-12 h-6 rounded-full overflow-hidden transition-colors ${classLivesEnabled ? 'bg-red-500' : 'bg-slate-200'}`}
               >
-                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${classLivesEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${classLivesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
             </div>
           )}
