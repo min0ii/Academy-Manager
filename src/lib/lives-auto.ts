@@ -120,8 +120,16 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     if (e.triggered_at) existingByDateDelta.set(`${e.created_at}:${e.delta}`, e.triggered_at as string)
   }
 
-  // manual 항목 조회 — effectiveFrom 이후 것만, 삭제하지 않고 lives_after만 재계산
+  // manual 항목 조회 — effectiveFrom 이후 것만, 이전 것은 삭제
   const effectiveFrom = logEntries.find(e => e.source === 'init')?.created_at ?? null
+  if (effectiveFrom) {
+    await db.from('student_lives_log')
+      .delete()
+      .eq('academy_id', academyId)
+      .eq('student_id', studentId)
+      .eq('source', 'manual')
+      .lt('created_at', effectiveFrom)
+  }
   const manualQuery = db
     .from('student_lives_log')
     .select('id, delta, created_at')
@@ -149,7 +157,7 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
   }
 
   // init/rule + manual 전부 날짜순 정렬 후 lives_after 재계산
-  type AnyEntry = { id?: string; created_at: string; delta: number; lives_after: number; isManual?: boolean }
+  type AnyEntry = { id?: string; created_at: string; delta: number; lives_after: number; isManual?: boolean; event_key?: string }
   const allEntries: AnyEntry[] = [
     ...logEntries.map(e => ({ ...e, isManual: false })),
     ...(manualEntries ?? []).map((e: any) => ({ id: e.id, created_at: e.created_at, delta: e.delta, lives_after: 0, isManual: true })),
@@ -162,6 +170,16 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     acc += e.delta
     e.lives_after = acc
     if (e.isManual && e.id) manualUpdates.push({ id: e.id, lives_after: acc })
+  }
+
+  // allEntries에서 계산한 lives_after를 원본 logEntries에 반영
+  const ruleAfterMap = new Map<string, number>()
+  for (const e of allEntries) {
+    if (!e.isManual && e.event_key) ruleAfterMap.set(e.event_key, e.lives_after)
+  }
+  for (const e of logEntries) {
+    const after = ruleAfterMap.get(e.event_key)
+    if (after !== undefined) e.lives_after = after
   }
 
   // manual 항목 lives_after 업데이트
@@ -540,6 +558,13 @@ export async function recalculate(db: DB, academyId: string) {
     .delete()
     .eq('academy_id', academyId)
     .in('source', ['rule', 'init'])
+
+  // autoFrom 이전 manual 항목 삭제
+  await db.from('student_lives_log')
+    .delete()
+    .eq('academy_id', academyId)
+    .eq('source', 'manual')
+    .lt('created_at', `${autoFrom}T00:00:00.000Z`)
 
   const attRules    = rules.filter((r: any) => r.condition_type === 'attendance')
   const hwRules     = rules.filter((r: any) => r.condition_type === 'homework')
