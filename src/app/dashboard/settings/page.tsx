@@ -6,8 +6,9 @@ import { useAcademy } from '@/lib/academy-context'
 import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera, ShieldQuestion, Sparkles, Heart,
-  Zap, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw, GripVertical,
+  Zap, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw, GripVertical, AlertTriangle,
 } from 'lucide-react'
+import { useDialog } from '@/components/AppDialog'
 
 type Tab = 'academy' | 'profile' | 'fun'
 type Title = '원장' | '관리자' | '강사' | '조교'
@@ -138,6 +139,9 @@ export default function SettingsPage() {
   const [formDelta, setFormDelta]                 = useState(-1)
   const [savingRule, setSavingRule]               = useState(false)
   const [examCategories, setExamCategories]       = useState<string[]>([])
+  const [resettingAllLives, setResettingAllLives] = useState(false)
+
+  const { showConfirm, dialog } = useDialog()
 
   // 코멘트 공개 설정
   type CommentVis = { attStudent: boolean; attParent: boolean; hwStudent: boolean; hwParent: boolean; clinicStudent: boolean; clinicParent: boolean; examStudent: boolean; examParent: boolean }
@@ -228,6 +232,24 @@ export default function SettingsPage() {
       .not('category', 'is', null)
     const cats = [...new Set((exams ?? []).map(e => e.category).filter(Boolean))] as string[]
     setExamCategories(cats)
+  }
+
+  async function resetAllLives() {
+    const ok = await showConfirm(
+      '모든 학생의 목숨 기록이 삭제되고 자동화가 꺼집니다.\n되돌릴 수 없어요. 계속할까요?'
+    )
+    if (!ok) return
+    setResettingAllLives(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setResettingAllLives(false); return }
+    await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'reset-all-lives', academyId }),
+    })
+    setLivesAutoEnabled(false)
+    setResettingAllLives(false)
   }
 
   async function saveAutoSettings() {
@@ -1332,6 +1354,28 @@ export default function SettingsPage() {
                 )}
               </>
             )}
+
+            {/* 목숨 기록 초기화 */}
+            {livesEnabled && isAdmin && (
+              <>
+                <div className="border-t border-slate-100" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">목숨 기록 초기화</p>
+                    <p className="text-xs text-slate-400 mt-0.5">모든 학생의 목숨 기록 삭제 · 자동화 OFF</p>
+                  </div>
+                  <button
+                    onClick={resetAllLives}
+                    disabled={resettingAllLives}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-red-500 border border-red-200 px-3 py-1.5 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+                  >
+                    {resettingAllLives
+                      ? <><Loader2 size={13} className="animate-spin" /> 초기화 중...</>
+                      : <><AlertTriangle size={13} /> 전체 초기화</>}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* 앞으로 추가될 기능 안내 */}
@@ -1454,6 +1498,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {dialog}
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, X, Trash2, Clock, Users, CalendarDays,
   Search, ChevronLeft, ChevronRight, Check, BarChart2, CheckCheck, FileText,
-  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare, Loader2,
+  BookOpen, Activity, TrendingUp, AlertTriangle, ChevronDown, Heart, Skull, MessageSquare, Loader2, RotateCcw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatPhone } from '@/lib/auth'
@@ -787,7 +787,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
     setSavingLivesId(null)
   }
 
-async function resetAllLives() {
+  async function resetAllLives() {
     const ok = await showConfirm(`모든 학생의 목숨을 기본값(${livesDefault}개)으로 초기화할까요?`)
     if (!ok) return
     const upserts = students.map(s => ({
@@ -799,6 +799,23 @@ async function resetAllLives() {
     for (const s of students) map[s.id] = livesDefault
     setStudentLives(map)
     setPendingLivesMap(map)
+  }
+
+  async function resetStudentLives(studentId: string, studentName: string) {
+    const ok = await showConfirm(
+      `${studentName} 학생의 목숨 기록을 초기화할까요?\n자동화가 켜져 있으면 즉시 재계산됩니다.`
+    )
+    if (!ok) return
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token || !academyId) return
+    await fetch('/api/lives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'reset-student-lives', academyId, studentId }),
+    })
+    setStudentLives(prev => ({ ...prev, [studentId]: livesDefault }))
+    setPendingLivesMap(prev => ({ ...prev, [studentId]: livesDefault }))
   }
 
   // ── 출결 현황 통계
@@ -2371,6 +2388,14 @@ async function resetAllLives() {
                         disabled={isSaving}
                         className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors disabled:opacity-30 font-bold text-lg leading-none"
                       >+</button>
+                      <button
+                        onClick={() => resetStudentLives(s.id, s.name)}
+                        disabled={isSaving}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors disabled:opacity-30"
+                        title="목숨 초기화"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
                     </div>
                   </div>
                 )

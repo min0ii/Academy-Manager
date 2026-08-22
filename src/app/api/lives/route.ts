@@ -287,6 +287,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
+  if (action === 'reset-all-lives') {
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    const { academyId } = body
+    if (!academyId || academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    await Promise.all([
+      db.from('student_lives_log').delete().eq('academy_id', academyId),
+      db.from('student_lives').delete().eq('academy_id', academyId),
+      db.from('academies').update({ lives_auto_enabled: false }).eq('id', academyId),
+    ])
+    return NextResponse.json({ success: true })
+  }
+
+  if (action === 'reset-student-lives') {
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    const { academyId, studentId } = body
+    if (!academyId || !studentId || academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    await Promise.all([
+      db.from('student_lives_log').delete().eq('academy_id', academyId).eq('student_id', studentId),
+      db.from('student_lives').delete().eq('academy_id', academyId).eq('student_id', studentId),
+    ])
+
+    // 자동화가 켜져 있으면 즉시 재계산
+    const { data: academy } = await db.from('academies').select('lives_auto_enabled, lives_auto_from').eq('id', academyId).single()
+    if (academy?.lives_auto_enabled && academy?.lives_auto_from) {
+      const { recalculateStudent } = await import('@/lib/lives-auto')
+      void recalculateStudent(db, academyId, studentId)
+    }
+    return NextResponse.json({ success: true })
+  }
+
   if (action === 'set-log-hidden') {
     const myAcademyId = await verifyTeacher(db, token)
     if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
