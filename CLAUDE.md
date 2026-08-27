@@ -162,9 +162,25 @@ export function monthsAgoKST(months: number): string  // n개월 전 날짜 (KST
 - `checkCondition(rule, eventType, eventDetail)` — 규칙 조건 매칭
 - `recalculateStudent(db, academyId, studentId)` — 학생 1명 목숨 재계산 (실시간 트리거용)
 - `recalculate(db, academyId)` — 전체 학생 일괄 재계산
+- `repairStudentLives(db, academyId, studentId)` — DB에 남은 행 기준으로 lives_after·목숨 수 재정렬
+- `dedupeLog(db, academyId, studentId?)` — 같은 `event_key` 중복 행 제거 (중복 없으면 조회 1회로 종료)
 - 이벤트 타입: `'attendance' | 'homework' | 'clinic' | 'exam_score'`
 - 과제 미기록 상태: `'unrecorded'` (rules에서 조건으로 설정 가능)
-- 전체 재계산은 delete-then-insert 방식 (비원자적 — 네트워크 오류 시 로그 소실 위험)
+
+**계산 모델**
+- 기준일(`effectiveFrom`) = max(`academies.lives_auto_from`, 학생 `enrolled_at`)
+- 기준일 이전 기록은 rule/init/manual 모두 삭제. 기준일 이후만 계산 대상
+- 기본 목숨(`init`)부터 시작해 규칙을 날짜순으로 누적 → `lives_after`, `student_lives.lives` 기록
+- 퇴원(`status='inactive'`) 학생은 계산 대상 제외 (기존 기록은 보존)
+- 자동화가 꺼져 있으면 `recalculateStudent()`/`recalculate()` 모두 아무것도 건드리지 않음
+
+**동시 실행 대비 (중요)**
+- 재계산은 delete-then-insert 방식이라 원자적이지 않음
+- 재계산이 겹치면 같은 `event_key` 행이 중복 생성될 수 있어,
+  `flushStudent()`/`recalculate()` 끝에서 `dedupeLog()`가 중복을 정리하고 `lives_after`를 복구함
+- **재계산 호출은 반드시 `after()` 사용.** `void` 로 띄우면 Vercel이 응답 시점에
+  함수를 얼려버려 작업이 중간에 정지하고, 나중에 뒤늦게 재개되며 데이터가 깨짐
+- 재계산을 호출하는 라우트에는 `export const maxDuration = 60` 필수
 
 ### 선생님 — 시험 관리
 **`src/app/dashboard/grades/page.tsx`**
@@ -306,6 +322,7 @@ export function monthsAgoKST(months: number): string  // n개월 전 날짜 (KST
 | `/api/lives` | GET `rules` | 학원 목숨 규칙 목록 |
 | `/api/lives` | GET `lives-log` | 학생 목숨 변동 로그 |
 | `/api/lives` | POST `apply-rules` | 이벤트 발생 시 실시간 규칙 적용 (→ 내부적으로 recalculateStudent) |
+| `/api/lives` | POST `apply-rules-bulk` | 여러 학생 일괄 재계산 (전체 출석 처리, 과제 삭제 등). 4명씩 나눠 처리 |
 | `/api/lives` | POST `manual-adjust` | 선생님 수동 목숨 조정 |
 | `/api/lives` | POST `save-auto-settings` | 자동화 설정 저장 (활성화 여부, 기준일) |
 | `/api/lives` | POST `create-rule` | 규칙 생성 |
@@ -426,10 +443,15 @@ lives_rules (id, academy_id, name, condition_type 'attendance'|'homework'|'clini
 - `grades/route.ts`의 `getCommentVis()`에서 한번에 조회 후 각 action에 적용
 
 ### 목숨 시스템 규칙
-- 이벤트 발생(출결 기록, 과제 상태 변경 등) → `applyLivesRule()` 호출 → fire-and-forget POST `/api/lives`
+- 이벤트 발생(출결 기록, 과제 상태 변경 등) → `applyLivesRule()` 호출 → POST `/api/lives`
+- 여러 학생이 한꺼번에 바뀌면 `applyLivesRuleBulk(studentIds)` — 요청 1회로 묶어서 처리.
+  **학생 수만큼 요청을 동시에 쏘지 말 것** (전체 출석 처리 시 요청이 몰려 실패함)
 - 내부적으로 항상 `recalculateStudent()` 전체 재계산 (단건 delta 계산 아님)
 - 규칙 우선순위: order_num → created_at 순. 이벤트당 첫 번째 매칭 규칙만 적용
 - 시험 규칙: 미제출 규칙 먼저 체크 → 통과 시 점수 규칙 체크
+- 데이터가 바뀌면 재계산이 필요함에 유의 (예: 과제 삭제 시 그 과제로 인한 차감도 사라져야 함).
+  단, 과제 **생성**은 트리거하지 않음 — '미기록' 규칙 때문에 전원 목숨이 즉시 떨어져 혼란스럽고,
+  어차피 다음 이벤트의 전체 재계산에서 반영됨
 
 ### 시험 점수 계산
 - 자동채점: `exam_questions.score` 합계 = 만점
