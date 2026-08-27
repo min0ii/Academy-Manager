@@ -573,7 +573,7 @@ export default function ClassDetailPage() {
     const am: Record<string, string> = {}
     for (const a of (ins ?? [])) am[a.student_id] = a.id
     setAttendanceList(students.map(s => ({ id: am[s.id] ?? null, student_id: s.id, status: 'present' as const, note: null })))
-    students.forEach(s => applyLivesRule(s.id, 'attendance', { status: 'present', date: selectedDate! }))
+    applyLivesRuleBulk(students.map(s => s.id))
   }
 
   async function deleteSession() {
@@ -586,7 +586,7 @@ export default function ClassDetailPage() {
     setSelectedSession(null)
     setAttendanceList(students.map(s => ({ id: null, student_id: s.id, status: null, note: null })))
     await loadMonthSessions()
-    affectedStudents.forEach(sid => applyLivesRule(sid, 'attendance', { status: null, date: selectedDate! }))
+    applyLivesRuleBulk(affectedStudents)
   }
 
   async function addExtraSession(e: React.FormEvent) {
@@ -677,7 +677,7 @@ export default function ClassDetailPage() {
     const am: Record<string, string> = {}
     for (const a of (ins ?? [])) am[a.student_id] = a.id
     setClinicAttList(students.map(s => ({ id: am[s.id] ?? null, student_id: s.id, status: 'done' as const })))
-    students.forEach(s => applyLivesRule(s.id, 'clinic', { status: 'done', date: selectedDate! }))
+    applyLivesRuleBulk(students.map(s => s.id))
   }
 
   async function deleteClinicSession() {
@@ -686,7 +686,7 @@ export default function ClassDetailPage() {
     const affectedClinicStudents = clinicAttList.filter(a => a.status !== null).map(a => a.student_id)
     await supabase.from('clinic_attendance').delete().eq('clinic_session_id', selectedClinicSession.id)
     await supabase.from('clinic_sessions').delete().eq('id', selectedClinicSession.id)
-    affectedClinicStudents.forEach(sid => applyLivesRule(sid, 'clinic', { status: null, date: selectedDate! }))
+    applyLivesRuleBulk(affectedClinicStudents)
     setSelectedClinicSession(null)
     const _dow = new Date(selectedDate! + 'T00:00:00').getDay()
     setClinicAttList(clinicSchedules.some(s => s.day_of_week === _dow)
@@ -719,6 +719,19 @@ export default function ClassDetailPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ action: 'apply-rules', academyId, studentId, eventType, eventDetail }),
+      }).catch(() => {})
+    })
+  }
+
+  // ── 여러 학생 목숨 재계산 — 요청 하나로 묶어서 처리
+  function applyLivesRuleBulk(studentIds: string[]) {
+    if (!livesEnabled || !academyId || studentIds.length === 0) return
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return
+      fetch('/api/lives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'apply-rules-bulk', academyId, studentIds }),
       }).catch(() => {})
     })
   }
@@ -911,7 +924,8 @@ function adjustLivesDelta(studentId: string, delta: number) {
 
   async function deleteHomework(hwId: string) {
     if (!await showConfirm('이 과제를 삭제할까요?', { destructive: true })) return
-    const affectedHwStudents = (homeworkStatuses[hwId] ?? []).filter(r => r.status !== null).map(r => r.student_id)
+    // '미기록' 규칙 때문에 상태가 없던 학생도 영향을 받으므로 전원 재계산
+    const affectedHwStudents = students.map(s => s.id)
     const hwDate = dateHomeworks.find(h => h.id === hwId)?.assigned_date ?? selectedDate ?? ''
     const { error: delStatusErr } = await supabase.from('homework_status').delete().eq('homework_id', hwId)
     if (delStatusErr) { void showAlert('삭제 오류: ' + delStatusErr.message); return }
@@ -919,7 +933,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
     if (delHwErr) { void showAlert('삭제 오류: ' + delHwErr.message); return }
     setDateHomeworks(prev => prev.filter(h => h.id !== hwId))
     if (expandedHomeworkId === hwId) setExpandedHomeworkId(null)
-    affectedHwStudents.forEach(sid => applyLivesRule(sid, 'homework', { status: null, date: hwDate }))
+    applyLivesRuleBulk(affectedHwStudents)
   }
 
   async function saveHomeworkTitle(hwId: string, title: string) {

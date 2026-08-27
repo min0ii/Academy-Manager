@@ -105,6 +105,61 @@ function makeEntry(academyId: string, studentId: string, rule: any, created_at: 
   }
 }
 
+// 한 학생의 lives_after를 DB에 실제로 남아있는 행 기준으로 다시 맞추고 student_lives 갱신
+async function repairStudentLives(db: DB, academyId: string, studentId: string) {
+  const { data: rows } = await db
+    .from('student_lives_log')
+    .select('id, delta, created_at, lives_after')
+    .eq('academy_id', academyId)
+    .eq('student_id', studentId)
+  const list = [...(rows ?? [])].sort((a: any, b: any) =>
+    (a.created_at as string).localeCompare(b.created_at as string) || (a.id as string).localeCompare(b.id as string))
+
+  let acc = 0
+  for (const r of list) {
+    acc += r.delta as number
+    if (r.lives_after !== acc)
+      await db.from('student_lives_log').update({ lives_after: acc }).eq('id', r.id)
+  }
+  await db.from('student_lives').upsert(
+    { academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() },
+    { onConflict: 'academy_id,student_id' }
+  )
+}
+
+// id 목록을 나눠서 삭제 (한 번에 너무 많이 넘기면 요청이 실패함)
+async function deleteLogByIds(db: DB, ids: string[]) {
+  for (let i = 0; i < ids.length; i += 200)
+    await db.from('student_lives_log').delete().in('id', ids.slice(i, i + 200))
+}
+
+// 재계산이 겹쳐서 같은 event_key가 두 번 들어간 행 정리
+// 중복이 없으면 조회 한 번으로 끝나고, 있으면 해당 학생만 lives_after 복구
+async function dedupeLog(db: DB, academyId: string, studentId?: string) {
+  const rows = await fetchAll((f, t) => {
+    const q = db.from('student_lives_log')
+      .select('id, student_id, event_key')
+      .eq('academy_id', academyId)
+      .in('source', ['rule', 'init'])
+    return (studentId ? q.eq('student_id', studentId) : q).range(f, t)
+  })
+  rows.sort((a, b) => (a.id as string).localeCompare(b.id as string))
+
+  const seen = new Set<string>()
+  const dupIds: string[] = []
+  const affected = new Set<string>()
+  for (const r of rows) {
+    if (!r.event_key) continue
+    const key = `${r.student_id}:${r.event_key}`
+    if (seen.has(key)) { dupIds.push(r.id); affected.add(r.student_id) }
+    else seen.add(key)
+  }
+  if (dupIds.length === 0) return
+
+  await deleteLogByIds(db, dupIds)
+  for (const sid of affected) await repairStudentLives(db, academyId, sid)
+}
+
 async function flushStudent(db: DB, academyId: string, studentId: string, logEntries: LogEntry[], triggeredAt: string) {
   // 기존 rule/init 항목 조회 → triggered_at 보존용
   const { data: existing } = await db
@@ -192,6 +247,8 @@ async function flushStudent(db: DB, academyId: string, studentId: string, logEnt
     { onConflict: 'academy_id,student_id' }
   )
   if (logEntries.length > 0) await db.from('student_lives_log').insert(logEntries)
+
+  await dedupeLog(db, academyId, studentId)
 }
 
 // 시험 규칙 적용 — 이벤트 하나당 최대 하나의 규칙만 적용
@@ -247,18 +304,20 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     .eq('id', academyId)
     .single()
   if (!academy?.lives_enabled) return
+  // 자동화가 꺼져 있으면 기존 기록을 그대로 둔다 (recalculate()와 동일하게 동작)
+  if (!academy.lives_auto_enabled || !academy.lives_auto_from) return
 
   const livesDefault = (academy.lives_default ?? 3) as number
-  const autoFrom = academy.lives_auto_from as string | null
-  const autoEnabled = academy.lives_auto_enabled as boolean
+  const autoFrom = academy.lives_auto_from as string
   const triggeredAt = new Date().toISOString()  // 이벤트 트리거 시각
 
-  // 학생 등록일 조회 → effectiveFrom = max(autoFrom, 등록일)
-  const { data: studentRow } = await db.from('students').select('created_at').eq('id', studentId).single()
-  const studentDate = studentRow?.created_at ? (studentRow.created_at as string).slice(0, 10) : null
-  const effectiveFrom = autoFrom
-    ? (studentDate && studentDate > autoFrom ? studentDate : autoFrom)
-    : null
+  // 학생 등록일 조회 → effectiveFrom = max(autoFrom, 등록일). 퇴원생은 계산 대상 아님
+  const { data: studentRow } = await db.from('students')
+    .select('enrolled_at, created_at, status').eq('id', studentId).single()
+  if (!studentRow || studentRow.status === 'inactive') return
+  const rawDate = (studentRow.enrolled_at ?? studentRow.created_at) as string | null
+  const studentDate = rawDate ? rawDate.slice(0, 10) : null
+  const effectiveFrom = studentDate && studentDate > autoFrom ? studentDate : autoFrom
 
   const logEntries: LogEntry[] = []
 
@@ -266,14 +325,9 @@ export async function recalculateStudent(db: DB, academyId: string, studentId: s
     academy_id: academyId, student_id: studentId,
     delta: livesDefault, reason: `기본 목숨 ${livesDefault}개`,
     source: 'init', lives_after: livesDefault,
-    created_at: effectiveFrom ? `${effectiveFrom}T00:00:00.000Z` : new Date(0).toISOString(),
+    created_at: `${effectiveFrom}T00:00:00.000Z`,
     triggered_at: triggeredAt, event_key: 'init',
   })
-
-  if (!autoEnabled || !effectiveFrom) {
-    await flushStudent(db, academyId, studentId, logEntries, triggeredAt)
-    return
-  }
 
   const { data: rules } = await db
     .from('lives_rules')
@@ -426,7 +480,7 @@ export async function recalculate(db: DB, academyId: string) {
   const triggeredAt = new Date().toISOString()  // 이벤트 트리거 시각
 
   const [{ data: allStudents }, { data: rules }, { data: classes }] = await Promise.all([
-    db.from('students').select('id, created_at').eq('academy_id', academyId),
+    db.from('students').select('id, enrolled_at, created_at').eq('academy_id', academyId).eq('status', 'active'),
     db.from('lives_rules').select('id, condition_type, condition_detail, delta, name').eq('academy_id', academyId).eq('enabled', true).order('order_num').order('created_at'),
     db.from('classes').select('id').eq('academy_id', academyId),
   ])
@@ -437,7 +491,8 @@ export async function recalculate(db: DB, academyId: string) {
   // 학생별 effectiveFrom = max(autoFrom, 학생 등록일)
   const effectiveFromByStudent = new Map<string, string>()
   for (const s of allStudents ?? []) {
-    const studentDate = s.created_at ? (s.created_at as string).slice(0, 10) : null
+    const rawDate = (s.enrolled_at ?? s.created_at) as string | null
+    const studentDate = rawDate ? rawDate.slice(0, 10) : null
     effectiveFromByStudent.set(s.id, studentDate && studentDate > autoFrom ? studentDate : autoFrom)
   }
 
@@ -471,13 +526,15 @@ export async function recalculate(db: DB, academyId: string) {
 
   const sessions = (sessionsRes.data ?? []) as { id: string; date: string; class_id: string }[]
   const sessDateMap: Record<string, string> = {}
-  for (const s of sessions) sessDateMap[s.id] = s.date
+  const sessClassMap: Record<string, string> = {}
+  for (const s of sessions) { sessDateMap[s.id] = s.date; sessClassMap[s.id] = s.class_id }
 
   const homeworks = (homeworksRes.data ?? []) as { id: string; assigned_date: string; class_id: string }[]
 
   const clinicSessions = (clinicSessionsRes.data ?? []) as { id: string; date: string; class_id: string }[]
   const csDateMap: Record<string, string> = {}
-  for (const s of clinicSessions) csDateMap[s.id] = s.date
+  const csClassMap: Record<string, string> = {}
+  for (const s of clinicSessions) { csDateMap[s.id] = s.date; csClassMap[s.id] = s.class_id }
 
   const allExamsRaw = (examsRes.data ?? []) as any[]
   const allExams = allExamsRaw.filter(e => {
@@ -550,21 +607,30 @@ export async function recalculate(db: DB, academyId: string) {
     if (e.triggered_at) existingDateDeltaByStudent.get(e.student_id)!.set(`${e.created_at}:${e.delta}`, e.triggered_at)
   }
 
-  // manual 항목 학생별 인덱스
-  const manualByStudent = groupBy(manualLogs, 'student_id')
+  // manual 항목 학생별 인덱스 — 학생별 기준일 이전 것은 계산에서 빼고 삭제 대상으로 모음
+  const staleManualIds: string[] = []
+  const liveManualLogs = manualLogs.filter(m => {
+    const from = effectiveFromByStudent.get(m.student_id) ?? autoFrom
+    if ((m.created_at as string) < `${from}T00:00:00.000Z`) { staleManualIds.push(m.id); return false }
+    return true
+  })
+  const manualByStudent = groupBy(liveManualLogs, 'student_id')
 
-  // 로그 삭제: 학원 전체 한 번에 (manual은 제외)
-  await db.from('student_lives_log')
-    .delete()
-    .eq('academy_id', academyId)
-    .in('source', ['rule', 'init'])
+  // 로그 삭제: 재계산 대상 학생만 (퇴원생 기록은 보존)
+  for (let i = 0; i < studentIds.length; i += 200)
+    await db.from('student_lives_log')
+      .delete()
+      .eq('academy_id', academyId)
+      .in('source', ['rule', 'init'])
+      .in('student_id', studentIds.slice(i, i + 200))
 
-  // autoFrom 이전 manual 항목 삭제
+  // 기준일 이전 manual 항목 삭제 — 학원 공통 기준일 + 학생별 등록일 기준 둘 다
   await db.from('student_lives_log')
     .delete()
     .eq('academy_id', academyId)
     .eq('source', 'manual')
     .lt('created_at', `${autoFrom}T00:00:00.000Z`)
+  await deleteLogByIds(db, staleManualIds)
 
   const attRules    = rules.filter((r: any) => r.condition_type === 'attendance')
   const hwRules     = rules.filter((r: any) => r.condition_type === 'homework')
@@ -572,6 +638,7 @@ export async function recalculate(db: DB, academyId: string) {
   const examRules   = rules.filter((r: any) => r.condition_type === 'exam_score')
 
   const allLogEntries: LogEntry[] = []
+  const allManualUpdates: { id: string; lives_after: number }[] = []
   const livesUpserts: { academy_id: string; student_id: string; lives: number; updated_at: string }[] = []
 
   for (const studentId of studentIds) {
@@ -594,8 +661,8 @@ export async function recalculate(db: DB, academyId: string) {
       for (const att of attByStudent.get(studentId) ?? []) {
         const date = sessDateMap[att.session_id]
         if (!date || date < effectiveFrom) continue  // 등록 전 수업 무시
-        const session = sessions.find(s => s.id === att.session_id)
-        if (!session || !studentClassSet.has(session.class_id)) continue
+        const sessClassId = sessClassMap[att.session_id]
+        if (!sessClassId || !studentClassSet.has(sessClassId)) continue
         for (const rule of attRules) {
           if (checkCondition(rule, 'attendance', { status: att.status })) {
             logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt, `att:${att.session_id}`))
@@ -625,8 +692,8 @@ export async function recalculate(db: DB, academyId: string) {
       for (const ca of caByStudent.get(studentId) ?? []) {
         const date = csDateMap[ca.clinic_session_id]
         if (!date || date < effectiveFrom) continue  // 등록 전 클리닉 무시
-        const cs = clinicSessions.find(s => s.id === ca.clinic_session_id)
-        if (!cs || !studentClassSet.has(cs.class_id)) continue
+        const csClassId = csClassMap[ca.clinic_session_id]
+        if (!csClassId || !studentClassSet.has(csClassId)) continue
         for (const rule of clinicRules) {
           if (checkCondition(rule, 'clinic', { status: ca.status })) {
             logEntries.push(makeEntry(academyId, studentId, rule, `${date}T12:00:00.000Z`, triggeredAt, `clinic:${ca.clinic_session_id}`))
@@ -663,7 +730,7 @@ export async function recalculate(db: DB, academyId: string) {
     }
 
     // init/rule + manual 전부 날짜순 정렬 후 lives_after 재계산
-    type AnyEntry = { id?: string; created_at: string; delta: number; lives_after: number; isManual?: boolean }
+    type AnyEntry = { id?: string; created_at: string; delta: number; lives_after: number; isManual?: boolean; event_key?: string }
     const allEntries: AnyEntry[] = [
       ...logEntries.map(e => ({ ...e, isManual: false })),
       ...(manualByStudent.get(studentId) ?? []).map((e: any) => ({ id: e.id, created_at: e.created_at, delta: e.delta, lives_after: 0, isManual: true })),
@@ -677,17 +744,17 @@ export async function recalculate(db: DB, academyId: string) {
       e.lives_after = acc
       if (e.isManual && e.id) manualUpdates.push({ id: e.id, lives_after: acc })
     }
-    // logEntries의 lives_after도 allEntries 기준으로 업데이트
+    // allEntries에서 계산한 lives_after를 원본 logEntries에 반영 (event_key로 정확히 매칭)
+    const ruleAfterMap = new Map<string, number>()
+    for (const e of allEntries) {
+      if (!e.isManual && e.event_key) ruleAfterMap.set(e.event_key, e.lives_after)
+    }
     for (const e of logEntries) {
-      const found = allEntries.find(a => !a.isManual && a.created_at === e.created_at && a.delta === e.delta)
-      if (found) e.lives_after = found.lives_after
+      const after = ruleAfterMap.get(e.event_key)
+      if (after !== undefined) e.lives_after = after
     }
 
-    // manual 항목 lives_after 일괄 업데이트 (비동기, fire-and-forget)
-    for (const u of manualUpdates) {
-      db.from('student_lives_log').update({ lives_after: u.lives_after }).eq('id', u.id).then(() => {})
-    }
-
+    allManualUpdates.push(...manualUpdates)
     allLogEntries.push(...logEntries)
     livesUpserts.push({ academy_id: academyId, student_id: studentId, lives: acc, updated_at: new Date().toISOString() })
   }
@@ -697,6 +764,12 @@ export async function recalculate(db: DB, academyId: string) {
     await db.from('student_lives').upsert(livesUpserts, { onConflict: 'academy_id,student_id' })
   if (allLogEntries.length > 0)
     await db.from('student_lives_log').insert(allLogEntries)
+
+  // manual 항목 lives_after 반영
+  for (const u of allManualUpdates)
+    await db.from('student_lives_log').update({ lives_after: u.lives_after }).eq('id', u.id)
+
+  await dedupeLog(db, academyId)
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { applyLivesRulesInternal } from '@/lib/lives-auto'
+
+// 목숨 재계산이 응답 이후에도 이어서 돌기 때문에 충분한 실행 시간이 필요함
+export const maxDuration = 60
 
 function admin() {
   return createClient(
@@ -195,9 +198,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
         .select('academy_id').eq('id', (examForLives.data as any).class_id).single()
       if (classData) {
         const academyId = (classData as any).academy_id
-        for (const { studentId } of scores as { studentId: string; status: string; score: number | null }[]) {
-          void applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
-        }
+        const targets = (scores as { studentId: string }[]).map(s => s.studentId)
+        after(async () => {
+          for (const studentId of targets)
+            await applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
+        })
       }
     }
 
@@ -222,9 +227,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
         if (classData) {
           const academyId = (classData as any).academy_id
           const uniqueStudents = [...new Set(affectedSubs.map(s => s.student_id))]
-          for (const studentId of uniqueStudents) {
-            void applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
-          }
+          after(async () => {
+            for (const studentId of uniqueStudents)
+              await applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
+          })
         }
       }
     }
@@ -258,7 +264,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
       const { data: examInfo } = await db.from('exams').select('class_id').eq('id', examId).single()
       if (examInfo) {
         const { data: classData } = await db.from('classes').select('academy_id').eq('id', (examInfo as any).class_id).single()
-        if (classData) void applyLivesRulesInternal(db, (classData as any).academy_id, (sub as any).student_id, 'exam_score', {})
+        if (classData) after(async () => {
+          await applyLivesRulesInternal(db, (classData as any).academy_id, (sub as any).student_id, 'exam_score', {})
+        })
       }
     }
 
@@ -313,7 +321,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
       const { data: examInfo } = await db.from('exams').select('class_id').eq('id', examId).single()
       if (examInfo) {
         const { data: classData } = await db.from('classes').select('academy_id').eq('id', (examInfo as any).class_id).single()
-        if (classData) void applyLivesRulesInternal(db, (classData as any).academy_id, (sub as any).student_id, 'exam_score', {})
+        if (classData) after(async () => {
+          await applyLivesRulesInternal(db, (classData as any).academy_id, (sub as any).student_id, 'exam_score', {})
+        })
       }
     }
 

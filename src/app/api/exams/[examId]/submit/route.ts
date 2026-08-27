@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { applyLivesRulesInternal } from '@/lib/lives-auto'
+
+// 목숨 재계산이 응답 이후에도 이어서 돌기 때문에 충분한 실행 시간이 필요함
+export const maxDuration = 60
 
 function admin() {
   return createClient(
@@ -145,17 +148,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ exa
 
   const calcMaxScore = Math.round((questions ?? []).filter(q => q.question_type !== 'group').reduce((acc, q) => acc + Number(q.score), 0) * 100) / 100
 
-  // 목숨 자동화 트리거 (fire & forget)
+  // 목숨 자동화 트리거 (응답 후 실행)
   if ((exam as any).exam_format !== 'pass_fail' && calcMaxScore > 0) {
     const { data: classData } = await db.from('classes').select('academy_id').eq('id', (exam as any).class_id).single()
     if (classData) {
-      void applyLivesRulesInternal(db, (classData as any).academy_id, studentId, 'exam_score', {
+      after(async () => { await applyLivesRulesInternal(db, (classData as any).academy_id, studentId, 'exam_score', {
         score: totalScore,
         maxScore: calcMaxScore,
         date: new Date().toISOString().slice(0, 10),
         category: (exam as any).category ?? null,
         examFormat: (exam as any).exam_format ?? 'score',
-      })
+      }) })
     }
   }
 

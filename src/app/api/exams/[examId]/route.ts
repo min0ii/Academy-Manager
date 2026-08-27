@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { applyLivesRulesInternal } from '@/lib/lives-auto'
+
+// 목숨 재계산이 응답 이후에도 이어서 돌기 때문에 충분한 실행 시간이 필요함
+export const maxDuration = 60
 
 function admin() {
   return createClient(
@@ -445,9 +448,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ex
           const { data: affectedSubs } = await db.from('exam_submissions')
             .select('student_id').in('id', affectedSubIds)
           const academyId = (classData as any).academy_id
-          for (const sub of affectedSubs ?? []) {
-            void applyLivesRulesInternal(db, academyId, sub.student_id, 'exam_score', {})
-          }
+          const targets = [...new Set((affectedSubs ?? []).map(s => s.student_id))]
+          after(async () => {
+            for (const studentId of targets)
+              await applyLivesRulesInternal(db, academyId, studentId, 'exam_score', {})
+          })
         }
       }
     }

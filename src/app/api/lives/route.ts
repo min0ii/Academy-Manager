@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { applyLivesRulesInternal, recalculate, recalculateStudent } from '@/lib/lives-auto'
+
+// 재계산은 응답 이후에도 이어서 돌기 때문에 충분한 실행 시간이 필요함
+export const maxDuration = 60
 
 function admin() {
   return createClient(
@@ -145,6 +148,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
+  // 여러 학생 일괄 재계산 — 전체 출석 처리, 과제 추가/삭제 등
+  if (action === 'apply-rules-bulk') {
+    const myAcademyId = await verifyTeacher(db, token)
+    if (!myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    const { academyId, studentIds } = body
+    if (!academyId || !Array.isArray(studentIds) || studentIds.length === 0)
+      return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 })
+    if (academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+
+    after(async () => {
+      // 4명씩 나눠 처리 — 한 번에 몰려서 실패하는 것을 막음
+      for (let i = 0; i < studentIds.length; i += 4)
+        await Promise.all(studentIds.slice(i, i + 4).map((sid: string) => recalculateStudent(db, academyId, sid)))
+    })
+    return NextResponse.json({ success: true })
+  }
+
   // 선생님 수동 목숨 조정 (디바운스 후 최종값으로 호출)
   if (action === 'manual-adjust') {
     const myAcademyId = await verifyTeacher(db, token)
@@ -198,7 +219,7 @@ export async function POST(req: NextRequest) {
     }).eq('id', academyId)
 
     const shouldRecalc = livesAutoEnabled && livesAutoFrom && (!prevEnabled || prevFrom !== livesAutoFrom)
-    if (shouldRecalc) void recalculate(db, academyId)
+    if (shouldRecalc) after(async () => { await recalculate(db, academyId) })
 
     return NextResponse.json({ success: true, recalculating: shouldRecalc })
   }
@@ -221,7 +242,7 @@ export async function POST(req: NextRequest) {
     }).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    void recalculate(db, academyId)
+    after(async () => { await recalculate(db, academyId) })
     return NextResponse.json({ rule: data })
   }
 
@@ -235,7 +256,7 @@ export async function POST(req: NextRequest) {
     const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
     if (!rule || (rule as any).academy_id !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
     await db.from('lives_rules').update({ enabled }).eq('id', ruleId)
-    void recalculate(db, (rule as any).academy_id)
+    after(async () => { await recalculate(db, (rule as any).academy_id) })
     return NextResponse.json({ success: true })
   }
 
@@ -249,7 +270,7 @@ export async function POST(req: NextRequest) {
     const { data: rule } = await db.from('lives_rules').select('academy_id').eq('id', ruleId).single()
     if (!rule || (rule as any).academy_id !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
     await db.from('lives_rules').delete().eq('id', ruleId)
-    void recalculate(db, (rule as any).academy_id)
+    after(async () => { await recalculate(db, (rule as any).academy_id) })
     return NextResponse.json({ success: true })
   }
 
@@ -294,11 +315,10 @@ export async function POST(req: NextRequest) {
     const { academyId } = body
     if (!academyId || academyId !== myAcademyId) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
-    await Promise.all([
-      db.from('student_lives_log').delete().eq('academy_id', academyId),
-      db.from('student_lives').delete().eq('academy_id', academyId),
-      db.from('academies').update({ lives_auto_enabled: false }).eq('id', academyId),
-    ])
+    // 자동화를 먼저 끈 뒤 삭제 — 진행 중인 재계산이 지운 기록을 다시 쓰는 것을 막음
+    await db.from('academies').update({ lives_auto_enabled: false }).eq('id', academyId)
+    await db.from('student_lives_log').delete().eq('academy_id', academyId)
+    await db.from('student_lives').delete().eq('academy_id', academyId)
     return NextResponse.json({ success: true })
   }
 
@@ -316,10 +336,8 @@ export async function POST(req: NextRequest) {
 
     // 자동화가 켜져 있으면 즉시 재계산
     const { data: academy } = await db.from('academies').select('lives_auto_enabled, lives_auto_from').eq('id', academyId).single()
-    if (academy?.lives_auto_enabled && academy?.lives_auto_from) {
-      const { recalculateStudent } = await import('@/lib/lives-auto')
-      void recalculateStudent(db, academyId, studentId)
-    }
+    if (academy?.lives_auto_enabled && academy?.lives_auto_from)
+      after(async () => { await recalculateStudent(db, academyId, studentId) })
     return NextResponse.json({ success: true })
   }
 
