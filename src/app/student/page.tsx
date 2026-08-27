@@ -198,7 +198,7 @@ export default function StudentPage() {
   const [myAcademyId, setMyAcademyId]   = useState('')
   const [myStudentId, setMyStudentId]   = useState('')
   const [showLivesLog, setShowLivesLog]   = useState(false)
-  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string; triggered_at: string }[]>([])
+  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; created_at: string; triggered_at: string }[]>([])
   const [livesLogLoading, setLivesLogLoading] = useState(false)
 
   // 빌보드
@@ -760,7 +760,6 @@ export default function StudentPage() {
                                       <p className="text-xs text-white/90 truncate">{log.reason}</p>
                                       <p className={`text-xs ${c.muted}`}>{new Date(log.triggered_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                                     </div>
-                                    <span className={`text-xs ${c.muted} flex-shrink-0`}>→ {log.lives_after}</span>
                                   </div>
                                 ))}
                               </div>

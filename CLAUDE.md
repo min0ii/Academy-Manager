@@ -171,6 +171,9 @@ export function monthsAgoKST(months: number): string  // n개월 전 날짜 (KST
 - 기준일(`effectiveFrom`) = max(`academies.lives_auto_from`, 학생 `enrolled_at`)
 - 기준일 이전 기록은 rule/init/manual 모두 삭제. 기준일 이후만 계산 대상
 - 기본 목숨(`init`)부터 시작해 규칙을 날짜순으로 누적 → `lives_after`, `student_lives.lives` 기록
+- **`lives_after`는 화면에 표시하지 않음.** 목록 정렬은 `triggered_at`(계산 시각) 기준인데
+  누적은 `created_at`(사건 날짜) 순이라 순서가 어긋나 보임. 증감(delta)만 표시하고
+  누적값은 내부 검증용으로만 사용 (`repairStudentLives`가 어긋남 감지에 씀)
 - 퇴원(`status='inactive'`) 학생은 계산 대상 제외 (기존 기록은 보존)
 - 자동화가 꺼져 있으면 `recalculateStudent()`/`recalculate()` 모두 아무것도 건드리지 않음
 

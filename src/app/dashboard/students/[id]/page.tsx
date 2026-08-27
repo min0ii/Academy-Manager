@@ -94,7 +94,7 @@ function StudentReportContent() {
   const [livesDefault, setLivesDefault]   = useState(3)
   const [currentLives, setCurrentLives]   = useState(0)
   const [showLivesLog, setShowLivesLog]   = useState(false)
-  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; lives_after: number; created_at: string; triggered_at: string; hidden: boolean }[]>([])
+  const [livesLog, setLivesLog]           = useState<{ id: string; delta: number; reason: string; source: string; created_at: string; triggered_at: string; hidden: boolean }[]>([])
   const [livesLogLoading, setLivesLogLoading] = useState(false)
   const [showHiddenLogs, setShowHiddenLogs] = useState(false)
   // 수동 조정 (디바운스)
@@ -751,7 +751,6 @@ function StudentReportContent() {
                         <p className="text-xs text-slate-700 truncate">{log.reason}</p>
                         <p className="text-xs text-slate-400">{new Date(log.triggered_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
-                      <span className="text-xs text-slate-400 flex-shrink-0">→ {log.lives_after}</span>
                       <button
                         onClick={() => setLogHidden(log.id, !log.hidden)}
                         className="flex-shrink-0 p-1 text-slate-300 hover:text-slate-500 transition-colors"
