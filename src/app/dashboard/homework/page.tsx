@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import {
   BookOpen, ChevronRight, ChevronLeft, CheckCircle2,
-  Circle, AlertCircle, Users, Calendar,
+  Circle, AlertCircle, Users, Calendar, Star,
   ClipboardList, Beaker, TrendingDown,
 } from 'lucide-react'
 
@@ -198,7 +198,7 @@ export default function HomeworkPage() {
     setHwStudentStats(
       Object.values(hwStudentMap)
         .filter(s => s.total > 0)
-        .sort((a, b) => b.none - a.none || b.partial - a.partial)
+        .sort((a, b) => b.none - a.none || a.partial - b.partial)
     )
     setClinicStudentStats(
       Object.values(clinicStudentMap)
@@ -254,7 +254,7 @@ export default function HomeworkPage() {
   }
 
   const HwStatusBadge = ({ status }: { status: string | null }) => {
-    if (status === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full ring-1 ring-teal-200">오답(완벽) 완료</span>
+    if (status === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full ring-1 ring-teal-200"><Star size={11} /> 오답(완벽) 완료</span>
     if (status === 'done')    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} /> 완료</span>
     if (status === 'none')    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-full"><AlertCircle size={11} /> 미완료</span>
     return <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full"><Circle size={11} /> 미기록</span>

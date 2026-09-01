@@ -848,7 +848,7 @@ export default function SettingsPage() {
 
                 {formType === 'homework' && (
                   <div className="grid grid-cols-2 gap-2">
-                    {(['none', 'done', 'partial', 'unrecorded'] as const).map(s => (
+                    {(['partial', 'done', 'none', 'unrecorded'] as const).map(s => (
                       <button key={s} onClick={() => setFormHwStatus(s)}
                         className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
                           formHwStatus === s ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-violet-50'
