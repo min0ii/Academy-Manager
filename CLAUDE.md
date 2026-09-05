@@ -225,6 +225,10 @@ export function monthsAgoKST(months: number): string  // n개월 전 날짜 (KST
 - 코멘트 입력란은 기본적으로 숨김. 내용이 있으면 자동으로 표시.
 - 버튼(MessageSquare 아이콘)으로 토글. 내용 있으면 아이콘 색상으로 표시.
 - **출석 포함 모든 출결 상태**(present/late/early_leave/absent)에서 코멘트 입력 가능.
+- **코멘트는 자동 저장**: 입력이 1초간 멈추면 저장되고, 포커스가 빠지면 즉시 저장된다.
+  `scheduleNoteSave()` / `cancelNoteSave()` 를 출결·과제 코멘트가 공용으로 쓴다.
+  onBlur 만으로 저장하면 코멘트를 지우고 바로 화면을 벗어날 때 저장이 유실되므로,
+  새 코멘트 입력란을 만들 때도 이 방식을 따를 것.
 
 ### 선생님 — 학생 상세
 **`src/app/dashboard/students/[id]/page.tsx`**

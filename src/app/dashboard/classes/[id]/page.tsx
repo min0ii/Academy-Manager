@@ -167,6 +167,8 @@ export default function ClassDetailPage() {
   const [studentLives, setStudentLives]     = useState<Record<string, number>>({})
   const [pendingLivesMap, setPendingLivesMap] = useState<Record<string, number>>({})
   const livesTimerMap = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // 코멘트 자동 저장용 타이머 — 출결/과제 코멘트 공용
+  const noteTimerMap  = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const [studentLivesReason, setStudentLivesReason] = useState<Record<string, string>>({})
   const [savingLivesId, setSavingLivesId]   = useState<string | null>(null)
   const [livesLoading, setLivesLoading]     = useState(false)
@@ -546,8 +548,19 @@ export default function ClassDetailPage() {
     }
   }
 
+  // 입력이 1초간 멈추면 자동 저장. 포커스가 빠지면 타이머를 지우고 즉시 저장한다
+  function scheduleNoteSave(key: string, save: () => void) {
+    if (noteTimerMap.current[key]) clearTimeout(noteTimerMap.current[key])
+    noteTimerMap.current[key] = setTimeout(() => { delete noteTimerMap.current[key]; save() }, 1000)
+  }
+  function cancelNoteSave(key: string) {
+    if (noteTimerMap.current[key]) clearTimeout(noteTimerMap.current[key])
+    delete noteTimerMap.current[key]
+  }
+
   function handleNoteChange(studentId: string, note: string) {
     setAttendanceList(prev => prev.map(a => a.student_id === studentId ? { ...a, note } : a))
+    scheduleNoteSave(`att:${studentId}`, () => void saveNote(studentId, note))
   }
   async function saveNote(studentId: string, note: string) {
     const rec = attendanceList.find(a => a.student_id === studentId)
@@ -1018,6 +1031,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
       ...prev,
       [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, note } : r),
     }))
+    scheduleNoteSave(`hw:${hwId}:${studentId}`, () => void saveHwNote(hwId, studentId, note))
   }
   async function saveHwNote(hwId: string, studentId: string, note: string) {
     const rec = (homeworkStatuses[hwId] ?? []).find(r => r.student_id === studentId)
@@ -1789,7 +1803,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
                                       <div className="px-4 pb-3">
                                         <input type="text" value={att.note ?? ''}
                                           onChange={e => handleNoteChange(att.student_id, e.target.value)}
-                                          onBlur={e => saveNote(att.student_id, e.target.value)}
+                                          onBlur={e => { cancelNoteSave(`att:${att.student_id}`); void saveNote(att.student_id, e.target.value) }}
                                           placeholder="코멘트 입력 (선택)"
                                           className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-slate-50" />
                                       </div>
@@ -1935,7 +1949,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
                                         <div className="px-4 pb-2.5">
                                           <input type="text" value={rec.note ?? ''}
                                             onChange={e => handleHwNoteChange(hw.id, rec.student_id, e.target.value)}
-                                            onBlur={e => saveHwNote(hw.id, rec.student_id, e.target.value)}
+                                            onBlur={e => { cancelNoteSave(`hw:${hw.id}:${rec.student_id}`); void saveHwNote(hw.id, rec.student_id, e.target.value) }}
                                             placeholder="코멘트 입력 (선택)"
                                             className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-400 bg-slate-50" />
                                         </div>
