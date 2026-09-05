@@ -707,7 +707,11 @@ export default function ClassDetailPage() {
   async function toggleClassLives() {
     const next = !classLivesEnabled
     setClassLivesEnabled(next)
-    await supabase.from('classes').update({ lives_enabled: next }).eq('id', classId)
+    const { error } = await supabase.from('classes').update({ lives_enabled: next }).eq('id', classId)
+    if (error) {
+      setClassLivesEnabled(!next)
+      void showAlert('저장 오류: ' + error.message)
+    }
   }
 
   // ── 목숨 자동화 fire-and-forget 트리거
@@ -1353,9 +1357,9 @@ function adjustLivesDelta(studentId: string, delta: number) {
               </div>
               <button
                 onClick={toggleClassLives}
-                className={`relative flex-shrink-0 w-12 h-6 rounded-full overflow-hidden transition-colors ${classLivesEnabled ? 'bg-red-500' : 'bg-slate-200'}`}
+                className={`relative inline-flex flex-shrink-0 h-7 w-12 items-center rounded-full transition-colors ${classLivesEnabled ? 'bg-red-500' : 'bg-slate-200'}`}
               >
-                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${classLivesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${classLivesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
             </div>
           )}

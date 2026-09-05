@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (authErr || !user) return NextResponse.json({ error: '인증이 필요해요.' }, { status: 401 })
 
   // 반 소속 academy 조회
-  const { data: cls } = await db.from('classes').select('academy_id').eq('id', classId).single()
+  const { data: cls } = await db.from('classes').select('academy_id, lives_enabled').eq('id', classId).single()
   if (!cls?.academy_id) return NextResponse.json({ error: '반을 찾을 수 없어요.' }, { status: 404 })
   const academyId = cls.academy_id
 
@@ -47,8 +47,12 @@ export async function GET(req: NextRequest) {
 
   // 빌보드 설정 조회
   const { data: academy } = await db.from('academies')
-    .select('lives_billboard_enabled, lives_billboard_show_last, lives_default')
+    .select('lives_billboard_enabled, lives_billboard_show_last, lives_default, lives_enabled')
     .eq('id', academyId).single()
+
+  // 학원 또는 반 단위로 목숨이 꺼져 있으면 빌보드도 제공하지 않음 (my-lives 와 동일 조건)
+  if (!academy?.lives_enabled || (cls as any).lives_enabled === false)
+    return NextResponse.json({ billboardEnabled: false })
 
   // 선생님은 빌보드 설정 무관하게 항상 전체 순위 반환
   if (!isTeacher && !academy?.lives_billboard_enabled)
