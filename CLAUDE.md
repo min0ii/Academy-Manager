@@ -71,14 +71,27 @@
 - **자동 로그인**: 기존 세션이 있으면 로그인 화면을 건너뛰고 자동 이동
 
 ## 보안 구조
-- **대부분의 테이블에 RLS가 켜져 있음** (2026-09-12 실측 확인).
-  로그인하지 않은 anon key로는 `profiles`/`classes`/`students`/`attendance`/
-  `homework`/`homework_status`/`academies` 모두 0행이 반환된다.
+- **Linkademy가 쓰는 표는 전부 RLS가 켜져 있음** (2026-09-12 적용 완료, anon key 실측 0행).
   → 브라우저에서 `supabase.from(...)` 로 직접 읽는 코드는 **로그인 토큰이 있어야만** 동작한다.
   → 토큰이 없거나 만료되면 데이터가 없는 것처럼 0행이 오므로, `.single()` 은 406을 낸다.
     이럴 땐 `.maybeSingle()` 을 써서 "0행"과 "조회 실패"를 구분할 것.
-- ⚠️ **`student_lives` 만 RLS가 꺼져 있어 로그인 없이도 전체 조회가 가능하다 (미해결).**
-  anon key는 브라우저에 그대로 노출되므로 사실상 공개 상태. 켜야 함.
+- 정책 SQL 두 개로 나뉘어 있다.
+  - `supabase-fix-rls.sql` — 초기 19개 표
+  - `supabase/rls-remaining-tables.sql` — 2026-09-12 추가한 17개 표
+    - 서버 API로만 접근하는 11개(`lives_rules`, `exam_questions/choices/correct_answers/
+      inquiries/inquiry_replies`, `qb_*`)는 **정책 없이 RLS만** 켰다.
+      = 브라우저에서는 로그인해도 못 읽는다. 반드시 `/api` 를 거칠 것.
+    - 선생님 화면이 브라우저에서 직접 읽고 쓰는 6개(`student_lives`, `student_lives_log`,
+      `exams`, `exam_submissions`, `exam_student_answers`, `class_transfer_history`)에는
+      `"선생님 접근" FOR ALL USING (is_teacher())` 정책을 줬다.
+- ⚠️ **새 표를 만들면 RLS 켜는 것을 잊지 말 것.** 켜지 않으면 브라우저에 노출된 anon key
+  하나만으로 전 행이 읽히고, 심지어 INSERT까지 통과한다 (2026-09-12에 실제로 그런 상태였음).
+- ⚠️ **`lottery_prizes` / `lottery_sessions` 에는 RLS를 켜지 말 것.**
+  같은 Supabase 프로젝트에 있지만 Linkademy 코드에는 등장하지 않는 별개 앱
+  ("뽑기 이벤트", 2026-07)의 표다. 6자리 코드로 들어가는 구조라 로그인이 없어서,
+  RLS를 켜면 그 앱이 통째로 멈춘다.
+- `is_teacher()` 는 SECURITY DEFINER 함수라 정책 안에서 `profiles` 를 읽어도 무한루프가 없다.
+  다만 "선생님이면 통과"라 **학원 간 격리는 하지 않는다** — 학원 격리는 API 레벨 검증이 담당.
 - 서버 API는 `SUPABASE_SERVICE_ROLE_KEY` 로 RLS를 우회하고,
   API 레벨에서 academy_id/teacher 검증으로 데이터를 격리한다
 - 학생/학부모 API: JWT 토큰으로 본인 확인 후 본인 데이터만 반환
