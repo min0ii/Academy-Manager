@@ -965,6 +965,7 @@ function AutoMonitorView({
   const [showQuestions, setShowQuestions] = useState(false)
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set())
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({})
+  const [sortBy, setSortBy] = useState<'score' | 'name'>('score')
 
   // 문제 수정 모달
   const [editingQ, setEditingQ] = useState<ExamQuestion | null>(null)
@@ -1175,8 +1176,19 @@ function AutoMonitorView({
 
       {/* Student submission table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-700">제출 현황</p>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="text-sm font-semibold text-slate-700 flex-shrink-0">제출 현황</p>
+            {/* 정렬 기준 전환 — 점수순(기본) / 이름순 */}
+            <div className="flex items-center rounded-lg bg-slate-100 p-0.5 flex-shrink-0">
+              {([['score', '점수순'], ['name', '이름순']] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setSortBy(key)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${sortBy === key ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {(status === 'closed' || status === 'active') && Object.keys(editAdjusted).length > 0 && (
             <button onClick={onSaveAdj} disabled={savingAdj || adjSaved}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${adjSaved ? 'bg-emerald-100 text-emerald-700 cursor-default' : savingAdj ? 'bg-blue-600 text-white opacity-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
@@ -1187,7 +1199,9 @@ function AutoMonitorView({
         <div className="divide-y divide-slate-100">
           {[...submissions]
             .sort((a, b) => {
-              // 제출자 먼저, 그 안에서 점수 높은 순
+              // 이름순은 제출 여부와 상관없이 가나다순 — 특정 학생을 찾아볼 때 쓰는 정렬
+              if (sortBy === 'name') return a.studentName.localeCompare(b.studentName, 'ko')
+              // 점수순은 제출자 먼저, 그 안에서 점수 높은 순
               if (a.isSubmitted && !b.isSubmitted) return -1
               if (!a.isSubmitted && b.isSubmitted) return 1
               const sa = a.finalScore ?? -1
