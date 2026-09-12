@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signIn, getProfile, formatPhone } from '@/lib/auth'
+import { signIn, fetchProfileById, formatPhone } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
@@ -19,7 +19,7 @@ export default function LoginPage() {
     async function checkSession() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setChecking(false); return }
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profile?.role === 'teacher') router.replace('/dashboard')
       else if (profile?.role === 'student') router.replace('/student')
       else if (profile?.role === 'parent') router.replace('/parent')
@@ -33,16 +33,30 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const { error: authError } = await signIn(phone, password)
+    const { data: authData, error: authError } = await signIn(phone, password)
     if (authError) {
       setError('전화번호 또는 비밀번호가 올바르지 않아요.')
       setLoading(false)
       return
     }
 
-    const profile = await getProfile()
+    // 방금 로그인한 결과를 그대로 사용 (서버에 다시 묻지 않음)
+    const userId = authData?.user?.id
+    if (!userId) {
+      setError('로그인 정보를 저장하지 못했어요.\n시크릿 모드나 쿠키 차단 설정을 끄고 다시 시도해 주세요.')
+      setLoading(false)
+      return
+    }
+
+    const { data: profile, error: profileError } = await fetchProfileById(userId)
+    if (profileError) {
+      console.error('[프로필 조회 실패]', profileError)
+      setError('로그인은 됐지만 정보를 불러오지 못했어요.\n인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      setLoading(false)
+      return
+    }
     if (!profile) {
-      setError('프로필 정보를 불러올 수 없어요.')
+      setError('계정 정보를 찾을 수 없어요.\n선생님께 문의해 주세요.')
       setLoading(false)
       return
     }
@@ -117,7 +131,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl">{error}</p>
+              <p className="text-red-500 text-sm bg-red-50 px-4 py-3 rounded-xl whitespace-pre-line break-words">{error}</p>
             )}
 
             <button

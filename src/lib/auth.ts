@@ -45,6 +45,14 @@ export async function signOut() {
 export async function getProfile() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
   return data
+}
+
+// 로그인 직후용 — 방금 받은 세션의 id로 바로 조회한다.
+// getUser()는 서버에 한 번 더 확인 요청을 보내므로, 네트워크가 불안정하면
+// 로그인이 성공했는데도 실패할 수 있어서 여기서는 쓰지 않는다.
+// 실패 원인을 화면에서 구분할 수 있도록 error를 그대로 넘긴다.
+export async function fetchProfileById(userId: string) {
+  return supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
 }

@@ -71,9 +71,18 @@
 - **자동 로그인**: 기존 세션이 있으면 로그인 화면을 건너뛰고 자동 이동
 
 ## 보안 구조
-- RLS 비활성화 → API 레벨에서 academy_id/teacher 검증으로 데이터 격리
+- **대부분의 테이블에 RLS가 켜져 있음** (2026-09-12 실측 확인).
+  로그인하지 않은 anon key로는 `profiles`/`classes`/`students`/`attendance`/
+  `homework`/`homework_status`/`academies` 모두 0행이 반환된다.
+  → 브라우저에서 `supabase.from(...)` 로 직접 읽는 코드는 **로그인 토큰이 있어야만** 동작한다.
+  → 토큰이 없거나 만료되면 데이터가 없는 것처럼 0행이 오므로, `.single()` 은 406을 낸다.
+    이럴 땐 `.maybeSingle()` 을 써서 "0행"과 "조회 실패"를 구분할 것.
+- ⚠️ **`student_lives` 만 RLS가 꺼져 있어 로그인 없이도 전체 조회가 가능하다 (미해결).**
+  anon key는 브라우저에 그대로 노출되므로 사실상 공개 상태. 켜야 함.
+- 서버 API는 `SUPABASE_SERVICE_ROLE_KEY` 로 RLS를 우회하고,
+  API 레벨에서 academy_id/teacher 검증으로 데이터를 격리한다
 - 학생/학부모 API: JWT 토큰으로 본인 확인 후 본인 데이터만 반환
-- anon key는 브라우저에 노출되나 auth 전용으로만 사용
+- anon key는 브라우저에 노출되므로, 민감한 조회는 반드시 서버 API를 거칠 것
 - **학원 가입 승인 시스템**: academies.status = `'pending' | 'approved' | 'rejected'`
   - 가입 후 관리자 승인 전까지 `/pending` 페이지로 리디렉션
   - 거부 시 거부 메시지 표시
