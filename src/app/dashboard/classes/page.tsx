@@ -6,6 +6,7 @@ import { Plus, X, Pencil, Trash2, ChevronRight, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
 import { useDialog } from '@/components/AppDialog'
+import { dbErrorMessage } from '@/lib/db-error'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -91,7 +92,7 @@ export default function ClassesPage() {
     e.stopPropagation()
     if (!await showConfirm(`"${className}" 반을 삭제할까요?\n소속 학생의 반 배정 정보와 수업 세션이 모두 삭제돼요.`, { destructive: true })) return
     const { error } = await supabase.from('classes').delete().eq('id', id)
-    if (error) { void showAlert('삭제 오류: ' + error.message); return }
+    if (error) { void showAlert(dbErrorMessage(error, '삭제')); return }
     await loadData(academyId!)
   }
 

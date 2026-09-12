@@ -51,8 +51,10 @@ export function useDialog() {
       style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)' }}
       onClick={e => { if (e.target === e.currentTarget) close(false) }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-5">
-        <p className="text-slate-800 text-[15px] leading-relaxed whitespace-pre-line">{state.message}</p>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 space-y-5 overflow-hidden">
+        {/* break-words: 띄어쓰기 없는 긴 문자열도 상자 안에서 줄바꿈되게 함
+            max-h/overflow-y-auto: 메시지가 길어도 버튼이 화면 밖으로 밀리지 않게 함 */}
+        <p className="text-slate-800 text-[15px] leading-relaxed whitespace-pre-line break-words max-h-[60vh] overflow-y-auto">{state.message}</p>
         {state.type === 'prompt' && (
           <input
             type="number"

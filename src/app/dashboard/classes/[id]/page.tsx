@@ -12,6 +12,7 @@ import { formatPhone } from '@/lib/auth'
 import { todayKST } from '@/lib/date'
 import { PageLoading, ListSkeleton } from '@/components/Skeleton'
 import { useDialog } from '@/components/AppDialog'
+import { dbErrorMessage } from '@/lib/db-error'
 import { gradeLabel } from '@/lib/utils'
 
 type GradePoint = { name: string; 내점수: number | null; 반평균: number | null }
@@ -723,7 +724,7 @@ export default function ClassDetailPage() {
     const { error } = await supabase.from('classes').update({ lives_enabled: next }).eq('id', classId)
     if (error) {
       setClassLivesEnabled(!next)
-      void showAlert('저장 오류: ' + error.message)
+      void showAlert(dbErrorMessage(error, '저장'))
     }
   }
 
@@ -928,7 +929,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
       due_date: homeworkForm.due_date || null,
     })
     setSavingHomework(false)
-    if (error) { void showAlert('저장 오류: ' + error.message); return }
+    if (error) { void showAlert(dbErrorMessage(error, '저장')); return }
     setShowAddHomework(false)
     setHomeworkForm({ title: '', assigned_date: selectedDate ?? '', due_date: '', description: '' })
     // DB에서 다시 불러와서 목록 갱신
@@ -945,9 +946,9 @@ function adjustLivesDelta(studentId: string, delta: number) {
     const affectedHwStudents = students.map(s => s.id)
     const hwDate = dateHomeworks.find(h => h.id === hwId)?.assigned_date ?? selectedDate ?? ''
     const { error: delStatusErr } = await supabase.from('homework_status').delete().eq('homework_id', hwId)
-    if (delStatusErr) { void showAlert('삭제 오류: ' + delStatusErr.message); return }
+    if (delStatusErr) { void showAlert(dbErrorMessage(delStatusErr, '삭제')); return }
     const { error: delHwErr } = await supabase.from('homework').delete().eq('id', hwId)
-    if (delHwErr) { void showAlert('삭제 오류: ' + delHwErr.message); return }
+    if (delHwErr) { void showAlert(dbErrorMessage(delHwErr, '삭제')); return }
     setDateHomeworks(prev => prev.filter(h => h.id !== hwId))
     if (expandedHomeworkId === hwId) setExpandedHomeworkId(null)
     applyLivesRuleBulk(affectedHwStudents)
@@ -961,7 +962,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
       return
     }
     const { error } = await supabase.from('homework').update({ title: trimmed }).eq('id', hwId)
-    if (error) { void showAlert('저장 오류: ' + error.message); return }
+    if (error) { void showAlert(dbErrorMessage(error, '저장')); return }
     setDateHomeworks(prev => prev.map(h => h.id === hwId ? { ...h, title: trimmed } : h))
     setHwTitleEdits(prev => { const next = { ...prev }; delete next[hwId]; return next })
   }
@@ -996,7 +997,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
     if (rec?.id) {
       if (rec.status === status) {
         const { error } = await supabase.from('homework_status').delete().eq('id', rec.id)
-        if (error) { void showAlert('저장 오류: ' + error.message); return }
+        if (error) { void showAlert(dbErrorMessage(error, '저장')); return }
         setHomeworkStatuses(prev => ({
           ...prev,
           [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, id: null, status: null, note: null } : r),
@@ -1004,7 +1005,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
         applyLivesRule(studentId, 'homework', { status: null, date: hwDate })
       } else {
         const { error } = await supabase.from('homework_status').update({ status }).eq('id', rec.id)
-        if (error) { void showAlert('저장 오류: ' + error.message); return }
+        if (error) { void showAlert(dbErrorMessage(error, '저장')); return }
         setHomeworkStatuses(prev => ({
           ...prev,
           [hwId]: prev[hwId].map(r => r.student_id === studentId ? { ...r, status } : r),
@@ -1015,7 +1016,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
       const { data: nr, error } = await supabase.from('homework_status').insert({
         homework_id: hwId, student_id: studentId, status,
       }).select().single()
-      if (error) { void showAlert('저장 오류: ' + error.message); return }
+      if (error) { void showAlert(dbErrorMessage(error, '저장')); return }
       setHomeworkStatuses(prev => ({
         ...prev,
         [hwId]: (prev[hwId] ?? students.map(s => ({ id: null, student_id: s.id, status: null, note: null }))).map(r =>
@@ -1040,7 +1041,7 @@ function adjustLivesDelta(studentId: string, delta: number) {
       return
     }
     const { error } = await supabase.from('homework_status').update({ note: note || null }).eq('id', rec.id)
-    if (error) void showAlert('메모 저장 오류: ' + error.message)
+    if (error) void showAlert(dbErrorMessage(error, '저장'))
   }
 
   // ── 캘린더 계산
