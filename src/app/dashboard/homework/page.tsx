@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
+import RecordTab from './RecordTab'
 import {
   BookOpen, ChevronRight, ChevronLeft, CheckCircle2,
   Circle, AlertCircle, Users, Calendar, Star,
@@ -63,6 +64,8 @@ export default function HomeworkPage() {
   const [classesLoading, setClassesLoading] = useState(true)
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('homework')
+  // 수행률 보기(기존) / 기록하기(과제·클리닉을 찾아서 바로 기록)
+  const [mode, setMode] = useState<'view' | 'record'>('view')
 
   const [homeworks, setHomeworks] = useState<HomeworkItem[]>([])
   const [clinics, setClinics] = useState<ClinicItem[]>([])
@@ -281,17 +284,37 @@ export default function HomeworkPage() {
   // ──────────── Level 1: 반 선택 ────────────
   if (!selectedClass) {
     return (
-      <div className="p-6 max-w-lg mx-auto">
-        <div className="flex items-center gap-3 mb-6">
+      <div className={`p-6 mx-auto ${mode === 'record' ? 'max-w-2xl' : 'max-w-lg'}`}>
+        <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
             <BookOpen size={20} className="text-orange-500" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-slate-800">과제·클리닉</h1>
-            <p className="text-xs text-slate-500">반을 선택하면 전체 기록을 볼 수 있어요</p>
+            <p className="text-xs text-slate-500">
+              {mode === 'record' ? '과제나 클리닉을 찾아서 바로 기록할 수 있어요' : '반을 선택하면 전체 기록을 볼 수 있어요'}
+            </p>
           </div>
         </div>
-        {classesLoading ? (
+
+        {/* 모드 전환 — 수행률을 볼 것인가, 기록할 것인가 */}
+        <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+          <button onClick={() => setMode('view')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${mode === 'view' ? 'bg-white text-orange-700 shadow-sm' : 'text-slate-500'}`}>
+            <TrendingDown size={15} /> 수행률 보기
+          </button>
+          <button onClick={() => setMode('record')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${mode === 'record' ? 'bg-white text-orange-700 shadow-sm' : 'text-slate-500'}`}>
+            <ClipboardList size={15} /> 기록하기
+          </button>
+        </div>
+
+        {mode === 'record' ? (
+          // 반 목록이 아직 안 왔는데 그리면 "과제가 없어요"가 잠깐 스쳐 지나간다
+          classesLoading || !ctx
+            ? <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
+            : <RecordTab academyId={ctx.academyId} classes={classes} />
+        ) : classesLoading ? (
           <div className="text-center py-16 text-slate-400 text-sm">불러오는 중...</div>
         ) : classes.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
