@@ -5,16 +5,17 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Search, X, Pencil, Trash2, Upload, ChevronRight,
   Users, KeyRound, CheckCircle2, XCircle, Loader2, RefreshCw, UserPlus,
-  UserMinus,
+  UserMinus, FileText,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAcademy } from '@/lib/academy-context'
+import ReportTab from './ReportTab'
 import { useDialog } from '@/components/AppDialog'
 import { formatPhone } from '@/lib/auth'
 import { todayKST } from '@/lib/date'
 import { gradeLabel } from '@/lib/utils'
 
-type PageTab = 'list' | 'accounts'
+type PageTab = 'list' | 'accounts' | 'report'
 
 type Student = {
   id: string
@@ -701,7 +702,24 @@ export default function StudentsPage() {
         >
           <KeyRound size={14} /> 계정 관리
         </button>
+        <button
+          onClick={() => setPageTab('report')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+            pageTab === 'report' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <FileText size={14} /> 리포트 생성
+        </button>
       </div>
+
+      {/* ══════════════════════════════════
+          리포트 생성 탭
+      ══════════════════════════════════ */}
+      {pageTab === 'report' && (
+        academyId
+          ? <ReportTab academyId={academyId} classes={classes} />
+          : <p className="text-center py-16 text-slate-400 text-sm">불러오는 중...</p>
+      )}
 
       {/* ══════════════════════════════════
           학생 목록 탭
