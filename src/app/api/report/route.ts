@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
   const classId  = sp.get('classId')
   const from     = sp.get('from')
   const to       = sp.get('to')
-  const category = sp.get('category') ?? ''
+  const category = sp.get('category') ?? ''          // 추이 그래프에 쓸 종류
+  const sumCategory = sp.get('sumCategory') ?? '예제 점수'   // 기간 합산으로 묶을 종류
   if (!classId || !from || !to)
     return NextResponse.json({ error: '반과 기간을 선택해 주세요.' }, { status: 400 })
 
@@ -107,20 +108,20 @@ export async function GET(req: NextRequest) {
   const categories = Array.from(new Set((allExams ?? [])
     .map(e => (e.category ?? '').trim()).filter(Boolean)))
 
-  const examsOfCat = (allExams ?? []).filter(e => (e.category ?? '').trim() === category)
-  const examIds = examsOfCat.map(e => e.id)
+  // 점수 계산에 쓸 시험 = 기간 안에 있는 모든 시험 + 그래프용 카테고리의 과거분
+  const allIds = (allExams ?? []).map(e => e.id)
 
   // 문항 점수 합 = 만점 (앱 화면과 같은 방식)
-  const { data: qRows } = examIds.length
-    ? await db.from('exam_questions').select('exam_id, score').in('exam_id', examIds)
+  const { data: qRows } = allIds.length
+    ? await db.from('exam_questions').select('exam_id, score').in('exam_id', allIds)
     : { data: [] as any[] }
   const fullOf: Record<string, number> = {}
   for (const q of (qRows ?? []) as any[]) fullOf[q.exam_id] = (fullOf[q.exam_id] ?? 0) + Number(q.score ?? 0)
 
-  const { data: subRows } = examIds.length
+  const { data: subRows } = allIds.length
     ? await db.from('exam_submissions')
         .select('exam_id, student_id, auto_score, adjusted_score, is_submitted, is_forfeited')
-        .in('exam_id', examIds).in('student_id', studentIds)
+        .in('exam_id', allIds).in('student_id', studentIds)
     : { data: [] as any[] }
   const scoreOf: Record<string, Record<string, number | null>> = {}   // student → exam → 점수
   for (const s of (subRows ?? []) as any[]) {
@@ -128,13 +129,6 @@ export async function GET(req: NextRequest) {
     ;(scoreOf[s.student_id] ??= {})[s.exam_id] = v === null ? null : Number(v)
   }
 
-  // 기간 내 합산 — 학생 점수 / 반 평균 / 반 최고
-  const inRange = examsOfCat.filter(e => {
-    const d = (e.start_at ?? '').slice(0, 10)
-    return d >= from && d <= to
-  })
-  const inRangeIds  = inRange.map(e => e.id)
-  const inRangeFull = inRangeIds.reduce((a, id) => a + (fullOf[id] ?? 0), 0)
   const sumFor = (sid: string, ids: string[]) => {
     let sum = 0, any = false
     for (const id of ids) {
@@ -143,9 +137,48 @@ export async function GET(req: NextRequest) {
     }
     return any ? Math.round(sum * 100) / 100 : null
   }
-  const periodSums = studentIds.map(sid => sumFor(sid, inRangeIds)).filter((v): v is number => v !== null)
-  const periodAvg = periodSums.length ? Math.round((periodSums.reduce((a, b) => a + b, 0) / periodSums.length) * 10) / 10 : null
-  const periodMax = periodSums.length ? Math.max(...periodSums) : null
+
+  // 시험 묶음 하나(= 같은 날 같은 종류)에 대한 본인·반평균·반최고·만점
+  function rowFor(ids: string[], label: string) {
+    const full = ids.reduce((a, id) => a + (fullOf[id] ?? 0), 0)
+    const all  = studentIds.map(sid => sumFor(sid, ids)).filter((v): v is number => v !== null)
+    return {
+      label,
+      ids,
+      full: full > 0 ? Math.round(full * 100) / 100 : null,
+      avg: all.length ? Math.round((all.reduce((a, b) => a + b, 0) / all.length) * 10) / 10 : null,
+      max: all.length ? Math.max(...all) : null,
+    }
+  }
+
+  // 기간 안에 데이터가 있는 종류만, 종류별로 줄을 만든다.
+  // sumCategory 는 기간 전체를 한 줄로 합치고, 나머지는 시험 본 날짜마다 한 줄.
+  const DAYS = ['일', '월', '화', '수', '목', '금', '토']
+  const dayLabel = (d: string) => {
+    const dt = new Date(d + 'T00:00:00')
+    return `${dt.getMonth() + 1}/${dt.getDate()}(${DAYS[dt.getDay()]})`
+  }
+  const scoreBlocks = categories.map(cat => {
+    const inRange = (allExams ?? []).filter(e => {
+      if ((e.category ?? '').trim() !== cat) return false
+      const d = (e.start_at ?? '').slice(0, 10)
+      return d >= from && d <= to
+    })
+    if (inRange.length === 0) return null
+
+    const byDay: Record<string, string[]> = {}
+    for (const e of inRange) (byDay[(e.start_at ?? '').slice(0, 10)] ??= []).push(e.id)
+    const days = Object.keys(byDay).sort()
+
+    const rows = cat === sumCategory
+      ? [rowFor(inRange.map(e => e.id), days.length > 1 ? `기간 합산 (${inRange.length}회)` : dayLabel(days[0]))]
+      : days.map(d => rowFor(byDay[d], dayLabel(d)))
+
+    return { category: cat, mode: cat === sumCategory ? 'sum' : 'each', rows }
+  }).filter(Boolean) as { category: string; mode: string; rows: ReturnType<typeof rowFor>[] }[]
+
+  // 그래프에 쓸 종류의 시험 (과거분 포함)
+  const examsOfCat = (allExams ?? []).filter(e => (e.category ?? '').trim() === category)
 
   // ── 추이 그래프: 종료일까지의 최근 N회를 날짜별로 묶어 100점 환산
   const byDate: Record<string, string[]> = {}
@@ -188,13 +221,15 @@ export async function GET(req: NextRequest) {
       date: c.date, name: c.name || '클리닉',
       status: clBy[st.id]?.[c.id] ?? null,
     })),
-    exam: {
-      my: sumFor(st.id, inRangeIds),
-      avg: periodAvg,
-      max: periodMax,
-      full: inRangeFull > 0 ? Math.round(inRangeFull * 100) / 100 : null,
-      count: inRange.length,
-    },
+    // 종류별 점수 — 기간 안에 데이터가 있는 종류만 들어온다
+    scores: scoreBlocks.map(b => ({
+      category: b.category,
+      mode: b.mode,
+      rows: b.rows.map(r => ({
+        label: r.label, my: sumFor(st.id, r.ids),
+        avg: r.avg, max: r.max, full: r.full,
+      })),
+    })),
     chart: chartMeta.map(m => ({
       date: m.date,
       mine: (() => {
@@ -208,7 +243,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     className: cls.name,
-    teachers, categories, from, to, category,
+    teachers, categories, from, to, category, sumCategory,
     students: payload,
   })
 }

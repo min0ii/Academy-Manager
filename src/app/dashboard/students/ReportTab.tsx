@@ -30,7 +30,8 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
   const [classId, setClassId] = useState('')
   const [from, setFrom] = useState(iso(weekAgo))
   const [to, setTo]     = useState(iso(today))
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState('')          // 추이 그래프에 쓸 종류
+  const [sumCategory, setSumCategory] = useState('예제 점수')   // 기간 합산으로 묶을 종류
   const [teacherName, setTeacherName] = useState('')
 
   const [data, setData] = useState<ReportData | null>(null)
@@ -57,7 +58,7 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
       const token = session?.access_token
       if (!token) { void showAlert('로그인이 만료됐어요.\n다시 로그인해 주세요.'); return }
       const cat = opts?.category ?? category
-      const qs = new URLSearchParams({ classId, from, to, category: cat })
+      const qs = new URLSearchParams({ classId, from, to, category: cat, sumCategory })
       const res = await fetch(`/api/report?${qs}`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -81,7 +82,7 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
     } finally {
       setLoading(false)
     }
-  }, [classId, from, to, category, teacherName, showAlert])
+  }, [classId, from, to, category, sumCategory, teacherName, showAlert])
 
   const current = data?.students.find(s => s.id === selected) ?? null
   useEffect(() => { setComment(current?.comment ?? ''); setCommentSaved(false) }, [current?.id, current?.comment])
@@ -200,12 +201,21 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
             <input type="date" value={to} onChange={e => setTo(e.target.value)}
               className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </label>
-          <label className="block col-span-2">
-            <span className="text-xs font-semibold text-slate-500">점수에 쓸 시험 종류</span>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">그래프에 그릴 종류</span>
             <select value={category} onChange={e => { setCategory(e.target.value); void load({ category: e.target.value }) }}
               className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
               {(data?.categories ?? []).map(c => <option key={c} value={c}>{c}</option>)}
               {!data?.categories?.length && <option value="">{data ? '이 반에 시험이 없어요' : '불러오는 중'}</option>}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">기간 합산할 종류</span>
+            <select value={sumCategory} onChange={e => setSumCategory(e.target.value)}
+              className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">합산 안 함</option>
+              {(data?.categories ?? []).map(c => <option key={c} value={c}>{c}</option>)}
+              {!data && <option value="예제 점수">예제 점수</option>}
             </select>
           </label>
         </div>

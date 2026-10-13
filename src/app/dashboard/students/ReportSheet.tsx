@@ -15,7 +15,11 @@ export type ReportStudent = {
   attendance: { date: string; status: string | null }[]
   homework:   { date: string; title: string; status: string | null }[]
   clinics:    { date: string; name: string; status: string | null }[]
-  exam: { my: number | null; avg: number | null; max: number | null; full: number | null; count: number }
+  scores: {
+    category: string
+    mode: string                       // 'sum' = 기간 합산 한 줄, 'each' = 시험 본 날마다 한 줄
+    rows: { label: string; my: number | null; avg: number | null; max: number | null; full: number | null }[]
+  }[]
   chart: { date: string; mine: number | null; classAvg: number | null }[]
   comment: string
 }
@@ -91,6 +95,9 @@ export default function ReportSheet({
   to: string
 }) {
   const attRows = fold(student.attendance, 3)
+  // 줄이 딱 하나면 원본 리포트와 똑같은 세로 3칸 표를 쓴다
+  const totalRows = student.scores.reduce((a, b) => a + b.rows.length, 0)
+  const onlyRow = totalRows === 1 ? student.scores[0].rows[0] : null
   const hwRows  = fold(student.homework, 2)
   const chartData = student.chart.map(p => ({
     name: dShort(p.date),
@@ -157,22 +164,52 @@ export default function ReportSheet({
       {/* ── 점수 + 클리닉 ── */}
       <div style={{ display: 'flex', gap: 26, marginTop: 22 }}>
         <div style={{ flex: 1 }}>
-          <SectionTitle>{scoreTitle(category)}</SectionTitle>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <tbody>
-              <tr>
-                <th style={{ ...th, width: '42%' }}>학생 점수</th>
-                <td style={{ ...td, fontWeight: 700, fontSize: 13 }}>
-                  {student.exam.my !== null ? `${student.exam.my}점` : '응시 없음'}
-                  {student.exam.full ? <span style={{ color: '#94a3b8', fontWeight: 500 }}> / {student.exam.full}점</span> : null}
-                </td>
-              </tr>
-              <tr><th style={{ ...th }}>반 평균 점수</th><td style={td}>{student.exam.avg !== null ? `${student.exam.avg}점` : '-'}</td></tr>
-              <tr><th style={{ ...th }}>반 최고 점수</th><td style={td}>{student.exam.max !== null ? `${student.exam.max}점` : '-'}</td></tr>
-            </tbody>
-          </table>
-          {student.exam.count > 1 && (
-            <p style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 5 }}>※ 기간 내 {student.exam.count}회 합산</p>
+          <SectionTitle>{onlyRow ? scoreTitle(student.scores[0].category) : '시험 점수'}</SectionTitle>
+          {student.scores.length === 0 ? (
+            <p style={{ fontSize: 12, color: '#94a3b8', padding: '8px 2px' }}>이 기간에 시험이 없어요.</p>
+          ) : onlyRow ? (
+            /* 한 종류 한 줄이면 원래 쓰시던 세로 형태 그대로 */
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <th style={{ ...th, width: '42%' }}>학생 점수</th>
+                  <td style={{ ...td, fontWeight: 700, fontSize: 13 }}>
+                    {onlyRow.my !== null ? `${onlyRow.my}점` : '응시 없음'}
+                    {onlyRow.full ? <span style={{ color: '#94a3b8', fontWeight: 500 }}> / {onlyRow.full}점</span> : null}
+                  </td>
+                </tr>
+                <tr><th style={th}>반 평균 점수</th><td style={td}>{onlyRow.avg !== null ? `${onlyRow.avg}점` : '-'}</td></tr>
+                <tr><th style={th}>반 최고 점수</th><td style={td}>{onlyRow.max !== null ? `${onlyRow.max}점` : '-'}</td></tr>
+              </tbody>
+            </table>
+          ) : (
+            /* 두 줄 이상이면 종류별로 쌓아서 보여준다 */
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...th, width: '46%' }}>종류</th>
+                  <th style={{ ...th, width: '22%' }}>학생</th>
+                  <th style={{ ...th, width: '16%' }}>반 평균</th>
+                  <th style={{ ...th, width: '16%' }}>반 최고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {student.scores.flatMap(b => b.rows.map((r, ri) => (
+                  <tr key={`${b.category}-${ri}`}>
+                    <td style={{ ...td, textAlign: 'left', fontSize: 11 }}>
+                      <span style={{ fontWeight: 600 }}>{b.category}</span>
+                      <span style={{ color: '#94a3b8' }}> · {r.label}</span>
+                    </td>
+                    <td style={{ ...td, fontWeight: 700 }}>
+                      {r.my !== null ? r.my : '-'}
+                      {r.full ? <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: 10.5 }}>/{r.full}</span> : null}
+                    </td>
+                    <td style={td}>{r.avg !== null ? r.avg : '-'}</td>
+                    <td style={td}>{r.max !== null ? r.max : '-'}</td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
           )}
         </div>
 
