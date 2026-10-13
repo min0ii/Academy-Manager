@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Users, LayoutGrid,
-  BarChart2, BookOpen, MessageSquare, Settings, LogOut, Menu, X, UsersRound,
+  BarChart2, BookOpen, Settings, LogOut, Menu, X, UsersRound,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
@@ -17,7 +17,6 @@ const NAV = [
   { href: '/dashboard/classes', label: '수업 관리', icon: LayoutGrid },
   { href: '/dashboard/grades', label: '성적 관리', icon: BarChart2 },
   { href: '/dashboard/homework', label: '과제·클리닉', icon: BookOpen },
-  { href: '/dashboard/comments', label: '코멘트', icon: MessageSquare },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

@@ -8,13 +8,13 @@ import { PageLoading, ListSkeleton, RowsSkeleton } from '@/components/Skeleton'
 import {
   Home, Calendar, BarChart2, LogOut,
   GraduationCap, User, ChevronLeft, ChevronRight,
-  KeyRound, Eye, EyeOff, X, Check, MessageSquare, ClipboardList, Settings, ShieldQuestion, Clock,
+  KeyRound, Eye, EyeOff, X, Check, ClipboardList, Settings, ShieldQuestion, Clock,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts'
 
-type Tab = 'home' | 'attendance' | 'grades' | 'homework-clinic' | 'comments' | 'settings'
+type Tab = 'home' | 'attendance' | 'grades' | 'homework-clinic' | 'settings'
 type HwClinicSub = 'homework' | 'clinic'
 
 type StudentInfo = {
@@ -46,7 +46,6 @@ type HomeworkRecord = {
   due_date: string | null; description: string | null
   status: 'done' | 'partial' | 'none' | null; note?: string | null
 }
-type CommentRecord = { id: string; date: string; content: string }
 type ChildContext = {
   student: StudentInfo
   classInfo: ClassInfo | null
@@ -124,10 +123,6 @@ export default function ParentPage() {
   const [clinicLoaded, setClinicLoaded] = useState(false)
   const [clinicLoading, setClinicLoading] = useState(false)
 
-  // 코멘트
-  const [commentList, setCommentList]       = useState<CommentRecord[]>([])
-  const [commentsLoaded, setCommentsLoaded] = useState(false)
-  const [commentsLoading, setCommentsLoading] = useState(false)
 
   // 더보기
   const [showAllAttend, setShowAllAttend]     = useState(false)
@@ -161,7 +156,6 @@ export default function ParentPage() {
       if (hwClinicSub === 'homework' && !hwLoaded)     loadHomework()
       if (hwClinicSub === 'clinic'   && !clinicLoaded) loadClinics()
     }
-    if (tab === 'comments' && !commentsLoaded && student) loadComments()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, hwClinicSub, student, classInfo])
 
@@ -207,7 +201,6 @@ export default function ParentPage() {
 
   // 선택된 자녀의 모든 탭 데이터를 미리(병렬) 받아둠
   function prefetchTabs(ctx: ChildContext) {
-    loadComments(ctx)
     if (!ctx.classInfo) return
     loadAttendance(ctx)
     loadGrades(ctx)
@@ -228,7 +221,6 @@ export default function ParentPage() {
     setGradesLoaded(false); setTests([])
     setHwLoaded(false); setHomeworks([])
     setClinicLoaded(false); setClinics([])
-    setCommentsLoaded(false); setCommentList([])
     setExpandedHwId(null)
     setExpandedNotes(new Set())
     setShowAllAttend(false); setShowAllGrades(false)
@@ -300,16 +292,6 @@ export default function ParentPage() {
     setClinics(json.records ?? []); setClinicLoading(false)
   }
 
-  async function loadComments(ovr?: ChildContext) {
-    const s = ovr?.student ?? student
-    if (!s) return
-    setCommentsLoaded(true); setCommentsLoading(true)
-    const token = await getToken(); if (!token) { setCommentsLoading(false); return }
-    const res = await fetch(`/api/grades?action=parent-comments&studentId=${s.id}`,
-      { headers: { Authorization: `Bearer ${token}` } })
-    const json = await res.json()
-    setCommentList(json.records ?? []); setCommentsLoading(false)
-  }
 
   async function handleChangePw(e: React.FormEvent) {
     e.preventDefault(); setPwError('')
@@ -436,7 +418,6 @@ export default function ParentPage() {
     { key: 'attendance',     label: '출석',     Icon: Calendar },
     { key: 'grades',         label: '성적',     Icon: BarChart2 },
     { key: 'homework-clinic',label: '과제·클리닉', Icon: ClipboardList },
-    { key: 'comments',       label: '코멘트',   Icon: MessageSquare },
     { key: 'settings',       label: '설정',     Icon: Settings },
   ]
 
@@ -445,7 +426,6 @@ export default function ParentPage() {
     tab === 'attendance'      ? (attendLoaded && !attendLoading) :
     tab === 'grades'          ? (gradesLoaded && !gradesLoading) :
     tab === 'homework-clinic' ? (hwClinicSub === 'homework' ? (hwLoaded && !hwLoading) : (clinicLoaded && !clinicLoading)) :
-    tab === 'comments'        ? (commentsLoaded && !commentsLoading) :
     true
 
   if (loading) return (
@@ -1086,36 +1066,6 @@ export default function ParentPage() {
           </>
         )}
 
-        {/* ── 코멘트 ── */}
-        {tab === 'comments' && (
-          <>
-            {!student ? <NoClass /> : commentsLoading ? (
-              <ListSkeleton cards={2} rows={3} />
-            ) : (
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-                  <MessageSquare size={16} className="text-violet-500" />
-                  <h2 className="font-bold text-slate-800 text-sm">선생님 코멘트</h2>
-                </div>
-                {commentList.length === 0 ? (
-                  <div className="px-5 py-12 text-center">
-                    <MessageSquare size={32} className="mx-auto text-slate-200 mb-3" />
-                    <p className="text-slate-400 text-sm">아직 작성된 코멘트가 없어요</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {commentList.map(c => (
-                      <div key={c.id} className="px-5 py-4 space-y-1.5">
-                        <span className="text-xs text-slate-400">{c.date.replace(/-/g,'. ')}</span>
-                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{c.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
         {/* ── 설정 ── */}
         {tab === 'settings' && (
           <div className="space-y-4">

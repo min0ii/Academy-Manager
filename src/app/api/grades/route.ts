@@ -208,31 +208,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ records })
   }
 
-  // ── 학부모 코멘트 ──
-  if (action === 'parent-comments') {
-    const studentId = searchParams.get('studentId')
-    if (!studentId) return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
-
-    const ok = await verifyParent(db, token, studentId)
-    if (!ok) return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
-
-    const { data: commentRows, error: commentErr } = await db
-      .from('comments')
-      .select('id, date, content')
-      .eq('student_id', studentId)
-      .order('date', { ascending: false })
-
-    if (commentErr) return NextResponse.json({ error: commentErr.message }, { status: 400 })
-
-    const records = (commentRows ?? []).map((c: any) => ({
-      id:      c.id,
-      date:    c.date,
-      content: c.content,
-    }))
-
-    return NextResponse.json({ records })
-  }
-
   // ── 학부모 과제 ──
   if (action === 'parent-homework') {
     const classId   = searchParams.get('classId')
