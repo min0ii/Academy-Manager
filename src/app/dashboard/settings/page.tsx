@@ -7,6 +7,7 @@ import {
   Building2, User, Check, X,
   Eye, EyeOff, Loader2, Camera, ShieldQuestion, Sparkles, Heart,
   Zap, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw, GripVertical, AlertTriangle,
+  Download, FileSpreadsheet,
 } from 'lucide-react'
 import { useDialog } from '@/components/AppDialog'
 
@@ -141,7 +142,8 @@ export default function SettingsPage() {
   const [examCategories, setExamCategories]       = useState<string[]>([])
   const [resettingAllLives, setResettingAllLives] = useState(false)
 
-  const { showConfirm, dialog } = useDialog()
+  const { showAlert, showConfirm, dialog } = useDialog()
+  const [exporting, setExporting] = useState(false)
 
   // 코멘트 공개 설정
   type CommentVis = { attStudent: boolean; attParent: boolean; hwStudent: boolean; hwParent: boolean; clinicStudent: boolean; clinicParent: boolean; examStudent: boolean; examParent: boolean }
@@ -232,6 +234,42 @@ export default function SettingsPage() {
       .not('category', 'is', null)
     const cats = [...new Set((exams ?? []).map(e => e.category).filter(Boolean))] as string[]
     setExamCategories(cats)
+  }
+
+  // 학원 전체 기록을 엑셀 한 파일로 내려받는다.
+  // 토큰이 필요해서 <a href> 로는 안 되고, 받아온 다음 blob 으로 저장한다.
+  async function exportAll() {
+    setExporting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { void showAlert('로그인이 만료됐어요.\n다시 로그인해 주세요.'); return }
+
+      const res = await fetch('/api/export', { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        void showAlert(err.error ?? '내보내지 못했어요.\n잠시 후 다시 시도해 주세요.')
+        return
+      }
+
+      // 서버가 보낸 한글 파일명을 그대로 쓴다
+      const cd = res.headers.get('Content-Disposition') ?? ''
+      const m  = /filename\*=UTF-8''([^;]+)/.exec(cd)
+      const name = m ? decodeURIComponent(m[1]) : `기록_${new Date().toISOString().slice(0, 10)}.xlsx`
+
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      void showAlert('내보내지 못했어요.\n인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+    } finally {
+      setExporting(false)
+    }
   }
 
   async function resetAllLives() {
@@ -692,6 +730,33 @@ export default function SettingsPage() {
               <p className="text-xs text-slate-400 mt-1.5">학원 정보는 원장만 수정할 수 있어요</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── 기록 내보내기 카드 ── */}
+      {tab === 'academy' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet size={17} className="text-emerald-600" />
+            <h2 className="font-bold text-slate-800">기록 내보내기</h2>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            학원의 모든 기록을 엑셀 파일 하나로 내려받아요.
+            학생 명단·반·출결·과제·클리닉·시험 점수·문항별 답안·목숨 내역이
+            시트별로 나뉘어 담기고, 번호 대신 <span className="font-medium text-slate-500">이름으로</span> 들어가서 바로 읽을 수 있어요.
+          </p>
+          <button
+            onClick={exportAll}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          >
+            {exporting
+              ? <><Loader2 size={15} className="animate-spin" /> 파일 만드는 중...</>
+              : <><Download size={15} /> 엑셀로 내보내기</>}
+          </button>
+          {exporting && (
+            <p className="text-xs text-slate-400">기록이 많으면 20~30초 걸릴 수 있어요. 이 화면을 닫지 말아 주세요.</p>
+          )}
         </div>
       )}
 
