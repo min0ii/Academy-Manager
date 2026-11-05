@@ -56,6 +56,7 @@ type ExamResultQuestion = {
 type ExamResultChoice = { question_id: string; choice_num: number; choice_text: string | null }
 type ExamResultAnswer = { question_id: string; student_answer: string | null; is_correct: boolean | null; score_earned: number | null }
 type ExamResultCorrect = { question_id: string; answer_text: string; order_num: number }
+type ExamResultQStat   = { question_id: string; total: number; correct: number }
 type ExamResult = {
   examType: string; title: string; maxScore: number | null; myScore: number | null
   isAbsent: boolean; answerReveal: string; canReveal: boolean
@@ -63,6 +64,7 @@ type ExamResult = {
   choices: ExamResultChoice[]
   myAnswers: ExamResultAnswer[]
   correctAnswers: ExamResultCorrect[]
+  questionStats?: ExamResultQStat[]
 }
 type ExamInquiryReply = { id: string; body: string; created_at: string; teacher_id: string; teacherName: string }
 type ExamInquiry = {
@@ -119,6 +121,20 @@ const HW_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   partial: { label: '오답(완벽) 완료', color: 'text-teal-700', bg: 'bg-teal-50 ring-1 ring-teal-300' },
   done:    { label: '완료',    color: 'text-emerald-700', bg: 'bg-emerald-50' },
   none:    { label: '미완료',  color: 'text-red-700',     bg: 'bg-red-50' },
+}
+
+// 문항별 반 정답률 — 제출한 학생 중 몇 명이 맞혔는지.
+// 답을 안 쓴 문항은 오답으로 잡힌다 (선생님 화면의 문항 분석과 같은 기준).
+function QuestionRate({ stat }: { stat?: ExamResultQStat }) {
+  if (!stat || stat.total === 0) return null
+  const rate = Math.round((stat.correct / stat.total) * 100)
+  const color = rate >= 70 ? 'text-emerald-600' : rate >= 40 ? 'text-amber-600' : 'text-red-500'
+  return (
+    <p className="text-xs text-slate-500 mt-1.5">
+      반 정답률 <span className={`font-bold ${color}`}>{rate}%</span>
+      <span className="text-slate-400"> · {stat.total}명 중 {stat.correct}명</span>
+    </p>
+  )
 }
 
 export default function StudentPage() {
@@ -1615,6 +1631,7 @@ export default function StudentPage() {
                                   : '미제출'}
                               </span>
                             </p>
+                            <QuestionRate stat={examResultModal.questionStats?.find(st => st.question_id === q.id)} />
                             {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
                             {(() => {
                               const qInqs = examInquiries.filter(i => i.question_id === q.id)
@@ -1709,6 +1726,7 @@ export default function StudentPage() {
                                 <p className="text-emerald-700">정답: <span className="font-semibold">{correctList.map(c => c.answer_text).join(' / ')}</span></p>
                               </div>
                             )}
+                            <QuestionRate stat={examResultModal.questionStats?.find(st => st.question_id === q.id)} />
                             {/* 문제별 질문 — 기존 Q&A가 있거나 입력 중일 때만 표시 */}
                             {(() => {
                               const qInqs = examInquiries.filter(i => i.question_id === q.id)

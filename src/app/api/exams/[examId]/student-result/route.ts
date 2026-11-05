@@ -157,8 +157,28 @@ export async function GET(
     }
   }
 
+  // 문항별 반 정답률 — 분모는 제출자 수(결시·포기 제외).
+  // 선생님 화면의 문항 분석과 같은 기준이라 두 화면 숫자가 어긋나지 않는다.
+  // 답을 안 쓴 문항은 오답으로 잡힌다.
+  const { data: classSubs } = await db.from('exam_submissions')
+    .select('id').eq('exam_id', examId).eq('is_submitted', true).eq('is_forfeited', false)
+  const classSubIds = (classSubs ?? []).map((r: any) => r.id)
+  const { data: classAnswers } = (classSubIds.length && questionIds.length)
+    ? await db.from('exam_student_answers')
+        .select('question_id, is_correct').in('submission_id', classSubIds)
+    : { data: [] as any[] }
+  const correctOf: Record<string, number> = {}
+  for (const a of (classAnswers ?? []) as any[])
+    if (a.is_correct === true) correctOf[a.question_id] = (correctOf[a.question_id] ?? 0) + 1
+  const questionStats = questionIds.map(id => ({
+    question_id: id,
+    total: classSubIds.length,
+    correct: correctOf[id] ?? 0,
+  }))
+
   return NextResponse.json({
     examType: 'auto',
+    questionStats,
     noDeadline: exam.no_deadline ?? false,
     title: exam.title,
     maxScore,
