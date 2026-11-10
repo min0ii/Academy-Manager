@@ -149,6 +149,22 @@ export async function GET(req: NextRequest) {
   const teachers = await fetchAll((f, t) => db.from('academy_teachers')
     .select('role, title, profiles(name, phone)').eq('academy_id', academyId).range(f, t))
 
+  // ── 8. 문제은행 (정답표)
+  const qbFolders = await fetchAll((f, t) => db.from('qb_folders')
+    .select('id, name, parent_id').eq('academy_id', academyId).range(f, t))
+  const qbSets = await fetchAll((f, t) => db.from('qb_sets')
+    .select('id, folder_id, title, order_num').eq('academy_id', academyId).order('order_num').range(f, t))
+  const setIds = qbSets.map(x => x.id)
+  const qbQuestions = setIds.length ? await fetchAllIn(setIds, (p, f, t) =>
+    db.from('qb_questions')
+      .select('id, set_id, order_num, question_label, custom_label, question_type, score')
+      .in('set_id', p).range(f, t)) : []
+  const qIds = qbQuestions.map(q => q.id)
+  const qbAnswers = qIds.length ? await fetchAllIn(qIds, (p, f, t) =>
+    db.from('qb_answers').select('question_id, answer_text, order_num').in('question_id', p).range(f, t)) : []
+  const qbChoices = qIds.length ? await fetchAllIn(qIds, (p, f, t) =>
+    db.from('qb_choices').select('question_id, choice_num, choice_text').in('question_id', p).range(f, t)) : []
+
   // ──────────────────────────── 엑셀 만들기
   const wb = new ExcelJS.Workbook()
   wb.created = new Date()
@@ -295,6 +311,60 @@ export async function GET(req: NextRequest) {
     ]),
     [12, 16, 10, 16])
 
+  // 문제은행 정답표
+  const folderOf: Record<string, any> = {}
+  for (const f of qbFolders) folderOf[f.id] = f
+  // 폴더는 중첩될 수 있어 위로 거슬러 올라가며 '대수 뿌리 > 지수와 로그' 처럼 만든다
+  const folderPath = (id: string | null) => {
+    const parts: string[] = []
+    let cur = id ? folderOf[id] : null
+    for (let guard = 0; cur && guard < 10; guard++) {
+      parts.unshift(cur.name)
+      cur = cur.parent_id ? folderOf[cur.parent_id] : null
+    }
+    return parts.join(' > ')
+  }
+  const setOf: Record<string, any> = {}
+  for (const x of qbSets) setOf[x.id] = x
+  const ansOf: Record<string, any[]> = {}
+  for (const a of qbAnswers) (ansOf[a.question_id] ??= []).push(a)
+  for (const k of Object.keys(ansOf)) ansOf[k].sort((a, b) => (a.order_num ?? 0) - (b.order_num ?? 0))
+  // 객관식 정답은 번호로만 저장돼 있어서 보기 내용을 붙여 준다 ('3번 (x=2)')
+  const choiceText: Record<string, string> = {}
+  for (const c of qbChoices) choiceText[`${c.question_id}:${c.choice_num}`] = c.choice_text ?? ''
+
+  const qbRows = qbQuestions
+    .filter(q => q.question_type !== 'group')
+    .map(q => {
+      const st = setOf[q.set_id]
+      const isMC = q.question_type === 'multiple_choice'
+      const answer = (ansOf[q.id] ?? []).map(a => {
+        if (!isMC) return a.answer_text
+        const txt = choiceText[`${q.id}:${a.answer_text}`]
+        return txt ? `${a.answer_text}번 (${txt})` : `${a.answer_text}번`
+      }).join(' / ')
+      return {
+        folder: (st ? folderPath(st.folder_id) : '') || '(단원 없음)',
+        setTitle: st?.title ?? '',
+        setOrder: st?.order_num ?? 0,
+        label: q.custom_label ?? q.question_label ?? String(q.order_num ?? ''),
+        order: q.order_num ?? 0,
+        type: isMC ? '객관식' : '주관식',
+        score: q.score ?? '',
+        answer: answer || '(정답 없음)',
+      }
+    })
+    .sort((a, b) =>
+      a.folder.localeCompare(b.folder, 'ko') ||
+      (a.setOrder - b.setOrder) ||
+      a.setTitle.localeCompare(b.setTitle, 'ko') ||
+      (a.order - b.order))
+
+  sheet('문제은행 정답',
+    ['단원(폴더)', '문제집', '번호', '유형', '배점', '정답'],
+    qbRows.map(r => [r.folder, r.setTitle, r.label, r.type, r.score, r.answer]),
+    [26, 34, 8, 8, 8, 44])
+
   // 요약 — 맨 앞에 만들어 둔 시트를 이제 채운다
   fill(summaryWs,
     ['항목', '건수'],
@@ -314,6 +384,8 @@ export async function GET(req: NextRequest) {
       ['문항별 답안', answers.length],
       ['목숨 내역', livesLog.length],
       ['선생님', teachers.length],
+      ['문제은행 문제집', qbSets.length],
+      ['문제은행 문항(정답표)', qbRows.length],
     ],
     [20, 40], false)
 
