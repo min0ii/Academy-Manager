@@ -645,7 +645,9 @@ export default function StudentsPage() {
       s.name.includes(search) ||
       (s.school_name ?? '').includes(search) ||
       gradeLabel(s.grade).includes(search) ||
-      s.phone.includes(search.replace(/-/g, ''))
+      s.phone.includes(search.replace(/-/g, '')) ||
+      // 목록에 학부모 번호도 보이므로 그 번호로도 찾을 수 있어야 한다
+      (s.parent_phone ?? '').includes(search.replace(/-/g, ''))
     )
   })
 

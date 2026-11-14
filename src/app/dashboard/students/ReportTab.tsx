@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { dbErrorMessage } from '@/lib/db-error'
 import { useDialog } from '@/components/AppDialog'
 import ReportSheet, { SHEET_WIDTH, type ReportStudent } from './ReportSheet'
-import { Download, Package, RefreshCw, FileImage, Check } from 'lucide-react'
+import { Download, Package, RefreshCw, FileImage, Check, Users } from 'lucide-react'
 
 type Cls = { id: string; name: string }
 type Teacher = { id: string; name: string; title: string }
@@ -41,6 +41,10 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
   const [comment, setComment] = useState('')
   const [savingComment, setSavingComment] = useState(false)
   const [commentSaved, setCommentSaved] = useState(false)
+  // 일괄 입력 — 한 화면에서 전원 코멘트를 쓰고 한 번에 저장
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkDrafts, setBulkDrafts] = useState<Record<string, string>>({})
+  const [bulkSaving, setBulkSaving] = useState<string | null>(null)
 
   const [busy, setBusy] = useState<string | null>(null)   // 진행 상황 문구
   const captureRef = useRef<HTMLDivElement>(null)
@@ -87,26 +91,65 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
   const current = data?.students.find(s => s.id === selected) ?? null
   useEffect(() => { setComment(current?.comment ?? ''); setCommentSaved(false) }, [current?.id, current?.comment])
 
-  // ── 코멘트 저장
+  // ── 코멘트 저장 (한 명) — 기간 안에 이미 쓴 게 있으면 그걸 고치고, 없으면 새로 넣는다
+  async function writeComment(studentId: string, content: string, teacherId: string | null) {
+    const { data: exist } = await supabase.from('comments')
+      .select('id').eq('student_id', studentId).gte('date', from).lte('date', to)
+      .order('date', { ascending: false }).limit(1).maybeSingle()
+    return exist?.id
+      ? await supabase.from('comments').update({ content }).eq('id', exist.id)
+      : await supabase.from('comments').insert({ student_id: studentId, teacher_id: teacherId, date: to, content })
+  }
+
   async function saveComment() {
     if (!current) return
     setSavingComment(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: exist } = await supabase.from('comments')
-        .select('id').eq('student_id', current.id).gte('date', from).lte('date', to)
-        .order('date', { ascending: false }).limit(1).maybeSingle()
-
-      const { error } = exist?.id
-        ? await supabase.from('comments').update({ content: comment }).eq('id', exist.id)
-        : await supabase.from('comments').insert({
-            student_id: current.id, teacher_id: user?.id ?? null, date: to, content: comment,
-          })
+      const { error } = await writeComment(current.id, comment, user?.id ?? null)
       if (error) { void showAlert(dbErrorMessage(error, '저장')); return }
-
       setData(d => d ? { ...d, students: d.students.map(s => s.id === current.id ? { ...s, comment } : s) } : d)
       setCommentSaved(true)
     } finally { setSavingComment(false) }
+  }
+
+  // ── 코멘트 일괄 저장 — 내용이 바뀐 학생만 보낸다
+  async function saveAllComments() {
+    if (!data) return
+    const targets = data.students.filter(st => (bulkDrafts[st.id] ?? st.comment) !== st.comment)
+    if (targets.length === 0) { void showAlert('바뀐 코멘트가 없어요.'); return }
+
+    setBulkSaving('저장 준비 중...')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const done: Record<string, string> = {}
+      let failed = 0
+      // 한 번에 5명씩 — 54명이어도 금방 끝나고 요청이 몰리지도 않는다
+      for (let i = 0; i < targets.length; i += 5) {
+        const part = targets.slice(i, i + 5)
+        setBulkSaving(`${Math.min(i + part.length, targets.length)} / ${targets.length}명 저장 중...`)
+        const results = await Promise.all(part.map(async st => {
+          const content = bulkDrafts[st.id] ?? ''
+          const { error } = await writeComment(st.id, content, user?.id ?? null)
+          return { id: st.id, content, error }
+        }))
+        for (const r of results) {
+          if (r.error) failed++
+          else done[r.id] = r.content
+        }
+      }
+      setData(d => d ? { ...d, students: d.students.map(st => st.id in done ? { ...st, comment: done[st.id] } : st) } : d)
+      if (failed > 0) void showAlert(`${targets.length}명 중 ${failed}명은 저장하지 못했어요.\n다시 시도해 주세요.`)
+    } finally { setBulkSaving(null) }
+  }
+
+  // 일괄 입력 패널을 열 때 저장된 코멘트로 초기값을 채운다
+  function openBulk() {
+    if (!data) return
+    const init: Record<string, string> = {}
+    for (const st of data.students) init[st.id] = st.comment ?? ''
+    setBulkDrafts(init)
+    setBulkOpen(true)
   }
 
   // ── 한 학생을 숨겨둔 영역에 그려서 PNG 로 뽑는다
@@ -256,21 +299,70 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
             {busy && <p className="text-xs font-semibold text-blue-600">{busy}</p>}
           </div>
 
-          {/* ── 코멘트 ── */}
-          {current && (
+          {/* ── 코멘트 (한 명) ── */}
+          {current && !bulkOpen && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-700">{current.name} 코멘트</p>
-                <button onClick={() => void saveComment()} disabled={savingComment}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                    commentSaved ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-600 text-white hover:bg-blue-700'
-                  } disabled:opacity-50`}>
-                  {commentSaved ? <><Check size={13} /> 저장됨</> : savingComment ? '저장 중...' : '코멘트 저장'}
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={openBulk}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                    <Users size={13} /> 전체 한 번에 쓰기
+                  </button>
+                  <button onClick={() => void saveComment()} disabled={savingComment}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      commentSaved ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-600 text-white hover:bg-blue-700'
+                    } disabled:opacity-50`}>
+                    {commentSaved ? <><Check size={13} /> 저장됨</> : savingComment ? '저장 중...' : '코멘트 저장'}
+                  </button>
+                </div>
               </div>
               <textarea value={comment} onChange={e => { setComment(e.target.value); setCommentSaved(false) }}
                 rows={3} placeholder="학부모님께 전할 말씀을 적어 주세요."
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            </div>
+          )}
+
+          {/* ── 코멘트 일괄 입력 ── */}
+          {bulkOpen && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-700">코멘트 일괄 입력</p>
+                  <p className="text-xs text-slate-400 mt-0.5">쓴 내용이 바뀐 학생만 저장돼요.</p>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => setBulkOpen(false)} disabled={!!bulkSaving}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">
+                    닫기
+                  </button>
+                  <button onClick={() => void saveAllComments()} disabled={!!bulkSaving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+                    <Check size={13} /> 전원 저장
+                  </button>
+                </div>
+              </div>
+              {bulkSaving && <p className="px-4 py-2 text-xs font-semibold text-blue-600 bg-blue-50">{bulkSaving}</p>}
+              <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto">
+                {data.students.map(st => {
+                  const draft = bulkDrafts[st.id] ?? ''
+                  const changed = draft !== (st.comment ?? '')
+                  return (
+                    <div key={st.id} className="flex items-start gap-3 px-4 py-2.5">
+                      <div className="w-20 flex-shrink-0 pt-2">
+                        <p className="text-sm font-medium text-slate-700 truncate">{st.name}</p>
+                        {changed && <span className="text-[10px] font-semibold text-amber-600">수정됨</span>}
+                      </div>
+                      <textarea value={draft}
+                        onChange={e => setBulkDrafts(prev => ({ ...prev, [st.id]: e.target.value }))}
+                        rows={2} placeholder="학부모님께 전할 말씀"
+                        className={`flex-1 px-3 py-2 rounded-xl border text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                          changed ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'
+                        }`} />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
