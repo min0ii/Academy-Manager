@@ -24,7 +24,11 @@ export type ReportStudent = {
   comment: string
 }
 
-export const SHEET_WIDTH = 800
+// A4 (210 x 297mm) 를 96dpi 로 환산한 크기.
+// 가로는 어떤 경우에도 고정이다 — 줄였다 늘렸다 하면 학생마다 사진 폭이 달라진다.
+// 세로는 최솟값이라, 내용이 짧으면 아래가 여백이 되고 아주 길어지면 그만큼만 늘어난다.
+export const SHEET_WIDTH  = 794
+export const SHEET_HEIGHT = 1123
 // 종이 폭 - 좌우 패딩(64) - 그래프 상자 테두리·패딩(22)
 const CHART_WIDTH = SHEET_WIDTH - 64 - 22
 
@@ -98,7 +102,6 @@ export default function ReportSheet({
   // 줄이 딱 하나면 원본 리포트와 똑같은 세로 3칸 표를 쓴다
   const totalRows = student.scores.reduce((a, b) => a + b.rows.length, 0)
   const onlyRow = totalRows === 1 ? student.scores[0].rows[0] : null
-  const hwRows  = fold(student.homework, 2)
   const chartData = student.chart.map(p => ({
     name: dShort(p.date),
     '학생 전체': p.classAvg,
@@ -107,7 +110,8 @@ export default function ReportSheet({
 
   return (
     <div style={{
-      width: SHEET_WIDTH, background: '#ffffff', padding: '28px 32px 32px',
+      width: SHEET_WIDTH, minHeight: SHEET_HEIGHT,
+      background: '#ffffff', padding: '28px 32px 32px',
       fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif",
       color: '#1e293b', boxSizing: 'border-box',
     }}>
@@ -255,48 +259,45 @@ export default function ReportSheet({
         </div>
       </div>
 
-      {/* ── 과제 + 코멘트 ── */}
-      <div style={{ display: 'flex', gap: 26, marginTop: 24 }}>
-        <div style={{ flex: 1 }}>
-          <SectionTitle>학생 과제이행 상황</SectionTitle>
-          {student.homework.length === 0 ? (
-            <p style={{ fontSize: 12, color: '#94a3b8', padding: '8px 2px' }}>이 기간에 과제가 없어요.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>{[0, 1].map(i => (
-                  <Fragment key={i}>
-                    <th style={{ ...th, width: '25%' }}>날짜</th>
-                    <th style={{ ...th, width: '25%' }}>과제 이행</th>
-                  </Fragment>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {hwRows.map((line, ri) => (
-                  <tr key={ri}>
-                    {line.map((cell, ci) => (
-                      <Fragment key={ci}>
-                        <td style={td}>{cell ? dShort(cell.date) : ''}</td>
-                        <td style={{ ...td, fontSize: 11, color: cell?.status ? (HW_COLOR[cell.status] ?? '#334155') : '#94a3b8', fontWeight: cell?.status ? 600 : 400 }}>
-                          {cell ? (cell.status ? (HW[cell.status] ?? cell.status) : '미기록') : ''}
-                        </td>
-                      </Fragment>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+      {/* ── 과제 ── */}
+      {/* 같은 날 과제를 두 개 이상 내는 경우가 많아, 날짜만 찍으면 중복으로 보인다.
+          과제명을 함께 넣고 한 칸으로 길게 배치한다 (과제명이 69자까지 길어진다). */}
+      <div style={{ marginTop: 24 }}>
+        <SectionTitle>학생 과제이행 상황</SectionTitle>
+        {student.homework.length === 0 ? (
+          <p style={{ fontSize: 12, color: '#94a3b8', padding: '8px 2px' }}>이 기간에 과제가 없어요.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, width: '15%' }}>날짜</th>
+                <th style={{ ...th, width: '62%' }}>과제</th>
+                <th style={{ ...th, width: '23%' }}>이행</th>
+              </tr>
+            </thead>
+            <tbody>
+              {student.homework.map((hwItem, i) => (
+                <tr key={i}>
+                  <td style={{ ...td, whiteSpace: 'nowrap' }}>{dShort(hwItem.date)}</td>
+                  <td style={{ ...td, textAlign: 'left', fontSize: 11, wordBreak: 'break-all' }}>{hwItem.title}</td>
+                  <td style={{ ...td, fontSize: 11, color: hwItem.status ? (HW_COLOR[hwItem.status] ?? '#334155') : '#94a3b8', fontWeight: hwItem.status ? 600 : 400 }}>
+                    {hwItem.status ? (HW[hwItem.status] ?? hwItem.status) : '미기록'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-        <div style={{ flex: 1 }}>
-          <SectionTitle>선생님 코멘트</SectionTitle>
-          <div style={{
-            border: '1px solid #cbd5e1', borderRadius: 4, padding: '12px 14px',
-            minHeight: 92, fontSize: 12, lineHeight: 1.75, color: '#334155', whiteSpace: 'pre-wrap',
-          }}>
-            {student.comment || <span style={{ color: '#cbd5e1' }}>코멘트가 없습니다.</span>}
-          </div>
+      {/* ── 코멘트 ── */}
+      <div style={{ marginTop: 22 }}>
+        <SectionTitle>선생님 코멘트</SectionTitle>
+        <div style={{
+          border: '1px solid #cbd5e1', borderRadius: 4, padding: '12px 14px',
+          minHeight: 72, fontSize: 12, lineHeight: 1.75, color: '#334155', whiteSpace: 'pre-wrap',
+        }}>
+          {student.comment || <span style={{ color: '#cbd5e1' }}>코멘트가 없습니다.</span>}
         </div>
       </div>
 
