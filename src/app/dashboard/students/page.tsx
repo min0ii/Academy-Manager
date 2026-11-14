@@ -840,7 +840,22 @@ export default function StudentsPage() {
                           {s.school_name && <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">{s.school_name}</span>}
                           <span className={`text-xs px-2 py-0.5 rounded-full ${isInactive ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>{gradeLabel(s.grade)}</span>
                         </div>
-                        <p className="text-sm text-slate-400">{formatPhone(s.phone)}{classList ? ` · ${classList}` : ''}</p>
+                        {/* 학생·학부모 번호를 나란히 — 어느 쪽인지 꼬리표로 구분한다 */}
+                        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-sm text-slate-500 mt-0.5">
+                          <span className="whitespace-nowrap">
+                            <span className={`text-[11px] font-bold rounded px-1.5 py-0.5 mr-1.5 ${isInactive ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-600'}`}>학생</span>
+                            {formatPhone(s.phone)}
+                          </span>
+                          {s.parent_phone && (
+                            <span className="whitespace-nowrap">
+                              <span className={`text-[11px] font-bold rounded px-1.5 py-0.5 mr-1.5 ${isInactive ? 'bg-slate-100 text-slate-400' : 'bg-violet-50 text-violet-600'}`}>
+                                학부모{s.parent_relation ? ` · ${s.parent_relation}` : ''}
+                              </span>
+                              {formatPhone(s.parent_phone)}
+                            </span>
+                          )}
+                        </div>
+                        {classList && <p className="text-sm text-slate-400 mt-0.5">{classList}</p>}
                       </div>
                       <div className="flex items-center gap-1">
                         <button onClick={e => { e.stopPropagation(); openEdit(s) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
