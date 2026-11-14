@@ -45,6 +45,7 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkDrafts, setBulkDrafts] = useState<Record<string, string>>({})
   const [bulkSaving, setBulkSaving] = useState<string | null>(null)
+  const [commonText, setCommonText] = useState('')   // 전원에게 똑같이 깔 문구
 
   const [busy, setBusy] = useState<string | null>(null)   // 진행 상황 문구
   const captureRef = useRef<HTMLDivElement>(null)
@@ -141,6 +142,20 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
       setData(d => d ? { ...d, students: d.students.map(st => st.id in done ? { ...st, comment: done[st.id] } : st) } : d)
       if (failed > 0) void showAlert(`${targets.length}명 중 ${failed}명은 저장하지 못했어요.\n다시 시도해 주세요.`)
     } finally { setBulkSaving(null) }
+  }
+
+  // 한 문장을 전원 칸에 깔아준다.
+  // onlyEmpty 면 이미 쓴 코멘트는 건드리지 않는다.
+  function applyCommon(onlyEmpty: boolean) {
+    if (!data || !commonText.trim()) return
+    setBulkDrafts(prev => {
+      const next = { ...prev }
+      for (const st of data.students) {
+        if (onlyEmpty && (next[st.id] ?? '').trim()) continue
+        next[st.id] = commonText
+      }
+      return next
+    })
   }
 
   // 일괄 입력 패널을 열 때 저장된 코멘트로 초기값을 채운다
@@ -343,6 +358,25 @@ export default function ReportTab({ academyId, classes }: { academyId: string; c
                 </div>
               </div>
               {bulkSaving && <p className="px-4 py-2 text-xs font-semibold text-blue-600 bg-blue-50">{bulkSaving}</p>}
+
+              {/* 전원에게 같은 문구 깔기 — 매주 비슷한 말을 쓰는 경우가 많다 */}
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 space-y-2">
+                <p className="text-xs font-semibold text-slate-500">모든 학생에게 같은 문구 넣기</p>
+                <textarea value={commonText} onChange={e => setCommonText(e.target.value)}
+                  rows={2} placeholder="예) 이번 주도 성실히 참여했습니다. 다음 주도 잘 부탁드립니다."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-white" />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button onClick={() => applyCommon(false)} disabled={!commonText.trim() || !!bulkSaving}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40">
+                    전원에게 적용
+                  </button>
+                  <button onClick={() => applyCommon(true)} disabled={!commonText.trim() || !!bulkSaving}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40">
+                    빈 칸만 채우기
+                  </button>
+                  <span className="text-xs text-slate-400">적용 후 학생별로 고칠 수 있어요.</span>
+                </div>
+              </div>
               <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto">
                 {data.students.map(st => {
                   const draft = bulkDrafts[st.id] ?? ''
